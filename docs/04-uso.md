@@ -18,13 +18,17 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
    corto y centrado (`Puesto 23` → `23`); el nombre completo queda en el tooltip.
 4. Por equipo: iconos **Editar en GLPI** (abre la ficha en pestaña nueva),
    **Reemplazar (scan)** y **Quitar** (deja `locations_id=0`, pide confirmación).
-   Ficha compacta: `Tipo: Nombre / Mod.: … / Inv.: …`.
+   Ficha compacta: `Tipo: Nombre / Mod.: … / Inv.: …`. **Asignar a persona**:
+   buscador de usuarios GLPI; confirma (el bien **sale del puesto**) y setea
+   `users_id` sin ubicación (ideal notebooks).
 5. **Ocupante**: asignar/cambiar con buscador de usuarios GLPI (confirma
    cantidad de equipos afectados) o quitar (solo limpia sus equipos). La
    ocupación se deriva de `users_id` en GLPI: sin directorio local duplicado.
 6. **Agregar por inventario**: tipear `0000012865`, `12865`, `A 0001-0537` o
    pegar URL de QR GLPI (Enter u OK), o botón 📷 para escanear (modal
    centrado). También vale lector Bluetooth (escribe en el campo como teclado).
+   Si el bien es de otra persona o está en otro puesto, pide confirmación
+   mostrando usuario y ubicación actuales (conserva su usuario al moverlo).
 7. El bien recién agregado **destella en verde 5 s** en la sidebar.
 8. Tras asignar/quitar, la sidebar se recarga desde GLPI.
 9. **Ver en mapa** (desde Búsqueda): cambia de piso si hace falta, centra con
@@ -38,8 +42,11 @@ Modos **Equipos** y **Personas** (requieren login solo para editar, no para ver)
   Ficha: **Tipo, Fabricante, Modelo, Inventario, Serie, Lugar, Usuario** (+ link
   `Ver en mapa →` si tiene ubicación).
 - **Personas**: por nombre, apellido o usuario GLPI. Ficha: identidad, puesto(s)
-  ocupado(s) con `Ver en mapa →`, equipos agrupados por puesto y botón Quitar
-  del puesto (limpia su `users_id` en esos equipos).
+  ocupado(s) con `Ver en mapa →`, equipos agrupados por puesto, grupo
+  **Asignados directos (sin puesto)** y botón Quitar del puesto (limpia su
+  `users_id` en esos equipos). **Asignar equipo a esta persona**: por
+  inventario/serie/URL o scan; confirma (el bien sale de su puesto si tenía) y
+  queda con `users_id` sin ubicación.
 
 ## Calibración de puestos (`/mapa?calibrar=1[&floor=...]`)
 

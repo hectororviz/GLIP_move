@@ -100,7 +100,9 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
     centrado; completo en tooltip): decisión de producto; el vínculo es el `glpi_id`.
 11. **Ocupante derivado de `users_id`** (sin tabla local de personas): GLPI es
     fuente de verdad; asignar persona = setear `users_id` en los equipos del
-    puesto (con confirmación y conteo de afectados).
+    puesto (con confirmación y conteo de afectados). Los equipos personales
+    (notebooks) llevan `users_id` sin ubicación (`locations_id=0`); asignarlos
+    a una persona los saca del puesto.
 12. **Auth por roles con failover local**: GLPI impone derechos finales; la
     clave `.env` garantiza acceso aunque GLPI caiga.
 13. **Un solo scroll de página** (mapa sticky): evita scrollbars interiores que

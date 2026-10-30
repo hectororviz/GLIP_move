@@ -62,6 +62,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [occOpen, setOccOpen] = useState(false);
   const [occQuery, setOccQuery] = useState("");
   const [occResults, setOccResults] = useState<any[]>([]);
+  const [personTarget, setPersonTarget] = useState<Asset | null>(null);
+  const [apq, setApq] = useState("");
+  const [apres, setApres] = useState<any[]>([]);
+  const [apmsg, setApmsg] = useState("");
   const [occByLoc, setOccByLoc] = useState<Record<number, string>>({});
   const [glpiBase, setGlpiBase] = useState<string>("");
   const [authUser, setAuthUser] = useState<{ login: string; name: string; profiles: string[]; canOperate: boolean } | null>(null);
@@ -255,6 +259,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   async function openPuesto(p: Puesto) {
     setSel(p); setMsg("Cargando equipos..."); setScanMode(null);
+    setPersonTarget(null); setApq(""); setApres([]); setApmsg("");
     const r = await fetch(`/api/glpi?location_id=${p.glpi_id}`);
     const j = await r.json();
     if (!r.ok) { setMsg("Error: " + j.error); setItems([]); return; }
@@ -284,6 +289,11 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       const variants = new Set(inventoryVariants(inv).map((v) => v.toUpperCase()));
       found = list.find((it) => variants.has(String(it.otherserial || "").trim().toUpperCase())) || list[0];
       if (!found) { setMsg("No existe ese inventario en GLPI"); return; }
+    }
+    if (found._userId != null && found._locationId !== sel.glpi_id) {
+      const owner = found._userName && found._userName !== "—" ? found._userName : `usuario #${found._userId}`;
+      const fromLoc = found._locationId != null ? nameOf(found._locationId) : "sin puesto";
+      if (!confirm(`Este equipo es de ${owner} (${fromLoc}). ¿Moverlo al puesto ${nameOf(sel.glpi_id)}? Conservará su usuario.`)) return;
     }
     if (opts.replace) {
       await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: opts.replace._type, id: opts.replace.id, location_id: null }) });
@@ -339,6 +349,31 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
     }
     setOccOpen(false); setOccQuery(""); setOccResults([]);
+    openPuesto(sel);
+  }
+
+  async function searchAssetPerson() {
+    if (!apq.trim()) return;
+    setApmsg("Buscando personas...");
+    const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(apq.trim())}`);
+    const j = await r.json();
+    if (!r.ok) { setApmsg("Error: " + j.error); setApres([]); return; }
+    setApres(j.users || []);
+    setApmsg(j.users?.length ? "" : "Sin personas.");
+  }
+
+  async function assignAssetToPerson(a: Asset, u: { id: number; display: string }) {
+    if (!sel) return;
+    if (!confirm(`Asignar ${a._type} ${a.otherserial || a.name} a ${u.display}? Saldrá del puesto ${nameOf(sel.glpi_id)}.`)) return;
+    setMsg("Asignando a persona...");
+    const r = await fetch("/api/glpi", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: a._type, id: a.id, location_id: null, user_id: u.id }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
+    setPersonTarget(null); setApq(""); setApres([]); setApmsg("");
     openPuesto(sel);
   }
 
@@ -735,6 +770,33 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                   <div>Mod.: {disp(a._model)}</div>
                   <div>Inv.: <span className="tabular-nums">{disp(a.otherserial)}</span></div>
                 </div>
+                <button
+                  className="text-xs text-left text-muted underline w-fit"
+                  onClick={() => requireEdit(() => { setPersonTarget(personTarget && personTarget.id === a.id && personTarget._type === a._type ? null : a); setApq(""); setApres([]); setApmsg(""); })}
+                >
+                  Asignar a persona
+                </button>
+                {personTarget && personTarget.id === a.id && personTarget._type === a._type && (
+                  <div className="grid gap-2 border-t pt-2">
+                    <div className="flex gap-2">
+                      <input
+                        className="input flex-1 text-xs"
+                        placeholder="Nombre, apellido o usuario GLPI…"
+                        value={apq}
+                        onChange={(e) => setApq(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && searchAssetPerson()}
+                      />
+                      <button className="btn btn-primary text-xs" onClick={searchAssetPerson}>Buscar</button>
+                    </div>
+                    {apmsg && <p className="text-xs text-muted">{apmsg}</p>}
+                    {apres.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between gap-2 text-xs">
+                        <span>{u.display} <span className="text-muted">#{u.id}</span></span>
+                        <button className="btn btn-secondary text-xs" onClick={() => requireEdit(() => assignAssetToPerson(a, u))}>Asignar</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <p className="text-sm text-slate-500">{msg}</p>
