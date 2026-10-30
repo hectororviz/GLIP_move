@@ -40,6 +40,7 @@ export default function ConfigPage() {
       if (r.ok) {
         setForm((f) => ({ ...f, brandIcon: j.brandIcon }));
         fetch("/api/config").then((x) => x.json()).then((c) => setForm((f) => ({ ...f, brandIcon: c.brandIcon || null }))).catch(() => {});
+        window.dispatchEvent(new Event("brand-icon-changed"));
       }
     } catch (e: any) {
       setIconMsg("Error: " + e.message);
@@ -56,7 +57,7 @@ export default function ConfigPage() {
       const r = await fetch("/api/brand/icon", { method: "DELETE" });
       const j = await r.json();
       setIconMsg(r.ok ? "Logo quitado." : "Error: " + j.error);
-      if (r.ok) setForm((f) => ({ ...f, brandIcon: null }));
+      if (r.ok) { setForm((f) => ({ ...f, brandIcon: null })); window.dispatchEvent(new Event("brand-icon-changed")); }
     } catch (e: any) {
       setIconMsg("Error: " + e.message);
     } finally {

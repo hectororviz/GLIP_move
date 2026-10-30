@@ -11,10 +11,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/config")
-      .then((r) => r.json())
-      .then((j) => setCfg({ appName: j.appName || "GLPI Move", accentColor: j.accentColor || "#0b5ed7" }))
-      .catch(() => {});
+    let alive = true;
+    const load = () => {
+      fetch("/api/config", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => { if (alive) setCfg({ appName: j.appName || "GLPI Move", accentColor: j.accentColor || "#0b5ed7", brandIcon: j.brandIcon || null }); })
+        .catch(() => {});
+    };
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("brand-icon-changed", load as EventListener);
+    return () => { alive = false; window.removeEventListener("focus", onFocus); window.removeEventListener("brand-icon-changed", load as EventListener); };
   }, []);
 
   useEffect(() => {

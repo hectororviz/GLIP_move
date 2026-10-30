@@ -27,7 +27,7 @@ export async function GET() {
     const ext = path.extname(cfg.brandIcon).toLowerCase();
     const type = ext === ".svg" ? "image/svg+xml" : ext === ".webp" ? "image/webp" : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/png";
     return new NextResponse(new Uint8Array(data), {
-      headers: { "Content-Type": type, "Cache-Control": "public, max-age=300" },
+      headers: { "Content-Type": type, "Cache-Control": "no-store" },
     });
   } catch {
     return new NextResponse(null, { status: 404 });
