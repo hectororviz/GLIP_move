@@ -11,6 +11,7 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
   const [status, setStatus] = useState<Status>("checking");
   const [detail, setDetail] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [diag, setDiag] = useState({ secure: false, api: false });
 
   useEffect(() => {
     cbRef.current = onResult;
@@ -26,17 +27,17 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
       setStatus("checking");
       setDetail("");
       if (typeof window === "undefined") return;
-      if (!window.isSecureContext) {
+      const secure = window.isSecureContext;
+      const hasApi = !!navigator.mediaDevices?.getUserMedia;
+      if (!cancelled) setDiag({ secure, api: hasApi });
+      if (!hasApi) {
         if (!cancelled) {
           setStatus("unsupported");
-          setDetail("Estás accediendo por HTTP. Los navegadores bloquean la cámara en conexiones no seguras.");
-        }
-        return;
-      }
-      if (!navigator.mediaDevices?.getUserMedia) {
-        if (!cancelled) {
-          setStatus("unsupported");
-          setDetail("Este navegador no expone la cámara en esta conexión.");
+          setDetail(
+            secure
+              ? "Este navegador no expone la cámara en esta conexión."
+              : "Estás accediendo por HTTP. Los navegadores bloquean la cámara en conexiones no seguras."
+          );
         }
         return;
       }
@@ -75,8 +76,10 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
       }
     }
 
-    start();
+    // El <video> se renderiza siempre (oculto hasta "ready") para que la ref exista al iniciar.
+    const t = setTimeout(start, 0);
     return () => {
+      clearTimeout(t);
       cancelled = true;
       done = true;
       try { controls?.stop(); } catch {}
@@ -87,36 +90,35 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
     };
   }, [attempt]);
 
-  if (status === "checking") {
-    return <div className="card p-3 text-sm text-muted">Preparando cámara…</div>;
-  }
-
-  if (status === "ready") {
-    return (
-      <div className="card overflow-hidden">
-        <div className="relative bg-black">
-          <video ref={videoRef} className="w-full max-h-72 object-cover" muted playsInline autoPlay />
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className="h-24 w-56 rounded-lg border-2 border-white/80" />
-          </div>
-        </div>
-        <p className="text-xs text-muted p-2">Apunta al Code128 dentro del recuadro. También puedes usar lector Bluetooth o el input manual.</p>
-      </div>
-    );
-  }
+  const diagLine = `Diagnóstico · contexto seguro: ${diag.secure ? "sí" : "no"} · API cámara: ${diag.api ? "sí" : "no"}`;
 
   return (
-    <div className="card p-4 grid gap-2 text-sm border-amber-200 bg-amber-50/60">
-      <b className="text-ink">
-        {status === "unsupported" ? "Cámara no disponible en esta conexión" : status === "denied" ? "Permiso de cámara denegado" : "No se pudo iniciar la cámara"}
-      </b>
-      {detail && <p className="text-muted text-xs">{detail}</p>}
-      <p className="text-muted text-xs">
-        Usa el campo manual o un lector Bluetooth. La cámara del teléfono funciona si la app se sirve por HTTPS.
-      </p>
-      <div>
-        <button className="btn btn-secondary text-xs" onClick={() => setAttempt((n) => n + 1)}>Reintentar cámara</button>
+    <div className="card overflow-hidden">
+      <div className={`relative bg-black ${status === "ready" ? "" : "hidden"}`}>
+        <video ref={videoRef} className="w-full max-h-72 object-cover" muted playsInline autoPlay />
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="h-24 w-56 rounded-lg border-2 border-white/80" />
+        </div>
       </div>
+      {status === "checking" && <p className="text-sm text-muted p-3">Preparando cámara…</p>}
+      {status === "ready" && (
+        <p className="text-xs text-muted p-2">Apunta al Code128 dentro del recuadro. También puedes usar lector Bluetooth o el input manual.</p>
+      )}
+      {(status === "unsupported" || status === "denied" || status === "error") && (
+        <div className="p-4 grid gap-2 text-sm border-amber-200 bg-amber-50/60">
+          <b className="text-ink">
+            {status === "unsupported" ? "Cámara no disponible en esta conexión" : status === "denied" ? "Permiso de cámara denegado" : "No se pudo iniciar la cámara"}
+          </b>
+          {detail && <p className="text-muted text-xs">{detail}</p>}
+          <p className="text-muted text-xs">
+            Usa el campo manual o un lector Bluetooth. La cámara del teléfono funciona si la app se sirve por HTTPS.
+          </p>
+          <div>
+            <button className="btn btn-secondary text-xs" onClick={() => setAttempt((n) => n + 1)}>Reintentar cámara</button>
+          </div>
+        </div>
+      )}
+      <p className="text-[11px] text-muted px-3 py-1 border-t border-line">{diagLine}</p>
     </div>
   );
 }
