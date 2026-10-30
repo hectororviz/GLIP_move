@@ -166,21 +166,24 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     const img = boxRef.current?.querySelector("img") as HTMLImageElement | null;
     const imgReady = !!img && img.complete && (img.naturalWidth || 0) > 0;
     const inFloor = !!floor && (floor.puestos || []).some((p) => p.glpi_id === glpiId);
+    console.log("center attempt", attempt, { hasEl: !!el, hasTransform: !!transformRef.current, inFloor, imgReady, imgW: img?.naturalWidth });
     if (el && transformRef.current && inFloor && imgReady) {
       try {
         transformRef.current.zoomToElement(el, 2.4, 600);
-        pendingFocus.current = null;
+        console.log("zoomToElement called");
       } catch (e) {
         console.warn("zoomToElement fallo", e);
+        try { transformRef.current.centerView(2.4, 600); console.log("centerView fallback"); } catch (e2) { console.warn("centerView fallo", e2); }
       }
+      pendingFocus.current = null;
       return;
     }
-    if (attempt < 10) {
+    if (attempt < 15) {
       setTimeout(() => centerWithRetry(glpiId, attempt + 1), 300);
     } else {
       pendingFocus.current = null;
       if (!inFloor) setMsg(`El puesto ${nameOf(glpiId)} no está dibujado en ningún plano.`);
-      else console.warn("No se pudo centrar el puesto", glpiId);
+      else console.warn("No se pudo centrar el puesto", glpiId, { hasEl: !!el, hasTransform: !!transformRef.current, inFloor, imgReady });
     }
   }
 
