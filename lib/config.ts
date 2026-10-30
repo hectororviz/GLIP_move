@@ -10,6 +10,7 @@ export type AppConfig = {
   rootLocationId: number | null;
   appName: string;
   accentColor: string;
+  brandIcon: string | null;
 };
 
 const CONFIG_KEY = process.env.CONFIG_KEY || "dev-key-cambia-esto-32-chars-minimo!";
@@ -70,6 +71,7 @@ export async function loadConfig(): Promise<AppConfig> {
       rootLocationId: j.rootLocationId ?? null,
       appName: (j.appName || "GLPI Move").toString().slice(0, 40),
       accentColor: /^#[0-9a-fA-F]{6}$/.test(j.accentColor || "") ? j.accentColor : "#0b5ed7",
+      brandIcon: typeof j.brandIcon === "string" && j.brandIcon ? j.brandIcon : null,
     };
   } catch {
     return {
@@ -80,6 +82,7 @@ export async function loadConfig(): Promise<AppConfig> {
       rootLocationId: null,
       appName: "GLPI Move",
       accentColor: "#0b5ed7",
+      brandIcon: null,
     };
   }
 }
@@ -98,5 +101,6 @@ export function publicConfig(c: AppConfig) {
     rootLocationId: c.rootLocationId,
     appName: c.appName,
     accentColor: c.accentColor,
+    brandIcon: c.brandIcon,
   };
 }

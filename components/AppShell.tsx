@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type PubConfig = { appName?: string; accentColor?: string };
+type PubConfig = { appName?: string; accentColor?: string; brandIcon?: string | null };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [cfg, setCfg] = useState<PubConfig>({ appName: "GLPI Move", accentColor: "#0b5ed7" });
+  const [cfg, setCfg] = useState<PubConfig>({ appName: "GLPI Move", accentColor: "#0b5ed7", brandIcon: null });
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -24,6 +24,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     document.documentElement.style.setProperty("--accent-700", accent);
     document.documentElement.style.setProperty("--accent-soft", accent + "1a");
     document.title = cfg.appName || "GLPI Move";
+    // favicon dinámico
+    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+    if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+    if (cfg.brandIcon) link.href = "/api/brand/icon";
+    else link.href = "/favicon.ico";
   }, [cfg]);
 
   useEffect(() => {
@@ -42,7 +47,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <header className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-b border-line">
         <div className="max-w-[1500px] mx-auto px-4 h-14 flex items-center gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-bold" style={{ background: "var(--accent)" }}>
+            {cfg.brandIcon ? (
+              <img
+                src="/api/brand/icon"
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; const fb = e.currentTarget.nextElementSibling as HTMLElement | null; if (fb) fb.style.display = "flex"; }}
+              />
+            ) : null}
+            <span
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-bold"
+              style={{ background: "var(--accent)", display: cfg.brandIcon ? "none" : "flex" }}
+            >
               {(cfg.appName || "GLPI Move").slice(0, 1).toUpperCase()}
             </span>
             <div className="leading-tight min-w-0">

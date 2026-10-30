@@ -30,6 +30,7 @@ export async function PUT(req: NextRequest) {
       body.rootLocationId === "" || body.rootLocationId == null ? null : Number(body.rootLocationId),
     appName: typeof body.appName === "string" ? body.appName.trim().slice(0, 40) || current.appName : current.appName,
     accentColor: accent,
+    brandIcon: typeof body.brandIcon === "string" ? (body.brandIcon.trim() || null) : current.brandIcon,
   });
   return NextResponse.json({ ok: true });
 }

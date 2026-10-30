@@ -5,7 +5,7 @@ import AppShell from "@/components/AppShell";
 export const metadata: Metadata = {
   title: "GLPI Move — Control de puestos",
   description: "Registro y consulta de bienes GLPI con mapa de puestos",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "GLPI Move" },
 };
 

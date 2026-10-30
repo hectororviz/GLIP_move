@@ -13,7 +13,7 @@ type Floor = {
 const ACCENTS = ["#0b5ed7", "#0f766e", "#7c3aed", "#b45309", "#b91c1c", "#1d4ed8", "#0891b2", "#4f46e5"];
 
 export default function ConfigPage() {
-  const [form, setForm] = useState({ glpiBaseUrl: "", appToken: "", userToken: "", keepUserOnMove: true, appName: "GLPI Move", accentColor: "#0b5ed7" });
+  const [form, setForm] = useState({ glpiBaseUrl: "", appToken: "", userToken: "", keepUserOnMove: true, appName: "GLPI Move", accentColor: "#0b5ed7", brandIcon: null as string | null });
   const [sets, setSets] = useState({ appTokenSet: false, userTokenSet: false });
   const [pass, setPass] = useState("");
   const [authed, setAuthed] = useState(false);
@@ -25,6 +25,44 @@ export default function ConfigPage() {
   const [tab, setTab] = useState<"conn" | "floors" | "look" | "adv">("conn");
   const [backupMsg, setBackupMsg] = useState("");
   const [backupBusy, setBackupBusy] = useState(false);
+  const [iconMsg, setIconMsg] = useState("");
+  const [iconBusy, setIconBusy] = useState(false);
+
+  async function uploadIcon(file: File) {
+    setIconMsg("Subiendo logo...");
+    setIconBusy(true);
+    const fd = new FormData();
+    fd.set("file", file);
+    try {
+      const r = await fetch("/api/brand/icon", { method: "POST", body: fd });
+      const j = await r.json();
+      setIconMsg(r.ok ? "Logo guardado." : "Error: " + j.error);
+      if (r.ok) {
+        setForm((f) => ({ ...f, brandIcon: j.brandIcon }));
+        fetch("/api/config").then((x) => x.json()).then((c) => setForm((f) => ({ ...f, brandIcon: c.brandIcon || null }))).catch(() => {});
+      }
+    } catch (e: any) {
+      setIconMsg("Error: " + e.message);
+    } finally {
+      setIconBusy(false);
+    }
+  }
+
+  async function removeIcon() {
+    if (!confirm("Quitar el logo de la herramienta?")) return;
+    setIconMsg("Quitando logo...");
+    setIconBusy(true);
+    try {
+      const r = await fetch("/api/brand/icon", { method: "DELETE" });
+      const j = await r.json();
+      setIconMsg(r.ok ? "Logo quitado." : "Error: " + j.error);
+      if (r.ok) setForm((f) => ({ ...f, brandIcon: null }));
+    } catch (e: any) {
+      setIconMsg("Error: " + e.message);
+    } finally {
+      setIconBusy(false);
+    }
+  }
 
   async function exportBackup() {
     setBackupMsg("Generando respaldo...");
@@ -82,6 +120,7 @@ export default function ConfigPage() {
         keepUserOnMove: j.keepUserOnMove ?? true,
         appName: j.appName || "GLPI Move",
         accentColor: j.accentColor || "#0b5ed7",
+        brandIcon: j.brandIcon || null,
       }));
       setSets({ appTokenSet: !!j.appTokenSet, userTokenSet: !!j.userTokenSet });
     }).catch(() => {});
@@ -119,7 +158,7 @@ export default function ConfigPage() {
       setForm((f) => ({ ...f, appToken: "", userToken: "" }));
       fetch("/api/config").then((x) => x.json()).then((c) => {
         setSets({ appTokenSet: !!c.appTokenSet, userTokenSet: !!c.userTokenSet });
-        setForm((f) => ({ ...f, glpiBaseUrl: c.glpiBaseUrl || f.glpiBaseUrl, appName: c.appName || f.appName, accentColor: c.accentColor || f.accentColor }));
+        setForm((f) => ({ ...f, glpiBaseUrl: c.glpiBaseUrl || f.glpiBaseUrl, appName: c.appName || f.appName, accentColor: c.accentColor || f.accentColor, brandIcon: c.brandIcon ?? f.brandIcon }));
       }).catch(() => {});
     }
   }
@@ -301,6 +340,27 @@ export default function ConfigPage() {
               <span className="badge badge-brand" style={{ background: form.accentColor + "1a", color: form.accentColor }}>Insignia</span>
               <a className="text-sm underline" style={{ color: form.accentColor }} href="#">Enlace</a>
             </div>
+          </div>
+          <div className="grid gap-2">
+            <span className="text-sm font-medium">Logo de la herramienta (PNG/JPG/WebP/SVG, máx. 2 MB)</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              {form.brandIcon ? (
+                <img src="/api/brand/icon" alt="Logo" className="h-12 w-12 rounded-xl object-contain border border-line bg-white" />
+              ) : (
+                <div className="h-12 w-12 rounded-xl grid place-items-center text-white font-bold" style={{ background: "var(--accent)" }}>
+                  {(form.appName || "GLPI Move").slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <label className={`btn btn-secondary text-xs cursor-pointer ${!authed || iconBusy ? "opacity-40 pointer-events-none" : ""}`}>
+                {iconBusy ? "Subiendo..." : form.brandIcon ? "Reemplazar logo" : "Subir logo"}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" disabled={!authed || iconBusy}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadIcon(f); e.target.value = ""; }} />
+              </label>
+              {form.brandIcon && (
+                <button onClick={removeIcon} disabled={!authed || iconBusy} className="btn btn-danger text-xs">Quitar logo</button>
+              )}
+            </div>
+            {iconMsg && <p className="text-sm text-muted">{iconMsg}</p>}
           </div>
           <div className="flex gap-2">
             <button onClick={save} disabled={!authed} className="btn btn-primary">Guardar apariencia</button>
