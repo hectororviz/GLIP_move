@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import ScanModal from "./ScanModal";
+import LoginModal from "./LoginModal";
 import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants, editFormOf } from "@/lib/inventory";
 
@@ -60,6 +61,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [occResults, setOccResults] = useState<any[]>([]);
   const [occByLoc, setOccByLoc] = useState<Record<number, string>>({});
   const [glpiBase, setGlpiBase] = useState<string>("");
+  const [authUser, setAuthUser] = useState<{ login: string; name: string; profiles: string[]; canOperate: boolean } | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -100,7 +104,14 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   useEffect(() => {
     fetch("/api/config").then((r) => r.json()).then((j) => setGlpiBase((j.glpiBaseUrl || "").replace(/\/$/, ""))).catch(() => {});
+    fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); }).catch(() => {});
   }, []);
+
+  const requireEdit = (action: () => void) => {
+    if (authUser?.canOperate) { action(); return; }
+    pendingAction.current = action;
+    setAuthOpen(true);
+  };
 
   const floor = floors.find((f) => f.id === floorId) || floors[0] || null;
   const puestos: Puesto[] = calibrar && floor ? draft : floor?.puestos || [];
@@ -210,8 +221,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   async function unassign(a: Asset) {
     if (!confirm(`Quitar ${a._type} ${a.otherserial || a.name} del puesto? Quedará sin ubicación.`)) return;
     const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, location_id: null }) });
-    setMsg(r.ok ? "Quitado (sin ubicación)" : "Error al quitar");
-    if (sel) openPuesto(sel);
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? "Quitado (sin ubicación)" : `Error: ${j.error || r.status}`);
+    if (r.ok && sel) openPuesto(sel);
   }
 
   const occupants = useMemo(() => {
@@ -240,11 +252,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (!confirm(`Asignar a ${u.display} como ocupante de ${nameOf(sel.glpi_id)}? Se actualizará el usuario en ${items.length} equipo(s).`)) return;
     setMsg("Asignando ocupante...");
     for (const a of items) {
-      await fetch("/api/glpi", {
+      const r = await fetch("/api/glpi", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: a._type, id: a.id, location_id: sel.glpi_id, user_id: u.id }),
       });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
     }
     setOccOpen(false); setOccQuery(""); setOccResults([]);
     openPuesto(sel);
@@ -257,11 +271,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (!confirm(`Quitar a ${name} del puesto? Se quitará como usuario de ${mine.length} equipo(s).`)) return;
     setMsg("Quitando ocupante...");
     for (const a of mine) {
-      await fetch("/api/glpi", {
+      const r = await fetch("/api/glpi", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: a._type, id: a.id, location_id: sel.glpi_id, user_id: null }),
       });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
     }
     openPuesto(sel);
   }
@@ -480,6 +496,16 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       </div>
 
       <aside className="card p-4 grid gap-3 min-w-0 overflow-x-hidden">
+        <div className="flex items-center justify-between gap-2 text-sm">
+          {authUser ? (
+            <>
+              <span className="text-muted truncate">{authUser.name} <span className="text-xs">({authUser.canOperate ? "editor" : "lectura"})</span></span>
+              <button className="btn btn-secondary text-xs" onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); setAuthUser(null); }}>Salir</button>
+            </>
+          ) : (
+            <button className="btn btn-primary text-xs" onClick={() => setAuthOpen(true)}>Iniciar sesión para editar</button>
+          )}
+        </div>
         <details>
           <summary className="text-sm font-bold cursor-pointer">Lugares (árbol GLPI)</summary>
           <div className="mt-2">
@@ -523,7 +549,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                         title="Quitar ocupante"
                         aria-label={`Quitar ocupante ${o.name}`}
                         className="btn btn-danger btn-icon-sm"
-                        onClick={() => removeOccupant(o.id, o.name)}
+                        onClick={() => requireEdit(() => removeOccupant(o.id, o.name))}
                       >
                         <TrashIcon size={13} />
                       </button>
@@ -548,7 +574,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                   {occResults.map((u) => (
                     <div key={u.id} className="flex items-center justify-between gap-2 text-sm">
                       <span>{u.display} <span className="text-xs text-muted">#{u.id}</span></span>
-                      <button className="btn btn-secondary text-xs" onClick={() => assignOccupant(u)}>Asignar</button>
+                      <button className="btn btn-secondary text-xs" onClick={() => requireEdit(() => assignOccupant(u))}>Asignar</button>
                     </div>
                   ))}
                 </div>
@@ -574,7 +600,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     <button
                       title="Reemplazar equipo"
                       aria-label={`Reemplazar ${a._type} ${disp(a.otherserial)}`}
-                      onClick={() => { setReplaceTarget(a); setScanMode("replace"); }}
+                      onClick={() => requireEdit(() => { setReplaceTarget(a); setScanMode("replace"); })}
                       className="btn btn-secondary btn-icon"
                     >
                       <RefreshIcon />
@@ -582,7 +608,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     <button
                       title="Quitar equipo del puesto"
                       aria-label={`Quitar ${a._type} ${disp(a.otherserial)}`}
-                      onClick={() => unassign(a)}
+                      onClick={() => requireEdit(() => unassign(a))}
                       className="btn btn-danger btn-icon"
                     >
                       <TrashIcon />
@@ -599,9 +625,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             <div className="grid gap-2 border-t pt-2">
               <div className="text-sm font-semibold">Agregar por inventario</div>
               <div className="flex gap-2">
-                <input className="border rounded p-2 flex-1 text-sm" placeholder="0000012865, 12865 o A 0001-0537" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {})} />
-                <button onClick={() => manualInv && assignInventory(manualInv)} className="btn btn-primary text-xs">OK</button>
-                <button onClick={() => setScanMode(scanMode ? null : "add")} className="btn btn-secondary text-xs">📷</button>
+                <input className="border rounded p-2 flex-1 text-sm" placeholder="0000012865, 12865 o A 0001-0537" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && requireEdit(() => assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {}))} />
+                <button onClick={() => manualInv && requireEdit(() => assignInventory(manualInv))} className="btn btn-primary text-xs">OK</button>
+                <button onClick={() => scanMode ? setScanMode(null) : requireEdit(() => setScanMode("add"))} className="btn btn-secondary text-xs">📷</button>
               </div>
             </div>
             {scanMode && (
@@ -638,6 +664,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             </div>
           </div>
         </>
+      )}
+      {authOpen && (
+        <LoginModal
+          open={authOpen}
+          onClose={() => { setAuthOpen(false); pendingAction.current = null; }}
+          onSuccess={(u) => { setAuthUser(u); const a = pendingAction.current; pendingAction.current = null; if (a) a(); }}
+        />
       )}
      </div>
    );

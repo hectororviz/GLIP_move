@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { glpiFetch, enrich, ASSET_TYPES } from "@/lib/glpi";
 import { inventoryVariants } from "@/lib/inventory";
+import { getAuth, isOperator } from "@/lib/auth";
 
 function params(o: Record<string, string>): string {
   return new URLSearchParams(o).toString();
@@ -104,6 +105,10 @@ export async function GET(req: NextRequest) {
 // GLPI legacy: PUT /{Type}/{id} {"input": {"locations_id": X}}
 // Sin ubicación => locations_id: 0. users_id no se toca salvo user_id explícito.
 export async function PATCH(req: NextRequest) {
+  const auth = getAuth(req);
+  if (auth.kind === "none") return NextResponse.json({ error: "Inicia sesión para editar." }, { status: 401 });
+  if (auth.kind === "user" && !isOperator(req)) return NextResponse.json({ error: "Tu perfil no tiene permiso de edición." }, { status: 403 });
+  const sessionToken = auth.kind === "user" && auth.session ? auth.session.glpiToken : null;
   try {
     const b = await req.json();
     const { type, id, location_id, user_id } = b;
@@ -115,9 +120,11 @@ export async function PATCH(req: NextRequest) {
     const r = await glpiFetch(`/${type}/${id}?session_write=true`, {
       method: "PUT",
       body: JSON.stringify({ input }),
-    });
+    }, true, sessionToken);
     return NextResponse.json({ ok: true, result: r });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 502 });
+    const msg = String(e.message || "");
+    const status = /no right|RIGHT/i.test(msg) ? 403 : 502;
+    return NextResponse.json({ error: msg }, { status });
   }
 }

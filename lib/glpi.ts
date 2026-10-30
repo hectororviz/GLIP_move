@@ -46,9 +46,10 @@ function isSessionError(j: any): boolean {
   return Array.isArray(j) && j.some((x) => String(x).includes("SESSION_TOKEN"));
 }
 
-export async function glpiFetch(p: string, init: RequestInit = {}, retry = true): Promise<any> {
+export async function glpiFetch(p: string, init: RequestInit = {}, retry = true, sessionToken: string | null = null): Promise<any> {
   const cfg = await loadConfig();
-  const token = await getSession();
+  // sesión de servicio (user_token) por defecto; si se pasa sessionToken, úsalo tal cual
+  const token = sessionToken || await getSession();
   const r = await fetch(`${apiBase(cfg.glpiBaseUrl)}${p}`, {
     ...init,
     headers: {
@@ -66,6 +67,7 @@ export async function glpiFetch(p: string, init: RequestInit = {}, retry = true)
     j = null;
   }
   if (r.status === 401 || isSessionError(j)) {
+    if (sessionToken) throw new Error("Sesión GLPI inválida.");
     if (!retry) throw new Error("Sesión GLPI inválida y el re-login falló.");
     session = null;
     await initSession();
