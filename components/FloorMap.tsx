@@ -72,6 +72,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transformRef = useRef<any>(null);
   const puestoRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const pendingFocus = useRef<number | null>(null);
 
   const flashHighlight = (key: string) => {
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
@@ -155,13 +156,32 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   async function focusPuesto(glpiId: number) {
     setFlashId(glpiId);
-    await openById(glpiId);
-    setTimeout(() => {
-      const el = puestoRefs.current.get(glpiId);
-      if (el && transformRef.current) {
-        try { transformRef.current.zoomToElement(el, 2.4, 600); } catch {}
+    pendingFocus.current = glpiId;
+    openById(glpiId);
+    centerWithRetry(glpiId);
+  }
+
+  function centerWithRetry(glpiId: number, attempt = 0) {
+    const el = puestoRefs.current.get(glpiId);
+    const img = boxRef.current?.querySelector("img") as HTMLImageElement | null;
+    const imgReady = !!img && img.complete && (img.naturalWidth || 0) > 0;
+    const inFloor = !!floor && (floor.puestos || []).some((p) => p.glpi_id === glpiId);
+    if (el && transformRef.current && inFloor && imgReady) {
+      try {
+        transformRef.current.zoomToElement(el, 2.4, 600);
+        pendingFocus.current = null;
+      } catch (e) {
+        console.warn("zoomToElement fallo", e);
       }
-    }, 350);
+      return;
+    }
+    if (attempt < 10) {
+      setTimeout(() => centerWithRetry(glpiId, attempt + 1), 300);
+    } else {
+      pendingFocus.current = null;
+      if (!inFloor) setMsg(`El puesto ${nameOf(glpiId)} no está dibujado en ningún plano.`);
+      else console.warn("No se pudo centrar el puesto", glpiId);
+    }
   }
 
   function floorOf(glpiId: number): Floor | undefined {
@@ -438,7 +458,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     }}
                     style={{ touchAction: panDisabled ? "none" : undefined, cursor: calibrar && tool === "draw" ? "crosshair" : undefined }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[60vh]" draggable={false} />
+                <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[60vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, 0); }} />
                 {puestos.map((p) => (
                   <div key={p.glpi_id} data-puesto ref={(el) => { if (el) puestoRefs.current.set(p.glpi_id, el); else puestoRefs.current.delete(p.glpi_id); }}
                     onClick={() => { if (!calibrar) { setFlashId(p.glpi_id); openPuesto(p); } }}
