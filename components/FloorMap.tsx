@@ -72,6 +72,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transformRef = useRef<any>(null);
   const puestoRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const focusEpoch = useRef(0);
+  const floorsRef = useRef(floors);
+  const floorIdRef = useRef(floorId);
+  const floorRef = useRef<Floor | null>(null);
   const pendingFocus = useRef<number | null>(null);
 
   const flashHighlight = (key: string) => {
@@ -122,6 +126,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   };
 
   const floor = floors.find((f) => f.id === floorId) || floors[0] || null;
+  floorsRef.current = floors;
+  floorIdRef.current = floorId;
+  floorRef.current = floor;
   const puestos: Puesto[] = calibrar && floor ? draft : floor?.puestos || [];
   const children = useMemo(
     () => (floor?.glpiLocationId != null ? childrenOf.get(floor.glpiLocationId) || [] : []),
@@ -157,33 +164,61 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   async function focusPuesto(glpiId: number) {
     setFlashId(glpiId);
     pendingFocus.current = glpiId;
+    const epoch = ++focusEpoch.current;
     openById(glpiId);
-    centerWithRetry(glpiId);
+    centerWithRetry(glpiId, epoch, 0);
   }
 
-  function centerWithRetry(glpiId: number, attempt = 0) {
+  function centerWithRetry(glpiId: number, epoch: number, attempt = 0) {
+    if (epoch !== focusEpoch.current) return; // cadena obsoleta
     const el = puestoRefs.current.get(glpiId);
     const img = boxRef.current?.querySelector("img") as HTMLImageElement | null;
     const imgReady = !!img && img.complete && (img.naturalWidth || 0) > 0;
-    const inFloor = !!floor && (floor.puestos || []).some((p) => p.glpi_id === glpiId);
-    console.log("center attempt", attempt, { hasEl: !!el, hasTransform: !!transformRef.current, inFloor, imgReady, imgW: img?.naturalWidth });
-    if (el && transformRef.current && inFloor && imgReady) {
+    const f = floorsRef.current.find((x) => (x.puestos || []).some((p) => p.glpi_id === glpiId));
+    const inFloor = !!f;
+    const floorReady = !!floorRef.current && f != null && floorRef.current.id === f.id;
+    if (el && transformRef.current && inFloor && imgReady && floorReady) {
+      const before = { s: transformRef.current.state?.scale, x: transformRef.current.state?.positionX, y: transformRef.current.state?.positionY };
       try {
         transformRef.current.zoomToElement(el, 2.4, 600);
-        console.log("zoomToElement called");
       } catch (e) {
         console.warn("zoomToElement fallo", e);
-        try { transformRef.current.centerView(2.4, 600); console.log("centerView fallback"); } catch (e2) { console.warn("centerView fallo", e2); }
       }
+      setTimeout(() => {
+        if (epoch !== focusEpoch.current) return;
+        const after = transformRef.current?.state;
+        const moved = !after || after.scale !== before.s || after.positionX !== before.x || after.positionY !== before.y;
+        if (!moved) {
+          // fallback manual con setTransform
+          try {
+            const wrapper = transformRef.current.wrapperComponent as HTMLElement | null;
+            const content = transformRef.current.contentComponent as HTMLElement | null;
+            if (wrapper && content && el) {
+              const wRect = wrapper.getBoundingClientRect();
+              const scale = 2.4;
+              const cx = el.offsetLeft + el.offsetWidth / 2;
+              const cy = el.offsetTop + el.offsetHeight / 2;
+              const x = wRect.width / 2 - cx * scale;
+              const y = wRect.height / 2 - cy * scale;
+              transformRef.current.setTransform(x, y, scale, 600);
+              console.log("setTransform fallback", { x, y, scale });
+            } else {
+              transformRef.current.centerView(2.4, 600);
+            }
+          } catch (e2) {
+            console.warn("fallback fallo", e2);
+          }
+        }
+      }, 750);
       pendingFocus.current = null;
       return;
     }
-    if (attempt < 15) {
-      setTimeout(() => centerWithRetry(glpiId, attempt + 1), 300);
+    if (attempt < 20) {
+      setTimeout(() => centerWithRetry(glpiId, epoch, attempt + 1), 300);
     } else {
       pendingFocus.current = null;
       if (!inFloor) setMsg(`El puesto ${nameOf(glpiId)} no está dibujado en ningún plano.`);
-      else console.warn("No se pudo centrar el puesto", glpiId, { hasEl: !!el, hasTransform: !!transformRef.current, inFloor, imgReady });
+      else console.warn("No se pudo centrar el puesto", glpiId, { hasEl: !!el, hasTransform: !!transformRef.current, inFloor, imgReady, floorReady });
     }
   }
 
@@ -461,7 +496,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     }}
                     style={{ touchAction: panDisabled ? "none" : undefined, cursor: calibrar && tool === "draw" ? "crosshair" : undefined }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[60vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, 0); }} />
+                <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[60vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, focusEpoch.current, 0); }} />
                 {puestos.map((p) => (
                   <div key={p.glpi_id} data-puesto ref={(el) => { if (el) puestoRefs.current.set(p.glpi_id, el); else puestoRefs.current.delete(p.glpi_id); }}
                     onClick={() => { if (!calibrar) { setFlashId(p.glpi_id); openPuesto(p); } }}

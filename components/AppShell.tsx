@@ -36,7 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
     if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
     if (cfg.brandIcon) link.href = "/api/brand/icon";
-    else link.href = "/favicon.ico";
+    else link.href = "/icon.png";
   }, [cfg]);
 
   useEffect(() => {
