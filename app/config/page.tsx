@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ParentPicker, useLocations } from "@/components/Places";
-import LoginModal from "@/components/LoginModal";
+import AuthModal from "@/components/AuthModal";
 
 type Floor = {
   id: string;
@@ -16,9 +16,7 @@ const ACCENTS = ["#0b5ed7", "#0f766e", "#7c3aed", "#b45309", "#b91c1c", "#1d4ed8
 export default function ConfigPage() {
   const [form, setForm] = useState({ glpiBaseUrl: "", appToken: "", userToken: "", keepUserOnMove: true, appName: "GLPI Move", accentColor: "#0b5ed7", brandIcon: null as string | null });
   const [sets, setSets] = useState({ appTokenSet: false, userTokenSet: false });
-  const [pass, setPass] = useState("");
   const [adminAuthed, setAdminAuthed] = useState(false);
-  const [glpiOpen, setGlpiOpen] = useState(false);
   const [msg, setMsg] = useState("");
   const [testRes, setTestRes] = useState("");
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -107,7 +105,6 @@ export default function ConfigPage() {
       setBackupBusy(false);
     }
   }
-  const [loginOpen, setLoginOpen] = useState(true);
   const { childrenOf } = useLocations();
 
   async function refreshFloors() {
@@ -128,22 +125,10 @@ export default function ConfigPage() {
       setSets({ appTokenSet: !!j.appTokenSet, userTokenSet: !!j.userTokenSet });
     }).catch(() => {});
     refreshFloors();
-    fetch("/api/admin/check").then((r) => r.json()).then((j) => {
-      setAdminAuthed(!!j.admin);
-      if (!j.admin) setLoginOpen(true);
-    }).catch(() => setLoginOpen(true));
+    fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    setLoginOpen(!adminAuthed);
-  }, [adminAuthed]);
 
-  async function login() {
-    const r = await fetch("/api/config/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass }) });
-    setAdminAuthed(r.ok);
-    setMsg(r.ok ? "Sesión admin iniciada" : "");
-    if (r.ok) { setLoginOpen(false); refreshFloors(); }
-  }
 
   async function save() {
     setMsg("Guardando...");
@@ -227,7 +212,7 @@ export default function ConfigPage() {
         {adminAuthed ? (
           <span className="badge badge-success">Sesión admin activa</span>
         ) : (
-          <button onClick={() => setLoginOpen(true)} className="btn btn-primary text-xs">Iniciar sesión admin</button>
+          <span className="text-sm text-muted">Sin sesión admin</span>
         )}
         {msg && <span className="text-sm text-muted">{msg}</span>}
       </div>
@@ -401,29 +386,8 @@ export default function ConfigPage() {
         </section>
       )}
 
-      {!adminAuthed && (loginOpen || glpiOpen) && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-          <div className="card p-5 w-full max-w-sm grid gap-3">
-            <h2 className="font-bold text-lg">Acceso administrador</h2>
-            <p className="text-sm text-muted">Elige una vía de acceso (clave local o usuario GLPI con perfil admin).</p>
-            <div className="flex gap-2">
-              <button onClick={() => { setLoginOpen(true); setGlpiOpen(false); }} className={`btn ${loginOpen ? "btn-primary" : "btn-secondary"} text-xs flex-1`}>Clave local</button>
-              <button onClick={() => { setGlpiOpen(true); setLoginOpen(false); }} className={`btn ${glpiOpen ? "btn-primary" : "btn-secondary"} text-xs flex-1`}>Usuario GLPI</button>
-            </div>
-            {loginOpen && (
-              <>
-                <input type="password" className="input" placeholder="Clave admin local" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => e.key === "Enter" && login()} autoFocus />
-                <div className="flex gap-2 justify-end">
-                  <button onClick={() => setLoginOpen(false)} className="btn btn-secondary text-xs">Cancelar</button>
-                  <button onClick={login} className="btn btn-primary text-xs">Entrar</button>
-                </div>
-              </>
-            )}
-            {glpiOpen && (
-              <LoginModal open={glpiOpen} onClose={() => setGlpiOpen(false)} onSuccess={() => { fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); setGlpiOpen(false); }} />
-            )}
-          </div>
-        </div>
+      {!adminAuthed && (
+        <AuthModal open={true} onClose={() => {}} onSuccess={() => { fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
       )}
     </div>
   );

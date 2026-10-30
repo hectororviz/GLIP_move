@@ -2,8 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import ScanModal from "./ScanModal";
-import LoginModal from "./LoginModal";
-import AdminLoginModal from "./AdminLoginModal";
+import AuthModal from "./AuthModal";
 import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants, editFormOf } from "@/lib/inventory";
 
@@ -65,7 +64,6 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [authUser, setAuthUser] = useState<{ login: string; name: string; profiles: string[]; canOperate: boolean } | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [adminAuthed, setAdminAuthed] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
@@ -111,8 +109,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (calibrar) {
       fetch("/api/admin/check").then((r) => r.json()).then((j) => {
         setAdminAuthed(!!j.admin);
-        if (!j.admin) setAdminOpen(true);
-      }).catch(() => setAdminOpen(true));
+        if (!j.admin) setAuthOpen(true);
+      }).catch(() => setAuthOpen(true));
     }
   }, [calibrar]);
 
@@ -340,7 +338,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     const r = await fetch("/api/maps", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: floor.id, puestos: next }) });
     const j = await r.json();
     if (!r.ok) {
-      if (r.status === 401) { setAdminAuthed(false); setAdminOpen(true); }
+      if (r.status === 401) { setAdminAuthed(false); setAuthOpen(true); }
       setMsg(r.status === 401 ? "Inicia sesión admin para guardar." : "Error: " + j.error);
       return;
     }
@@ -387,15 +385,11 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           <h1>Calibración</h1>
           <p>Se requiere acceso administrador para dibujar y modificar puestos.</p>
         </div>
-        <div className="card p-6 grid gap-3 text-center">
-          <p className="text-muted">Inicia sesión con la clave admin local o con un usuario GLPI administrador.</p>
-          <div className="flex gap-2 justify-center flex-wrap">
-            <button className="btn btn-primary" onClick={() => setAdminOpen(true)}>Clave admin</button>
-            <button className="btn btn-secondary" onClick={() => setAuthOpen(true)}>Usuario GLPI admin</button>
-          </div>
+        <div className="card p-6 grid gap-2 text-center">
+          <p className="text-muted">Inicia sesión para calibrar.</p>
+          <button className="btn btn-primary w-fit mx-auto" onClick={() => setAuthOpen(true)}>Iniciar sesión</button>
         </div>
-        <AdminLoginModal open={adminOpen} onClose={() => setAdminOpen(false)} onSuccess={() => { setAdminAuthed(true); setAdminOpen(false); }} />
-        <LoginModal open={authOpen} onClose={() => setAuthOpen(false)} onSuccess={(u) => { setAuthUser(u); fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
+        <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onSuccess={() => { fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {}); fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
       </div>
     );
   }
@@ -699,13 +693,17 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         </>
       )}
       {authOpen && (
-        <LoginModal
+        <AuthModal
           open={authOpen}
           onClose={() => { setAuthOpen(false); pendingAction.current = null; }}
-          onSuccess={(u) => { setAuthUser(u); const a = pendingAction.current; pendingAction.current = null; fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); if (a) a(); }}
+          onSuccess={() => {
+            fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {});
+            fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {});
+            const a = pendingAction.current; pendingAction.current = null;
+            if (a) a();
+          }}
         />
       )}
-      <AdminLoginModal open={adminOpen} onClose={() => setAdminOpen(false)} onSuccess={() => { setAdminAuthed(true); setAdminOpen(false); }} />
      </div>
    );
 }
