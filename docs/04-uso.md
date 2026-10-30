@@ -18,9 +18,8 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
    corto y centrado (`Puesto 23` → `23`); el nombre completo queda en el tooltip.
 4. Por equipo: iconos **Editar en GLPI** (abre la ficha en pestaña nueva),
    **Reemplazar (scan)** y **Quitar** (deja `locations_id=0`, pide confirmación).
-   Ficha compacta: `Tipo: Nombre / Mod.: … / Inv.: …`. **Asignar a persona**:
-   buscador de usuarios GLPI; confirma (el bien **sale del puesto**) y setea
-   `users_id` sin ubicación (ideal notebooks).
+   Ficha compacta: `Tipo: Nombre / Mod.: … / Inv.: …`. (La asignación a
+   persona se hace desde Búsqueda: ficha del bien o ficha de la persona.)
 5. **Ocupante**: asignar/cambiar con buscador de usuarios GLPI (confirma
    cantidad de equipos afectados) o quitar (solo limpia sus equipos). La
    ocupación se deriva de `users_id` en GLPI: sin directorio local duplicado.
