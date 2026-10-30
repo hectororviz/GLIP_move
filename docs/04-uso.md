@@ -8,7 +8,8 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
 
 1. Header fijo con menú hamburguesa en móvil; un solo scroll de página (el mapa
    queda fijo mientras la lista fluye).
-2. Selector de piso + panel **Lugares**: árbol Polo → pisos → puestos.
+2. Selector de piso (botones hasta 5 pisos, desplegable si hay más) + panel
+   **Lugares**: árbol Polo → pisos → puestos.
    - Piso con mapa lleva badge `mapa` y contador `X/Y puestos`; clic → abre su plano.
    - Puesto dibujado → clic abre su sidebar aunque esté en otro piso (cambia de plano solo).
    - `(sin dibujar)` = hijo de GLPI aún no calibrado.

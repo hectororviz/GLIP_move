@@ -12,6 +12,9 @@ type Asset = any;
 
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
+// Pisos como botones hasta este umbral; más pisos usan desplegable.
+const MAX_FLOOR_BUTTONS = 5;
+
 function TrashIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -467,7 +470,25 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       <div className="min-w-0 overflow-hidden lg:sticky lg:top-20">
         <div className="flex gap-2 items-center mb-2 flex-wrap">
           <h1 className="text-xl font-bold">Control {floor ? `· ${floor.name}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
-          {floors.length > 1 && (
+          {floors.length > 1 && floors.length <= MAX_FLOOR_BUTTONS && (
+            <div className="flex gap-1 flex-wrap">
+              {floors.map((f) => {
+                const active = f.id === floor?.id;
+                return (
+                  <button
+                    key={f.id}
+                    aria-pressed={active}
+                    onClick={() => { setFloorId(f.id); setSel(null); setItems([]); }}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${active ? "text-white" : "bg-white text-muted border border-line hover:text-ink"}`}
+                    style={active ? { background: "var(--accent)" } : undefined}
+                  >
+                    {f.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {floors.length > MAX_FLOOR_BUTTONS && (
             <select className="input w-auto text-sm py-1.5" value={floor?.id || ""} onChange={(e) => { setFloorId(e.target.value); setSel(null); setItems([]); }}>
               {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
