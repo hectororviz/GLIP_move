@@ -99,6 +99,11 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   );
   const placedIds = useMemo(() => new Set(puestos.map((p) => p.glpi_id)), [puestos]);
   const nameOf = (id: number) => byId.get(id)?.name || `#${id}`;
+  const shortNameOf = (id: number) => {
+    const n = nameOf(id);
+    const m = n.match(/^puesto\s+(.+)$/i);
+    return m ? m[1] : n;
+  };
 
   useEffect(() => {
     fetch("/api/maps").then((r) => r.json()).then((j) => {
@@ -373,10 +378,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       e.stopPropagation();
                       setCtxMenu({ x: e.clientX, y: e.clientY, kind: "reassign", targetId: p.glpi_id });
                     }}
-                    title={`${nameOf(p.glpi_id)} (GLPI ${p.glpi_id})`}
-                    className={`absolute border-2 rounded-lg text-[11px] font-bold overflow-hidden shadow-sm ${sel?.glpi_id === p.glpi_id ? "border-success bg-green-300/60" : "border-brand-600 bg-blue-300/50 hover:bg-blue-300/80"} ${calibrar ? "cursor-move" : "cursor-pointer"}`}
+                    title={`${nameOf(p.glpi_id)}${occByLoc[p.glpi_id] ? ` · ${occByLoc[p.glpi_id]}` : ""} (GLPI ${p.glpi_id})`}
+                    className={`absolute border-2 rounded-lg text-[11px] font-bold overflow-hidden shadow-sm flex items-center justify-center text-center ${sel?.glpi_id === p.glpi_id ? "border-success bg-green-300/60" : "border-brand-600 bg-blue-300/50 hover:bg-blue-300/80"} ${calibrar ? "cursor-move" : "cursor-pointer"}`}
                     style={{ left: `${p.x}%`, top: `${p.y}%`, width: `${p.w}%`, height: `${p.h}%` }}>
-                    <span className="px-1">{nameOf(p.glpi_id)}{occByLoc[p.glpi_id] ? ` · ${occByLoc[p.glpi_id]}` : ""}</span>
+                    <span className="px-1 leading-tight break-words">{shortNameOf(p.glpi_id)}</span>
                     {calibrar && (
                       <span
                         onPointerDown={(e) => {
