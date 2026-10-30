@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
-import Scanner from "./Scanner";
+import ScanModal from "./ScanModal";
 import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants } from "@/lib/inventory";
 
@@ -30,6 +30,18 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [occResults, setOccResults] = useState<any[]>([]);
   const [occByLoc, setOccByLoc] = useState<Record<number, string>>({});
   const [userNames, setUserNames] = useState<Record<number, string>>({});
+  const [highlightKey, setHighlightKey] = useState<string | null>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flashHighlight = (key: string) => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    setHighlightKey(key);
+    highlightTimer.current = setTimeout(() => setHighlightKey(null), 5000);
+  };
+
+  useEffect(() => () => {
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+  }, []);
   // calibración
   const [draft, setDraft] = useState<Puesto[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -127,7 +139,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: found._type, id: found.id, location_id: sel.glpi_id }) });
     const j = await r.json();
     setMsg(r.ok ? `Asignado ${found._type} ${found.otherserial || found.name} → ${nameOf(sel.glpi_id)}` : "Error: " + j.error);
-    setScanMode(null); setManualInv(""); openPuesto(sel);
+    setScanMode(null); setManualInv("");
+    if (r.ok) flashHighlight(`${found._type}-${found.id}`);
+    openPuesto(sel);
   }
 
   async function unassign(a: Asset) {
@@ -453,7 +467,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
               )}
             </div>
             {items.map((a) => (
-              <div key={`${a._type}-${a.id}`} className="card p-3 grid gap-1 min-w-0 text-sm">
+              <div key={`${a._type}-${a.id}`} className={`card p-3 grid gap-1 min-w-0 text-sm transition-colors ${highlightKey === `${a._type}-${a.id}` ? "border-green-600 bg-green-50" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-semibold min-w-0">{a._type}: {disp(a.name)}</div>
                   <div className="flex gap-1 shrink-0">
@@ -498,8 +512,14 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                 <button onClick={() => manualInv && assignInventory(manualInv)} className="btn btn-primary text-xs">OK</button>
                 <button onClick={() => setScanMode(scanMode ? null : "add")} className="btn btn-secondary text-xs">📷</button>
               </div>
-              {scanMode && <Scanner onResult={(v) => assignInventory(v, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {})} />}
             </div>
+            {scanMode && (
+              <ScanModal
+                title={scanMode === "replace" ? "Reemplazar equipo (escaneo)" : "Agregar equipo (escaneo)"}
+                onClose={() => { setScanMode(null); setReplaceTarget(null); }}
+                onResult={(v) => assignInventory(v, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {})}
+              />
+            )}
           </>
         )}
        </aside>

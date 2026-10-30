@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import Scanner from "@/components/Scanner";
+import ScanModal from "@/components/ScanModal";
 import { useLocations } from "@/components/Places";
 
 type Asset = any;
@@ -208,7 +208,13 @@ export default function Buscar() {
             <button onClick={() => setScan(!scan)} className="btn btn-secondary">📷</button>
           )}
         </div>
-        {mode === "assets" && scan && <Scanner onResult={(v) => { setQ(v); setScan(false); search(v); }} />}
+        {mode === "assets" && scan && (
+          <ScanModal
+            title="Buscar equipo (escaneo)"
+            onClose={() => setScan(false)}
+            onResult={(v) => { setQ(v); setScan(false); search(v); }}
+          />
+        )}
         <p className="text-sm text-muted">{msg}</p>
       </div>
 
