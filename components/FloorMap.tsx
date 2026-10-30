@@ -535,7 +535,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       <a
                         title="Editar en GLPI"
                         aria-label={`Editar ${a._type} ${disp(a.otherserial)} en GLPI`}
-                        href={`${glpiBase}/front/${editFormOf(a._type)}.form.php?id=${a.id}`}
+                        href={`${glpiBase}/front/${editFormOf(a._type)}?id=${a.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn btn-secondary btn-icon"
