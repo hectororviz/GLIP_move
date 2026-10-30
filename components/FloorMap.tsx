@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import ScanModal from "./ScanModal";
 import LoginModal from "./LoginModal";
+import AdminLoginModal from "./AdminLoginModal";
 import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants, editFormOf } from "@/lib/inventory";
 
@@ -63,6 +64,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [glpiBase, setGlpiBase] = useState<string>("");
   const [authUser, setAuthUser] = useState<{ login: string; name: string; profiles: string[]; canOperate: boolean } | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
@@ -105,7 +108,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   useEffect(() => {
     fetch("/api/config").then((r) => r.json()).then((j) => setGlpiBase((j.glpiBaseUrl || "").replace(/\/$/, ""))).catch(() => {});
     fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); }).catch(() => {});
-  }, []);
+    if (calibrar) {
+      fetch("/api/admin/check").then((r) => r.json()).then((j) => {
+        setAdminAuthed(!!j.admin);
+        if (!j.admin) setAdminOpen(true);
+      }).catch(() => setAdminOpen(true));
+    }
+  }, [calibrar]);
 
   const requireEdit = (action: () => void) => {
     if (authUser?.canOperate) { action(); return; }
@@ -330,7 +339,11 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (!floor) return;
     const r = await fetch("/api/maps", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: floor.id, puestos: next }) });
     const j = await r.json();
-    if (!r.ok) { setMsg(r.status === 401 ? "Inicia sesión admin en /config para guardar." : "Error: " + j.error); return; }
+    if (!r.ok) {
+      if (r.status === 401) { setAdminAuthed(false); setAdminOpen(true); }
+      setMsg(r.status === 401 ? "Inicia sesión admin para guardar." : "Error: " + j.error);
+      return;
+    }
     setFloors((fs) => fs.map((f) => (f.id === floor.id ? j.floor : f)));
     setMsg(`Guardado en servidor: ${next.length} puestos.`);
   }
@@ -366,6 +379,22 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   // panning del zoom se desactiva solo mientras se dibuja/mueve un rect
   const panDisabled = calibrar && (tool === "draw" || !!drag);
+
+  if (calibrar && !adminAuthed) {
+    return (
+      <div className="grid gap-4">
+        <div className="page-header">
+          <h1>Calibración</h1>
+          <p>Se requiere acceso administrador para dibujar y modificar puestos.</p>
+        </div>
+        <div className="card p-6 grid gap-2 text-center">
+          <p className="text-muted">Inicia sesión con la clave admin local para continuar.</p>
+          <button className="btn btn-primary w-fit mx-auto" onClick={() => setAdminOpen(true)}>Iniciar sesión admin</button>
+        </div>
+        <AdminLoginModal open={adminOpen} onClose={() => setAdminOpen(false)} onSuccess={() => { setAdminAuthed(true); setAdminOpen(false); }} />
+      </div>
+    );
+  }
 
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_370px] gap-4 overflow-x-clip items-start">
@@ -672,6 +701,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           onSuccess={(u) => { setAuthUser(u); const a = pendingAction.current; pendingAction.current = null; if (a) a(); }}
         />
       )}
+      <AdminLoginModal open={adminOpen} onClose={() => setAdminOpen(false)} onSuccess={() => { setAdminAuthed(true); setAdminOpen(false); }} />
      </div>
    );
 }
