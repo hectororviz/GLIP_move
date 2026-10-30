@@ -88,6 +88,16 @@ body {
   animation: flash-pulse 1s ease-in-out 5;
 }
 
+@keyframes puesto-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0); transform: scale(1); }
+  50% { box-shadow: 0 0 0 8px rgba(21, 128, 61, 0.45); transform: scale(1.04); }
+}
+
+.flash-puesto {
+  animation: puesto-flash 0.7s ease-in-out 4;
+  z-index: 5;
+}
+
 .card {
   background: #fff;
   border: 1px solid #dbe4f0;

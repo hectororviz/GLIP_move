@@ -63,6 +63,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [userNames, setUserNames] = useState<Record<number, string>>({});
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transformRef = useRef<any>(null);
+  const puestoRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const flashHighlight = (key: string) => {
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
@@ -72,7 +76,14 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   useEffect(() => () => {
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
   }, []);
+
+  useEffect(() => {
+    if (flashId == null) return;
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setFlashId(null), 3200);
+  }, [flashId]);
   // calibración
   const [draft, setDraft] = useState<Puesto[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -120,15 +131,27 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   }, [floor?.id]);
 
   useEffect(() => {
-    if (focus && floors.length) openById(Number(focus));
+    if (focus && floors.length) focusPuesto(Number(focus));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, floors]);
+
+  async function focusPuesto(glpiId: number) {
+    setFlashId(glpiId);
+    await openById(glpiId);
+    setTimeout(() => {
+      const el = puestoRefs.current.get(glpiId);
+      if (el && transformRef.current) {
+        try { transformRef.current.zoomToElement(el, 2.4, 600); } catch {}
+      }
+    }, 350);
+  }
 
   function floorOf(glpiId: number): Floor | undefined {
     return floors.find((f) => f.puestos.some((p) => p.glpi_id === glpiId));
   }
 
   function openById(glpiId: number) {
+    setFlashId(glpiId);
     const f = floors.find((x) => x.id === floor?.id && x.puestos.some((p) => p.glpi_id === glpiId)) || floorOf(glpiId);
     if (!f) { setMsg(`El puesto ${nameOf(glpiId)} no está dibujado en ningún plano.`); return; }
     if (f.id !== floor?.id) setFloorId(f.id);
@@ -346,7 +369,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         ) : noParent ? (
           <p className="text-sm text-amber-800 bg-amber-50 border rounded p-4">Este piso no tiene ubicación GLPI padre. <a className="underline" href="/config">Vincúlalo en /config</a> para dibujar puestos.</p>
         ) : (
-            <TransformWrapper minScale={0.5} maxScale={8} panning={{ disabled: panDisabled }}>
+            <TransformWrapper ref={transformRef} minScale={0.5} maxScale={8} panning={{ disabled: panDisabled }}>
               <div className="relative">
                 <TransformComponent wrapperClass="!w-full !h-[60vh] bg-white rounded-xl shadow overflow-hidden">
                   <div ref={boxRef} className="relative inline-block select-none"
@@ -364,8 +387,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[60vh]" draggable={false} />
                 {puestos.map((p) => (
-                  <div key={p.glpi_id} data-puesto
-                    onClick={() => !calibrar && openPuesto(p)}
+                  <div key={p.glpi_id} data-puesto ref={(el) => { if (el) puestoRefs.current.set(p.glpi_id, el); else puestoRefs.current.delete(p.glpi_id); }}
+                    onClick={() => { if (!calibrar) { setFlashId(p.glpi_id); openPuesto(p); } }}
                     onPointerDown={(e) => {
                       if (!calibrar) return;
                       e.stopPropagation();
@@ -379,7 +402,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       setCtxMenu({ x: e.clientX, y: e.clientY, kind: "reassign", targetId: p.glpi_id });
                     }}
                     title={`${nameOf(p.glpi_id)}${occByLoc[p.glpi_id] ? ` · ${occByLoc[p.glpi_id]}` : ""} (GLPI ${p.glpi_id})`}
-                    className={`absolute border-2 rounded-lg text-[11px] font-bold overflow-hidden shadow-sm flex items-center justify-center text-center ${sel?.glpi_id === p.glpi_id ? "border-success bg-green-300/60" : "border-brand-600 bg-blue-300/50 hover:bg-blue-300/80"} ${calibrar ? "cursor-move" : "cursor-pointer"}`}
+                    className={`absolute border-2 rounded-lg text-[11px] font-bold overflow-hidden shadow-sm flex items-center justify-center text-center ${sel?.glpi_id === p.glpi_id ? "border-success bg-green-300/60" : "border-brand-600 bg-blue-300/50 hover:bg-blue-300/80"} ${calibrar ? "cursor-move" : "cursor-pointer"} ${flashId === p.glpi_id ? "flash-puesto" : ""}`}
                     style={{ left: `${p.x}%`, top: `${p.y}%`, width: `${p.w}%`, height: `${p.h}%` }}>
                     <span className="px-1 leading-tight break-words">{shortNameOf(p.glpi_id)}</span>
                     {calibrar && (
