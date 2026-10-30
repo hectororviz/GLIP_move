@@ -3,6 +3,5 @@ node_modules
 tsconfig.tsbuildinfo
 data/config.json
 data/floors.json
-data/client-logs.jsonl
 data/maps/
 .env

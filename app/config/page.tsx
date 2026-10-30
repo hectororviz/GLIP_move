@@ -23,6 +23,49 @@ export default function ConfigPage() {
   const [newFloor, setNewFloor] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const [tab, setTab] = useState<"conn" | "floors" | "look" | "adv">("conn");
+  const [backupMsg, setBackupMsg] = useState("");
+  const [backupBusy, setBackupBusy] = useState(false);
+
+  async function exportBackup() {
+    setBackupMsg("Generando respaldo...");
+    setBackupBusy(true);
+    try {
+      const r = await fetch("/api/backup");
+      if (!r.ok) { setBackupMsg("Error: " + (await r.json()).error); return; }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (r.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || "glpi-move-backup.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setBackupMsg("Respaldo descargado.");
+    } catch (e: any) {
+      setBackupMsg("Error: " + e.message);
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function importBackup(file: File) {
+    if (!confirm("Esto reemplaza TODOS los pisos, puestos y planos actuales. ¿Continuar?")) return;
+    setBackupMsg("Importando respaldo...");
+    setBackupBusy(true);
+    const fd = new FormData();
+    fd.set("file", file);
+    try {
+      const r = await fetch("/api/backup", { method: "POST", body: fd });
+      const j = await r.json();
+      setBackupMsg(r.ok ? `Importado: ${j.pisos} pisos, ${j.puestos} puestos.` : "Error: " + j.error);
+      if (r.ok) refreshFloors();
+    } catch (e: any) {
+      setBackupMsg("Error: " + e.message);
+    } finally {
+      setBackupBusy(false);
+    }
+  }
   const [loginOpen, setLoginOpen] = useState(true);
   const { childrenOf } = useLocations();
 
@@ -267,13 +310,27 @@ export default function ConfigPage() {
       )}
 
       {tab === "adv" && (
-        <section className="card p-4 grid gap-3">
+        <section className="card p-4 grid gap-4">
           <h2 className="font-bold">Avanzada</h2>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.keepUserOnMove} onChange={(e) => setForm({ ...form, keepUserOnMove: e.target.checked })} disabled={!authed} />
             Conservar usuario asignado al mover un bien
           </label>
           <button onClick={save} disabled={!authed} className="btn btn-primary w-fit">Guardar</button>
+
+          <div className="border-t pt-3 grid gap-3">
+            <h3 className="font-bold text-sm">Respaldo (pisos, puestos y planos)</h3>
+            <p className="text-xs text-muted">Exporta e importa `floors.json` + imágenes. No incluye conexión GLPI ni tokens. La importación reemplaza todos los pisos actuales.</p>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={exportBackup} disabled={!authed || backupBusy} className="btn btn-primary text-xs">Exportar ZIP</button>
+              <label className={`btn btn-secondary text-xs cursor-pointer ${!authed || backupBusy ? "opacity-40 pointer-events-none" : ""}`}>
+                {backupBusy ? "Importando..." : "Importar ZIP"}
+                <input type="file" accept="application/zip,.zip" className="hidden" disabled={!authed || backupBusy}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) importBackup(f); e.target.value = ""; }} />
+              </label>
+            </div>
+            {backupMsg && <p className="text-sm text-muted">{backupMsg}</p>}
+          </div>
         </section>
       )}
 

@@ -4,22 +4,6 @@ import { BrowserCodeReader, BrowserMultiFormatReader } from "@zxing/browser";
 import type { IScannerControls } from "@zxing/browser";
 
 type Status = "checking" | "ready" | "unsupported" | "denied" | "error";
-type Tech = {
-  origin: string;
-  secure: boolean;
-  api: boolean;
-  devices: { label: string; id: string }[];
-  chosenId: string | null;
-  track: Record<string, any> | null;
-  video: Record<string, any> | null;
-  events: string[];
-  lastError: string | null;
-};
-
-const emptyTech = (): Tech => ({
-  origin: typeof window === "undefined" ? "" : window.location.origin,
-  secure: false, api: false, devices: [], chosenId: null, track: null, video: null, events: [], lastError: null,
-});
 
 export default function Scanner({ onResult }: { onResult: (v: string) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -27,13 +11,8 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
   const [status, setStatus] = useState<Status>("checking");
   const [detail, setDetail] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [diag, setDiag] = useState({ secure: false, api: false });
-  const [tech, setTech] = useState<Tech>(emptyTech);
-  const [sent, setSent] = useState("");
-  const [previewOnly, setPreviewOnly] = useState(false);
   const watchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startingRef = useRef(false);
-  const previewRef = useRef(false);
 
   function releaseAll() {
     try { BrowserCodeReader.releaseAllStreams(); } catch {}
@@ -52,64 +31,34 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
     let done = false;
     let controls: IScannerControls | undefined;
     const reader = new BrowserMultiFormatReader();
-    const t: Tech = emptyTech();
-    const pushEvent = (e: string) => { t.events.push(`${new Date().toISOString().slice(11, 19)} ${e}`); };
-    const snapVideo = () => {
-      const v = videoRef.current;
-      t.video = v ? { w: v.videoWidth, h: v.videoHeight, paused: v.paused, readyState: v.readyState, src: !!v.srcObject } : null;
-    };
 
     async function start() {
       if (startingRef.current) return;
       startingRef.current = true;
       setStatus("checking");
       setDetail("");
-      setSent("");
       if (typeof window === "undefined") { startingRef.current = false; return; }
-      t.secure = window.isSecureContext;
-      t.api = !!navigator.mediaDevices?.getUserMedia;
-      if (!cancelled) { setDiag({ secure: t.secure, api: t.api }); setTech({ ...t }); }
-      if (!t.api) {
+      const secure = window.isSecureContext;
+      const hasApi = !!navigator.mediaDevices?.getUserMedia;
+      if (!hasApi) {
         startingRef.current = false;
         if (!cancelled) {
           setStatus("unsupported");
           setDetail(
-            t.secure
+            secure
               ? "Este navegador no expone la cámara en esta conexión."
               : "Estás accediendo por HTTP. Los navegadores bloquean la cámara en conexiones no seguras."
           );
-          setTech({ ...t });
         }
         return;
       }
       try {
-        try {
-          const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-          t.devices = devices.map((d) => ({ label: d.label || "(sin etiqueta)", id: d.deviceId }));
-          if (!devices.length) throw new Error("No se encontraron cámaras.");
-        } catch (e) {
-          pushEvent("lista-devices-fallo: " + (e instanceof Error ? e.message : String(e)).slice(0, 100));
-        }
-        setTech({ ...t });
         if (!videoRef.current) throw new Error("No se pudo preparar el visor.");
-        if (previewRef.current) {
-          const pv = videoRef.current;
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
-          if (cancelled) { stream.getTracks().forEach((tr) => { try { tr.stop(); } catch {} }); startingRef.current = false; return; }
-          pv.srcObject = stream;
-          try { await pv.play(); } catch {}
-          snapVideo();
-          setTech({ ...t });
-          startingRef.current = false;
-          if (!cancelled) setStatus("ready");
-          return;
-        }
         const v = videoRef.current;
-        v.onloadedmetadata = () => { pushEvent("loadedmetadata"); snapVideo(); setTech({ ...t }); };
-        v.onplaying = () => { pushEvent("playing"); snapVideo(); setTech({ ...t }); };
-        v.onpause = () => { pushEvent("pause"); snapVideo(); setTech({ ...t }); };
-        v.onerror = () => { pushEvent("video-error"); snapVideo(); setTech({ ...t }); };
-        // facingMode en lugar de deviceId explícito: evita streams vacíos por ID obsoleto.
+        v.onloadedmetadata = () => {};
+        v.onplaying = () => {};
+        v.onpause = () => {};
+        v.onerror = () => {};
         controls = await reader.decodeFromConstraints(
           { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
           v,
@@ -125,36 +74,19 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
         const stream = v.srcObject as MediaStream | null | undefined;
         const track = stream?.getVideoTracks()[0];
         if (track) {
-          t.track = {
-            label: track.label,
-            readyState: track.readyState,
-            muted: track.muted,
-            enabled: track.enabled,
-            settings: (() => { try { return track.getSettings(); } catch { return null; } })(),
-          };
-        } else {
-          t.track = null;
-          pushEvent("sin-pista-de-video");
+          if (!track.enabled) track.enabled = true;
         }
-        snapVideo();
-        setTech({ ...t });
-        try { await v.play(); snapVideo(); setTech({ ...t }); } catch (e) {
-          pushEvent("play-fallo: " + (e instanceof Error ? e.message : String(e)).slice(0, 100));
-          setTech({ ...t });
-        }
+        try { await v.play(); } catch {}
         startingRef.current = false;
         if (!cancelled) {
           setStatus("ready");
           if (watchRef.current) clearTimeout(watchRef.current);
           watchRef.current = setTimeout(() => {
             const vv = videoRef.current;
-            snapVideo();
             if (!cancelled && vv && (vv.videoWidth === 0 || vv.paused)) {
               try { controls?.stop(); } catch {}
-              t.lastError = `watchdog: w=${vv.videoWidth} paused=${vv.paused} src=${!!vv.srcObject} vis=${document.visibilityState}`;
               setStatus("error");
               setDetail("La cámara no entrega imagen. Revisa que ninguna otra app la esté usando y reintenta.");
-              setTech({ ...t });
             }
           }, 10000);
         }
@@ -162,8 +94,6 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
         startingRef.current = false;
         if (cancelled) return;
         const message = ex instanceof Error ? `${ex.name}: ${ex.message}` : String(ex);
-        t.lastError = message.slice(0, 200);
-        setTech({ ...t });
         if (/NotAllowedError|Permission|denied|denegado/i.test(message)) {
           setStatus("denied");
           setDetail("Permiso de cámara denegado. Habilítalo en el navegador y reintenta.");
@@ -174,7 +104,6 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
       }
     }
 
-    // El <video> se renderiza siempre (oculto hasta "ready") para que la ref exista al iniciar.
     const timer = setTimeout(start, 0);
     return () => {
       clearTimeout(timer);
@@ -187,61 +116,18 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
     };
   }, [attempt]);
 
-  async function sendLog() {
-    setSent("Enviando...");
-    try {
-      const r = await fetch("/api/client-logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ origin: tech.origin, status, detail, tech }),
-      });
-      setSent(r.ok ? "Registro enviado al servidor." : "No se pudo enviar.");
-    } catch {
-      setSent("No se pudo enviar.");
-    }
-  }
-
   const retry = () => {
     releaseAll();
-    setPreviewOnly(false);
     setAttempt((n) => n + 1);
   };
 
-  // Vista previa sin decodificar: aísla captura vs. decodificación.
-  // Usa el mismo efecto (un solo stream a la vez).
-  function startPreview() {
-    releaseAll();
-    previewRef.current = true;
-    setPreviewOnly(true);
-    setDetail("");
-    setAttempt((n) => n + 1);
-  }
-
-  function stopPreview() {
-    releaseAll();
-    previewRef.current = false;
-    setPreviewOnly(false);
-    setAttempt((n) => n + 1);
-  }
-
-  const diagLine = `Diagnóstico · contexto seguro: ${diag.secure ? "sí" : "no"} · API cámara: ${diag.api ? "sí" : "no"}`;
-
   return (
     <div className="card overflow-hidden">
-      <div className={`relative bg-black ${status === "ready" || previewOnly ? "" : "hidden"}`}>
+      <div className={`relative bg-black ${status === "ready" ? "" : "hidden"}`}>
         <video ref={videoRef} className="w-full max-h-72 object-cover" muted playsInline autoPlay />
-        {!previewOnly && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className="h-24 w-56 rounded-lg border-2 border-white/80" />
-          </div>
-        )}
-      </div>
-      <div className="flex gap-2 px-3 py-1">
-        {!previewOnly ? (
-          <button className="btn btn-ghost text-xs" onClick={startPreview}>Solo vista previa (probar cámara)</button>
-        ) : (
-          <button className="btn btn-ghost text-xs" onClick={stopPreview}>Volver a escanear</button>
-        )}
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="h-24 w-56 rounded-lg border-2 border-white/80" />
+        </div>
       </div>
       {status === "checking" && <p className="text-sm text-muted p-3">Preparando cámara…</p>}
       {status === "ready" && (
@@ -261,15 +147,6 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
           </div>
         </div>
       )}
-      <div className="px-3 py-1 border-t border-line grid gap-1">
-        <p className="text-[11px] text-muted">{diagLine}</p>
-        <details className="text-[11px] text-muted">
-          <summary className="cursor-pointer underline">Detalles técnicos</summary>
-          <pre className="whitespace-pre-wrap break-all bg-canvas rounded p-2 mt-1 max-h-40 overflow-auto">{JSON.stringify(tech, null, 1)}</pre>
-          <button className="btn btn-secondary text-xs mt-1" onClick={sendLog}>Enviar registro al servidor</button>
-          {sent && <span className="ml-2">{sent}</span>}
-        </details>
-      </div>
     </div>
   );
 }
