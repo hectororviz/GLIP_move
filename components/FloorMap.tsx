@@ -289,7 +289,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const panDisabled = calibrar && (tool === "draw" || !!drag);
 
   return (
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_370px] gap-4 overflow-x-clip">
+    <div className="grid lg:grid-cols-[minmax(0,1fr)_370px] gap-4 overflow-x-clip lg:h-[calc(100vh-6.5rem)]">
       <div className="min-w-0 overflow-hidden">
         <div className="flex gap-2 items-center mb-2 flex-wrap">
           <h1 className="text-xl font-bold">Control {floor ? `· ${floor.name}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
@@ -416,7 +416,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         )}
       </div>
 
-      <aside className="card p-4 h-fit sticky top-20 grid gap-3 max-h-[85vh] overflow-y-auto overflow-x-hidden min-w-0">
+      <aside className="card p-4 grid gap-3 min-w-0 lg:h-full lg:overflow-y-auto lg:overflow-x-hidden">
         <details>
           <summary className="text-sm font-bold cursor-pointer">Lugares (árbol GLPI)</summary>
           <div className="mt-2">

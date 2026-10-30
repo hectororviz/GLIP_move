@@ -8,6 +8,7 @@ type PubConfig = { appName?: string; accentColor?: string };
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [cfg, setCfg] = useState<PubConfig>({ appName: "GLPI Move", accentColor: "#0b5ed7" });
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/config")
@@ -25,6 +26,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     document.title = cfg.appName || "GLPI Move";
   }, [cfg]);
 
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   const nav = [
     { href: "/", label: "Inicio" },
     { href: "/mapa", label: "Control" },
@@ -34,18 +39,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-line">
-        <div className="max-w-[1500px] mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-white font-bold" style={{ background: "var(--accent)" }}>
+      <header className="fixed top-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-b border-line">
+        <div className="max-w-[1500px] mx-auto px-4 h-14 flex items-center gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-bold" style={{ background: "var(--accent)" }}>
               {(cfg.appName || "GLPI Move").slice(0, 1).toUpperCase()}
             </span>
-            <div className="leading-tight">
-              <div className="font-bold text-ink">{cfg.appName || "GLPI Move"}</div>
-              <div className="text-[11px] text-muted">Control de bienes GLPI</div>
+            <div className="leading-tight min-w-0">
+              <div className="font-bold text-ink truncate">{cfg.appName || "GLPI Move"}</div>
+              <div className="text-[11px] text-muted truncate">Control de bienes GLPI</div>
             </div>
           </div>
-          <nav className="flex gap-1 ml-auto flex-wrap">
+          <nav className="hidden md:flex gap-1 ml-auto">
             {nav.map((n) => {
               const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
               return (
@@ -62,9 +67,41 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+          <button
+            className="md:hidden ml-auto btn btn-secondary btn-icon"
+            aria-label="Abrir menú"
+            onClick={() => setOpen((v) => !v)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+          </button>
         </div>
+        {open && (
+          <div className="md:hidden border-t border-line bg-white">
+            <nav className="max-w-[1500px] mx-auto px-4 py-2 grid gap-1">
+              {nav.map((n) => {
+                const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
+                return (
+                  <Link
+                    key={n.href}
+                    href={n.href}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      active ? "text-white" : "text-muted hover:text-ink hover:bg-canvas"
+                    }`}
+                    style={active ? { background: "var(--accent)" } : undefined}
+                  >
+                    {n.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        )}
       </header>
-      <main className="max-w-[1500px] mx-auto p-4 w-full">{children}</main>
+      <main className="max-w-[1500px] mx-auto p-4 w-full pt-20">{children}</main>
     </div>
   );
 }
