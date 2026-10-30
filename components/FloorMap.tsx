@@ -73,6 +73,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [adminAuthed, setAdminAuthed] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
+  const [personalByUser, setPersonalByUser] = useState<Record<number, Asset[]>>({});
+  const openToken = useRef(0);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [flashId, setFlashId] = useState<number | null>(null);
@@ -260,6 +262,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   async function openPuesto(p: Puesto) {
     setSel(p); setMsg("Cargando equipos..."); setScanMode(null);
     setPersonTarget(null); setApq(""); setApres([]); setApmsg("");
+    setPersonalByUser({});
     const r = await fetch(`/api/glpi?location_id=${p.glpi_id}`);
     const j = await r.json();
     if (!r.ok) { setMsg("Error: " + j.error); setItems([]); return; }
@@ -270,6 +273,29 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     const names = [...new Map(loaded.filter((a) => a._userId != null).map((a) => [a._userId, fullName(a)] as const)).values()];
     setOccByLoc((m) => ({ ...m, [p.glpi_id]: names.join(", ") }));
     setMsg(loaded.length ? "" : "Puesto vacío");
+    // Bienes personales de cada ocupante (asignados a ella, sin puesto). No bloquea.
+    const userIds = [...new Set(loaded.map((a) => a._userId).filter((id) => id != null))] as number[];
+    if (userIds.length) {
+      const myToken = ++openToken.current;
+      Promise.all(userIds.map(async (id): Promise<[number, Asset[]]> => {
+        try {
+          const ur = await fetch(`/api/glpi/user-assets?user_id=${id}`);
+          const uj = await ur.json();
+          if (!ur.ok) return [id, []];
+          const all: Asset[] = [...(uj.groups || []).flatMap((g: any) => g.items || []), ...(uj.unlocated || [])];
+          return [id, all.filter((a) => a._locationId == null)];
+        } catch {
+          return [id, []];
+        }
+      })).then((entries) => {
+        if (myToken !== openToken.current) return;
+        setPersonalByUser((m) => {
+          const next = { ...m };
+          for (const [id, list] of entries) next[id] = list;
+          return next;
+        });
+      });
+    }
   }
 
   async function assignInventory(inv: string, opts: { replace?: Asset } = {}) {
@@ -694,16 +720,35 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
               {occupants.length ? (
                 <ul className="grid gap-1 text-sm">
                   {occupants.map((o) => (
-                    <li key={o.id} className="flex items-center justify-between gap-2">
-                      <span>{o.name}</span>
-                      <button
-                        title="Quitar ocupante"
-                        aria-label={`Quitar ocupante ${o.name}`}
-                        className="btn btn-danger btn-icon-sm"
-                        onClick={() => requireEdit(() => removeOccupant(o.id, o.name))}
-                      >
-                        <TrashIcon size={13} />
-                      </button>
+                    <li key={o.id} className="grid gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{o.name}</span>
+                        <button
+                          title="Quitar ocupante"
+                          aria-label={`Quitar ocupante ${o.name}`}
+                          className="btn btn-danger btn-icon-sm"
+                          onClick={() => requireEdit(() => removeOccupant(o.id, o.name))}
+                        >
+                          <TrashIcon size={13} />
+                        </button>
+                      </div>
+                      {(personalByUser[o.id] || []).map((pa) => (
+                        <div key={`${pa._type}-${pa.id}`} className="flex items-center justify-between gap-2 pl-2 text-xs text-muted">
+                          <span className="min-w-0 truncate">{pa._type}: <b className="text-ink">{disp(pa.name)}</b> · Inv <span className="tabular-nums">{disp(pa.otherserial)}</span></span>
+                          {glpiBase && (
+                            <a
+                              title="Editar en GLPI"
+                              aria-label={`Editar ${pa._type} ${disp(pa.otherserial)} en GLPI`}
+                              href={`${glpiBase}/front/${editFormOf(pa._type)}?id=${pa.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-secondary btn-icon-sm shrink-0"
+                            >
+                              <EditIcon size={13} />
+                            </a>
+                          )}
+                        </div>
+                      ))}
                     </li>
                   ))}
                 </ul>

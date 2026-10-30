@@ -24,6 +24,8 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
 5. **Ocupante**: asignar/cambiar con buscador de usuarios GLPI (confirma
    cantidad de equipos afectados) o quitar (solo limpia sus equipos). La
    ocupación se deriva de `users_id` en GLPI: sin directorio local duplicado.
+   Debajo de cada ocupante aparecen sus **bienes personales** (asignados a
+   ella, sin puesto) con icono lápiz que abre su edición en GLPI.
 6. **Agregar por inventario**: tipear `0000012865`, `12865`, `A 0001-0537` o
    pegar URL de QR GLPI (Enter u OK), o botón 📷 para escanear (modal
    centrado). También vale lector Bluetooth (escribe en el campo como teclado).
