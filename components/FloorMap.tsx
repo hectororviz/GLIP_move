@@ -11,6 +11,27 @@ type Asset = any;
 
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
+
 type Drag =
   | { mode: "draw"; sx: number; sy: number; cx: number; cy: number }
   | { mode: "move"; id: number; sx: number; sy: number; ox: number; oy: number }
@@ -429,16 +450,41 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             <div className="grid gap-2 border rounded-lg p-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-sm font-semibold">Ocupante</span>
-                <button className="btn btn-secondary text-xs" onClick={() => setOccOpen(!occOpen)}>
-                  {occupants.length ? "Cambiar" : "Asignar"}
-                </button>
+                <div className="flex gap-1">
+                  {occupants.length > 0 ? (
+                    <button
+                      title="Cambiar ocupante"
+                      aria-label="Cambiar ocupante"
+                      className="btn btn-secondary btn-icon"
+                      onClick={() => setOccOpen(!occOpen)}
+                    >
+                      <RefreshIcon />
+                    </button>
+                  ) : (
+                    <button
+                      title="Asignar ocupante"
+                      aria-label="Asignar ocupante"
+                      className="btn btn-secondary text-xs"
+                      onClick={() => setOccOpen(!occOpen)}
+                    >
+                      Asignar
+                    </button>
+                  )}
+                </div>
               </div>
               {occupants.length ? (
                 <ul className="grid gap-1 text-sm">
                   {occupants.map((o) => (
                     <li key={o.id} className="flex items-center justify-between gap-2">
-                      <span>{o.name} <span className="text-xs text-muted">· {o.count} equipo(s)</span></span>
-                      <button className="text-xs text-danger underline" onClick={() => removeOccupant(o.id, o.name)}>quitar</button>
+                      <span>{o.name}</span>
+                      <button
+                        title="Quitar ocupante"
+                        aria-label={`Quitar ocupante ${o.name}`}
+                        className="btn btn-danger btn-icon"
+                        onClick={() => removeOccupant(o.id, o.name)}
+                      >
+                        <TrashIcon />
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -477,10 +523,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       onClick={() => { setReplaceTarget(a); setScanMode("replace"); }}
                       className="btn btn-secondary btn-icon"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                        <path d="M21 3v6h-6" />
-                      </svg>
+                      <RefreshIcon />
                     </button>
                     <button
                       title="Quitar equipo del puesto"
@@ -488,13 +531,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       onClick={() => unassign(a)}
                       className="btn btn-danger btn-icon"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M3 6h18" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        <path d="M10 11v6" />
-                        <path d="M14 11v6" />
-                      </svg>
+                      <TrashIcon />
                     </button>
                   </div>
                 </div>
