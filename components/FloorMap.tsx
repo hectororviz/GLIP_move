@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import Scanner from "./Scanner";
 import { PlacesTree, useLocations } from "./Places";
+import { inventoryVariants } from "@/lib/inventory";
 
 type Puesto = { glpi_id: number; x: number; y: number; w: number; h: number };
 type Floor = { id: string; name: string; image: string | null; glpiLocationId: number | null; puestos: Puesto[] };
@@ -116,7 +117,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (!sel) return;
     setMsg("Buscando inventario " + inv + "...");
     const s = await fetch(`/api/glpi?q=${encodeURIComponent(inv)}&type=all`).then((r) => r.json());
-    const found = s.items?.[0];
+    const list: Asset[] = s.items || [];
+    const variants = new Set(inventoryVariants(inv).map((v) => v.toUpperCase()));
+    const found = list.find((it) => variants.has(String(it.otherserial || "").trim().toUpperCase())) || list[0];
     if (!found) { setMsg("No existe ese inventario en GLPI"); return; }
     if (opts.replace) {
       await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: opts.replace._type, id: opts.replace.id, location_id: null }) });
@@ -491,7 +494,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             <div className="grid gap-2 border-t pt-2">
               <div className="text-sm font-semibold">Agregar por inventario</div>
               <div className="flex gap-2">
-                <input className="border rounded p-2 flex-1 text-sm" placeholder="0000012865 o 12865" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {})} />
+                <input className="border rounded p-2 flex-1 text-sm" placeholder="0000012865, 12865 o A 0001-0537" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {})} />
                 <button onClick={() => manualInv && assignInventory(manualInv)} className="btn btn-primary text-xs">OK</button>
                 <button onClick={() => setScanMode(scanMode ? null : "add")} className="btn btn-secondary text-xs">📷</button>
               </div>
