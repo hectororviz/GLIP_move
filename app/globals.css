@@ -73,6 +73,16 @@ body {
   min-width: 36px;
 }
 
+@keyframes flash-pulse {
+  0%, 100% { background: #f0fdf4; }
+  50% { background: #bbf7d0; }
+}
+
+.flash-highlight {
+  border-color: #15803d !important;
+  animation: flash-pulse 1s ease-in-out 5;
+}
+
 .card {
   background: #fff;
   border: 1px solid #dbe4f0;

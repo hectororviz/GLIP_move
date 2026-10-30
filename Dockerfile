@@ -9,6 +9,7 @@ COPY .next/standalone ./
 COPY .next/static ./.next/static
 COPY public ./public
 RUN mkdir -p /app/data/maps && chown -R app:app /app/data
+RUN mkdir -p .next/cache && chmod -R a+rwX .next
 USER app
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME="0.0.0.0"

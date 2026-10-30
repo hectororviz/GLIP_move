@@ -467,7 +467,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
               )}
             </div>
             {items.map((a) => (
-              <div key={`${a._type}-${a.id}`} className={`card p-3 grid gap-1 min-w-0 text-sm transition-colors ${highlightKey === `${a._type}-${a.id}` ? "border-green-600 bg-green-50" : ""}`}>
+              <div key={`${a._type}-${a.id}`} className={`card p-3 grid gap-1 min-w-0 text-sm ${highlightKey === `${a._type}-${a.id}` ? "flash-highlight" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-semibold min-w-0">{a._type}: {disp(a.name)}</div>
                   <div className="flex gap-1 shrink-0">

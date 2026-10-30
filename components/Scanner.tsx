@@ -12,6 +12,7 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
   const [detail, setDetail] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [diag, setDiag] = useState({ secure: false, api: false });
+  const watchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     cbRef.current = onResult;
@@ -62,7 +63,19 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
           try { controls?.stop(); } catch {}
           cbRef.current(text);
         });
-        if (!cancelled) setStatus("ready");
+        try { await videoRef.current.play(); } catch {}
+        if (!cancelled) {
+          setStatus("ready");
+          if (watchRef.current) clearTimeout(watchRef.current);
+          watchRef.current = setTimeout(() => {
+            const v = videoRef.current;
+            if (!cancelled && v && (v.videoWidth === 0 || v.paused)) {
+              try { controls?.stop(); } catch {}
+              setStatus("error");
+              setDetail("La cámara no entrega imagen. Revisa que ninguna otra app la esté usando y reintenta.");
+            }
+          }, 10000);
+        }
       } catch (ex) {
         if (cancelled) return;
         const message = ex instanceof Error ? ex.message : String(ex);
@@ -80,6 +93,7 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
     const t = setTimeout(start, 0);
     return () => {
       clearTimeout(t);
+      if (watchRef.current) clearTimeout(watchRef.current);
       cancelled = true;
       done = true;
       try { controls?.stop(); } catch {}
