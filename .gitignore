@@ -5,3 +5,4 @@ data/config.json
 data/floors.json
 data/maps/
 .env
+data/brand/
