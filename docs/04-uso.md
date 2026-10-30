@@ -1,30 +1,49 @@
 # 04 — Uso diario
 
+Lectura libre sin login. La primera acción de edición abre el modal de login
+(usuario GLPI, o check “login local” para la clave admin); tras entrar, la
+acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Salir”.
+
 ## Control por piso (`/mapa`)
 
-1. Selector de piso + panel **Lugares**: árbol Polo → pisos → puestos.
+1. Header fijo con menú hamburguesa en móvil; un solo scroll de página (el mapa
+   queda fijo mientras la lista fluye).
+2. Selector de piso + panel **Lugares**: árbol Polo → pisos → puestos.
    - Piso con mapa lleva badge `mapa` y contador `X/Y puestos`; clic → abre su plano.
    - Puesto dibujado → clic abre su sidebar aunque esté en otro piso (cambia de plano solo).
    - `(sin dibujar)` = hijo de GLPI aún no calibrado.
-2. En el plano: zoom rueda/pinch, clic en un puesto → sidebar con sus equipos
-   (PC, monitor, teléfono, etc.).
-3. Por equipo: **Quitar** (deja `locations_id=0`, sin ubicación, pide
-   confirmación) o **Reemplazar (scan)** (quita el viejo y asigna el nuevo).
-4. **Agregar por inventario**: tipear `0000012865` o `12865` (tolerante a ceros,
-   Enter u OK) o botón 📷 para escanear con la cámara. También vale lector
-   Bluetooth (escribe en el campo como teclado).
-5. Tras asignar/quitar, la sidebar se recarga desde GLPI.
+3. En el plano: zoom rueda/pinch, clic en un puesto → sidebar con **ocupante**
+   (nombre completo) y sus equipos. La etiqueta del puesto muestra el número
+   corto y centrado (`Puesto 23` → `23`); el nombre completo queda en el tooltip.
+4. Por equipo: iconos **Editar en GLPI** (abre la ficha en pestaña nueva),
+   **Reemplazar (scan)** y **Quitar** (deja `locations_id=0`, pide confirmación).
+   Ficha compacta: `Tipo: Nombre / Mod.: … / Inv.: …`.
+5. **Ocupante**: asignar/cambiar con buscador de usuarios GLPI (confirma
+   cantidad de equipos afectados) o quitar (solo limpia sus equipos). La
+   ocupación se deriva de `users_id` en GLPI: sin directorio local duplicado.
+6. **Agregar por inventario**: tipear `0000012865`, `12865`, `A 0001-0537` o
+   pegar URL de QR GLPI (Enter u OK), o botón 📷 para escanear (modal
+   centrado). También vale lector Bluetooth (escribe en el campo como teclado).
+7. El bien recién agregado **destella en verde 5 s** en la sidebar.
+8. Tras asignar/quitar, la sidebar se recarga desde GLPI.
+9. **Ver en mapa** (desde Búsqueda): cambia de piso si hace falta, centra con
+   zoom sobre el puesto y lo destella.
 
 ## Búsqueda (`/buscar`)
 
-- Campo libre + chips por tipo (Todos/PC/Monitor/Teléfono/...).
-- Botón 📷: escanea el Code128 y busca directo.
-- Orden de búsqueda: N° inventario (`otherserial`, con/sin ceros) → nombre → serie.
-- Ficha por equipo: **Tipo, Fabricante, Modelo, Inventario, Serie, Lugar,
-  Usuario** (+ link `Ver en mapa →` si tiene ubicación; si solo tiene usuario,
-  muestra `sin ubicación` y el link deshabilitado).
+Modos **Equipos** y **Personas** (requieren login solo para editar, no para ver).
+
+- **Equipos**: campo libre + chips por tipo. Orden: URL GLPI directa (`…/front/<tipo>.form.php?id=`) → N° inventario (`otherserial`, con/sin ceros, con letra-serie) → nombre → serie. Botón 📷 escanea y busca directo.
+  Ficha: **Tipo, Fabricante, Modelo, Inventario, Serie, Lugar, Usuario** (+ link
+  `Ver en mapa →` si tiene ubicación).
+- **Personas**: por nombre, apellido o usuario GLPI. Ficha: identidad, puesto(s)
+  ocupado(s) con `Ver en mapa →`, equipos agrupados por puesto y botón Quitar
+  del puesto (limpia su `users_id` en esos equipos).
 
 ## Calibración de puestos (`/mapa?calibrar=1[&floor=...]`)
+
+**Solo admin** (clave local o GLPI admin): sin sesión muestra solo el login;
+por URL directa también bloquea.
 
 Requiere que el piso tenga **ubicación GLPI padre** y **plano** (si no, la
 pantalla lo indica con link a `/config`).
@@ -32,19 +51,22 @@ pantalla lo indica con link a `/config`).
 1. Usa **🖐️ Navegar** para moverte con zoom (rueda/pinch o botones +/−/⤾)
    y encuadrar la zona con precisión; cambia a **✏️ Dibujar** y
    **arrastra sobre el plano** para crear un rectángulo.
-2. En el panel, elige la ubicación en el desplegable (**solo hijos del piso**)
-   → **Asignar**. El hotspot toma el **nombre de GLPI**.
-3. **Arrastrar un rectángulo lo mueve**; la **esquina inferior derecha lo
-   redimensiona**; la lista inferior permite **borrar**.
-4. **Guardar en servidor** (`N` puestos). Sin guardar, los cambios se pierden.
-   Requiere sesión admin (si expiró: `Inicia sesión admin en /config`).
+2. Al soltar (o clic derecho sobre el rectángulo) se abre un **menú contextual**
+   con los puestos hijos disponibles → al elegir uno queda **asignado y
+   guardado en servidor** automáticamente (sin botón Asignar).
+3. Clic derecho sobre un puesto dibujado → menú para **reasignarlo** a otro
+   hijo (también auto-guardado).
+4. **Arrastrar un rectángulo lo mueve**; la **esquina inferior derecha lo
+   redimensiona**; la lista inferior permite **borrar**. Estos cambios usan
+   **Guardar en servidor** (`N` puestos).
+5. Contador `dibujados/hijos` indica el avance. Un puesto no puede dibujarse dos
+   veces en el mismo piso.
 
-Contador `dibujados/hijos` indica el avance. Un puesto no puede dibujarse dos
-veces en el mismo piso.
+## Escaneo
 
-## Escaneo Code128
-
-- Etiquetas de **10 dígitos con ceros a la izquierda** (ej. `0000012865`).
-- La app normaliza (`0000012865` ⇄ `12865`) y prueba variantes al buscar.
-- Cámara: librería ZXing en el navegador (requiere HTTPS o localhost para
-  acceder a la cámara). Lector BT/USB: funciona sin configurar (modo teclado).
+- Formatos: **Code128 de 10 dígitos** (`0000012865` ⇄ `12865`), **letra-serie**
+  (`A 0001-0537`; GLPI lo guarda como `A-001-0045` y la app mapea ambas formas)
+  y **QR con link GLPI** (`…/front/computer.form.php?id=199` → directo por tipo+id).
+- Cámara: modal centrado, librería ZXing (requiere HTTPS o localhost). Si la
+  cámara falla, muestra el motivo exacto + Reintentar; siempre queda el input
+  manual / lector BT.
