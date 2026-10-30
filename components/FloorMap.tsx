@@ -387,11 +387,15 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           <h1>Calibración</h1>
           <p>Se requiere acceso administrador para dibujar y modificar puestos.</p>
         </div>
-        <div className="card p-6 grid gap-2 text-center">
-          <p className="text-muted">Inicia sesión con la clave admin local para continuar.</p>
-          <button className="btn btn-primary w-fit mx-auto" onClick={() => setAdminOpen(true)}>Iniciar sesión admin</button>
+        <div className="card p-6 grid gap-3 text-center">
+          <p className="text-muted">Inicia sesión con la clave admin local o con un usuario GLPI administrador.</p>
+          <div className="flex gap-2 justify-center flex-wrap">
+            <button className="btn btn-primary" onClick={() => setAdminOpen(true)}>Clave admin</button>
+            <button className="btn btn-secondary" onClick={() => setAuthOpen(true)}>Usuario GLPI admin</button>
+          </div>
         </div>
         <AdminLoginModal open={adminOpen} onClose={() => setAdminOpen(false)} onSuccess={() => { setAdminAuthed(true); setAdminOpen(false); }} />
+        <LoginModal open={authOpen} onClose={() => setAuthOpen(false)} onSuccess={(u) => { setAuthUser(u); fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
       </div>
     );
   }
@@ -698,7 +702,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         <LoginModal
           open={authOpen}
           onClose={() => { setAuthOpen(false); pendingAction.current = null; }}
-          onSuccess={(u) => { setAuthUser(u); const a = pendingAction.current; pendingAction.current = null; if (a) a(); }}
+          onSuccess={(u) => { setAuthUser(u); const a = pendingAction.current; pendingAction.current = null; fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); if (a) a(); }}
         />
       )}
       <AdminLoginModal open={adminOpen} onClose={() => setAdminOpen(false)} onSuccess={() => { setAdminAuthed(true); setAdminOpen(false); }} />

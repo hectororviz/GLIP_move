@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdmin } from "@/lib/auth";
 import { loadFloors, saveFloors, mapsDir } from "@/lib/maps";
 import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
 
-function adminOk(req: NextRequest): boolean {
-  const expected = process.env.ADMIN_PASSWORD || "plain:cambia-esto";
-  const cookie = req.cookies.get("gm_admin")?.value;
-  return !!cookie && expected.startsWith("plain:") && cookie === expected.slice(6);
-}
 
 const ALLOWED: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -19,7 +15,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 // POST /api/maps/upload formData {floorId, file} -> guarda plano (admin)
 export async function POST(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const form = await req.formData();
   const floorId = String(form.get("floorId") || "");
   const file = form.get("file") as File | null;

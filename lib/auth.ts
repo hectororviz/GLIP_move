@@ -95,6 +95,22 @@ export function isOperator(req: any): boolean {
   return canOperate(a.session);
 }
 
+export function adminProfiles(): string[] {
+  return (process.env.GLPI_ADMIN_PROFILES || "Super-Admin,Admin")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function isAdmin(req: any): boolean {
+  const expected = process.env.ADMIN_PASSWORD || "plain:cambia-esto";
+  const cookie = req.cookies.get("gm_admin")?.value;
+  if (cookie && expected.startsWith("plain:") && cookie === expected.slice(6)) return true;
+  const s = getSession(req);
+  if (s && s.profiles.some((p) => adminProfiles().includes(p))) return true;
+  return false;
+}
+
 export function authStatus(req: any): { authenticated: boolean; kind: "admin" | "user" | "none"; user: AuthUser | null; canOperate: boolean } {
   const a = getAuth(req);
   if (a.kind === "admin") return { authenticated: true, kind: "admin", user: { login: "admin", name: "Administrador", profiles: ["admin"] }, canOperate: true };

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdmin } from "@/lib/auth";
 import { promises as fs } from "fs";
 import path from "path";
 import { loadConfig, saveConfig } from "@/lib/config";
@@ -9,11 +10,6 @@ export const dynamic = "force-dynamic";
 const MAX = 2 * 1024 * 1024;
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
 
-function adminOk(req: NextRequest): boolean {
-  const expected = process.env.ADMIN_PASSWORD || "plain:cambia-esto";
-  const cookie = req.cookies.get("gm_admin")?.value;
-  return !!cookie && expected.startsWith("plain:") && cookie === expected.slice(6);
-}
 
 function brandDir() { return path.join(dataDir(), "brand"); }
 function brandPath(name: string) { return path.join(brandDir(), name); }
@@ -36,7 +32,7 @@ export async function GET() {
 
 // POST /api/brand/icon (multipart: file) -> guarda y actualiza config
 export async function POST(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   let form: FormData;
   try { form = await req.formData(); } catch {
     return NextResponse.json({ error: "Formulario inválido" }, { status: 400 });
@@ -64,7 +60,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/brand/icon -> quita el icono
 export async function DELETE(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const cfg = await loadConfig();
   if (cfg.brandIcon) {
     try { await fs.unlink(brandPath(cfg.brandIcon)); } catch {}

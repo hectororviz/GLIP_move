@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ParentPicker, useLocations } from "@/components/Places";
+import LoginModal from "@/components/LoginModal";
 
 type Floor = {
   id: string;
@@ -16,7 +17,8 @@ export default function ConfigPage() {
   const [form, setForm] = useState({ glpiBaseUrl: "", appToken: "", userToken: "", keepUserOnMove: true, appName: "GLPI Move", accentColor: "#0b5ed7", brandIcon: null as string | null });
   const [sets, setSets] = useState({ appTokenSet: false, userTokenSet: false });
   const [pass, setPass] = useState("");
-  const [authed, setAuthed] = useState(false);
+  const [adminAuthed, setAdminAuthed] = useState(false);
+  const [glpiOpen, setGlpiOpen] = useState(false);
   const [msg, setMsg] = useState("");
   const [testRes, setTestRes] = useState("");
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -126,15 +128,19 @@ export default function ConfigPage() {
       setSets({ appTokenSet: !!j.appTokenSet, userTokenSet: !!j.userTokenSet });
     }).catch(() => {});
     refreshFloors();
+    fetch("/api/admin/check").then((r) => r.json()).then((j) => {
+      setAdminAuthed(!!j.admin);
+      if (!j.admin) setLoginOpen(true);
+    }).catch(() => setLoginOpen(true));
   }, []);
 
   useEffect(() => {
-    setLoginOpen(!authed);
-  }, [authed]);
+    setLoginOpen(!adminAuthed);
+  }, [adminAuthed]);
 
   async function login() {
     const r = await fetch("/api/config/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass }) });
-    setAuthed(r.ok);
+    setAdminAuthed(r.ok);
     setMsg(r.ok ? "Sesión admin iniciada" : "");
     if (r.ok) { setLoginOpen(false); refreshFloors(); }
   }
@@ -218,7 +224,7 @@ export default function ConfigPage() {
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        {authed ? (
+        {adminAuthed ? (
           <span className="badge badge-success">Sesión admin activa</span>
         ) : (
           <button onClick={() => setLoginOpen(true)} className="btn btn-primary text-xs">Iniciar sesión admin</button>
@@ -245,17 +251,17 @@ export default function ConfigPage() {
         <section className="card p-4 grid gap-3">
           <h2 className="font-bold">Conexión GLPI 10 (API legacy)</h2>
           <label className="text-sm grid gap-1">GLPI Base URL
-            <input className="input" value={form.glpiBaseUrl} onChange={(e) => setForm({ ...form, glpiBaseUrl: e.target.value })} placeholder="http://192.168.170.125" disabled={!authed} />
+            <input className="input" value={form.glpiBaseUrl} onChange={(e) => setForm({ ...form, glpiBaseUrl: e.target.value })} placeholder="http://192.168.170.125" disabled={!adminAuthed} />
           </label>
           <label className="text-sm grid gap-1">App-Token (Setup &gt; API clients) {sets.appTokenSet && <span className="badge badge-success">guardado</span>}
-            <input className="input" value={form.appToken} onChange={(e) => setForm({ ...form, appToken: e.target.value })} placeholder="vacío = no cambiar" disabled={!authed} />
+            <input className="input" value={form.appToken} onChange={(e) => setForm({ ...form, appToken: e.target.value })} placeholder="vacío = no cambiar" disabled={!adminAuthed} />
           </label>
           <label className="text-sm grid gap-1">User token (clave de acceso remoto del usuario) {sets.userTokenSet && <span className="badge badge-success">guardado</span>}
-            <input type="password" className="input" value={form.userToken} onChange={(e) => setForm({ ...form, userToken: e.target.value })} placeholder="vacío = no cambiar" disabled={!authed} />
+            <input type="password" className="input" value={form.userToken} onChange={(e) => setForm({ ...form, userToken: e.target.value })} placeholder="vacío = no cambiar" disabled={!adminAuthed} />
           </label>
           <div className="flex gap-2 flex-wrap">
-            <button onClick={save} disabled={!authed} className="btn btn-primary">Guardar</button>
-            <button onClick={test} disabled={!authed} className="btn btn-secondary">Probar conexión</button>
+            <button onClick={save} disabled={!adminAuthed} className="btn btn-primary">Guardar</button>
+            <button onClick={test} disabled={!adminAuthed} className="btn btn-secondary">Probar conexión</button>
           </div>
           {testRes && <p className="text-sm text-muted">{testRes}</p>}
         </section>
@@ -266,8 +272,8 @@ export default function ConfigPage() {
           <h2 className="font-bold">Planos por piso</h2>
           <p className="text-xs text-muted">Cada piso se vincula a su ubicación GLPI padre. Los puestos a dibujar serán sus hijos.</p>
           <div className="flex gap-2">
-            <input className="input flex-1" placeholder="Nuevo piso, ej. 1° piso" value={newFloor} onChange={(e) => setNewFloor(e.target.value)} disabled={!authed} />
-            <button onClick={addFloor} disabled={!authed} className="btn btn-primary">Agregar</button>
+            <input className="input flex-1" placeholder="Nuevo piso, ej. 1° piso" value={newFloor} onChange={(e) => setNewFloor(e.target.value)} disabled={!adminAuthed} />
+            <button onClick={addFloor} disabled={!adminAuthed} className="btn btn-primary">Agregar</button>
           </div>
           {floors.map((f) => {
             const kids = f.glpiLocationId != null ? childrenOf.get(f.glpiLocationId) || [] : [];
@@ -275,10 +281,10 @@ export default function ConfigPage() {
               <div key={f.id} className="card p-4 grid gap-3">
                 <div className="flex justify-between items-center flex-wrap gap-2">
                   <b className="text-ink">{f.name}</b>
-                  <button onClick={() => delFloor(f.id, f.name)} disabled={!authed} className="text-xs text-danger underline disabled:opacity-40">eliminar</button>
+                  <button onClick={() => delFloor(f.id, f.name)} disabled={!adminAuthed} className="text-xs text-danger underline disabled:opacity-40">eliminar</button>
                 </div>
                 <label className="text-xs grid gap-1">Ubicación GLPI padre (el piso)
-                  <ParentPicker value={f.glpiLocationId} onChange={(id) => authed && setParent(f, id)} />
+                  <ParentPicker value={f.glpiLocationId} onChange={(id) => adminAuthed && setParent(f, id)} />
                 </label>
                 <div className="flex gap-3 items-center text-sm flex-wrap">
                   {f.image ? (
@@ -295,7 +301,7 @@ export default function ConfigPage() {
                     </span>
                     <label className="text-xs border border-line rounded-lg px-2 py-1 cursor-pointer w-fit hover:bg-canvas">
                       {uploading === f.id ? "Subiendo..." : f.image ? "Reemplazar plano" : "Subir plano"}
-                      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={!authed || !!uploading}
+                      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={!adminAuthed || !!uploading}
                         onChange={(e) => { const fl = e.target.files?.[0]; if (fl) upload(f.id, fl); e.target.value = ""; }} />
                     </label>
                     <a className="text-xs text-brand-600 underline" href={`/mapa?calibrar=1&floor=${f.id}`}>Calibrar puestos →</a>
@@ -312,7 +318,7 @@ export default function ConfigPage() {
         <section className="card p-4 grid gap-4">
           <h2 className="font-bold">Apariencia</h2>
           <label className="text-sm grid gap-1">Nombre de la herramienta
-            <input className="input" value={form.appName} onChange={(e) => setForm({ ...form, appName: e.target.value })} disabled={!authed} maxLength={40} />
+            <input className="input" value={form.appName} onChange={(e) => setForm({ ...form, appName: e.target.value })} disabled={!adminAuthed} maxLength={40} />
           </label>
           <div className="grid gap-2">
             <span className="text-sm font-medium">Color de acento</span>
@@ -324,14 +330,14 @@ export default function ConfigPage() {
                   className={`h-9 w-9 rounded-full border-2 transition ${form.accentColor === c ? "border-ink scale-110" : "border-transparent"}`}
                   style={{ background: c }}
                   aria-label={c}
-                  disabled={!authed}
+                  disabled={!adminAuthed}
                 />
               ))}
               <input
                 type="color"
                 value={form.accentColor}
                 onChange={(e) => setForm({ ...form, accentColor: e.target.value })}
-                disabled={!authed}
+                disabled={!adminAuthed}
                 className="h-9 w-9 rounded-full border border-line cursor-pointer"
               />
             </div>
@@ -352,20 +358,20 @@ export default function ConfigPage() {
                   {(form.appName || "GLPI Move").slice(0, 1).toUpperCase()}
                 </div>
               )}
-              <label className={`btn btn-secondary text-xs cursor-pointer ${!authed || iconBusy ? "opacity-40 pointer-events-none" : ""}`}>
+              <label className={`btn btn-secondary text-xs cursor-pointer ${!adminAuthed || iconBusy ? "opacity-40 pointer-events-none" : ""}`}>
                 {iconBusy ? "Subiendo..." : form.brandIcon ? "Reemplazar logo" : "Subir logo"}
-                <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" disabled={!authed || iconBusy}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" disabled={!adminAuthed || iconBusy}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadIcon(f); e.target.value = ""; }} />
               </label>
               {form.brandIcon && (
-                <button onClick={removeIcon} disabled={!authed || iconBusy} className="btn btn-danger text-xs">Quitar logo</button>
+                <button onClick={removeIcon} disabled={!adminAuthed || iconBusy} className="btn btn-danger text-xs">Quitar logo</button>
               )}
             </div>
             {iconMsg && <p className="text-sm text-muted">{iconMsg}</p>}
           </div>
           <div className="flex gap-2">
-            <button onClick={save} disabled={!authed} className="btn btn-primary">Guardar apariencia</button>
-            <button onClick={() => setForm((f) => ({ ...f, appName: "GLPI Move", accentColor: "#0b5ed7" }))} disabled={!authed} className="btn btn-secondary">Restablecer</button>
+            <button onClick={save} disabled={!adminAuthed} className="btn btn-primary">Guardar apariencia</button>
+            <button onClick={() => setForm((f) => ({ ...f, appName: "GLPI Move", accentColor: "#0b5ed7" }))} disabled={!adminAuthed} className="btn btn-secondary">Restablecer</button>
           </div>
         </section>
       )}
@@ -374,19 +380,19 @@ export default function ConfigPage() {
         <section className="card p-4 grid gap-4">
           <h2 className="font-bold">Avanzada</h2>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.keepUserOnMove} onChange={(e) => setForm({ ...form, keepUserOnMove: e.target.checked })} disabled={!authed} />
+            <input type="checkbox" checked={form.keepUserOnMove} onChange={(e) => setForm({ ...form, keepUserOnMove: e.target.checked })} disabled={!adminAuthed} />
             Conservar usuario asignado al mover un bien
           </label>
-          <button onClick={save} disabled={!authed} className="btn btn-primary w-fit">Guardar</button>
+          <button onClick={save} disabled={!adminAuthed} className="btn btn-primary w-fit">Guardar</button>
 
           <div className="border-t pt-3 grid gap-3">
             <h3 className="font-bold text-sm">Respaldo (pisos, puestos y planos)</h3>
             <p className="text-xs text-muted">Exporta e importa `floors.json` + imágenes. No incluye conexión GLPI ni tokens. La importación reemplaza todos los pisos actuales.</p>
             <div className="flex gap-2 flex-wrap">
-              <button onClick={exportBackup} disabled={!authed || backupBusy} className="btn btn-primary text-xs">Exportar ZIP</button>
-              <label className={`btn btn-secondary text-xs cursor-pointer ${!authed || backupBusy ? "opacity-40 pointer-events-none" : ""}`}>
+              <button onClick={exportBackup} disabled={!adminAuthed || backupBusy} className="btn btn-primary text-xs">Exportar ZIP</button>
+              <label className={`btn btn-secondary text-xs cursor-pointer ${!adminAuthed || backupBusy ? "opacity-40 pointer-events-none" : ""}`}>
                 {backupBusy ? "Importando..." : "Importar ZIP"}
-                <input type="file" accept="application/zip,.zip" className="hidden" disabled={!authed || backupBusy}
+                <input type="file" accept="application/zip,.zip" className="hidden" disabled={!adminAuthed || backupBusy}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) importBackup(f); e.target.value = ""; }} />
               </label>
             </div>
@@ -395,23 +401,27 @@ export default function ConfigPage() {
         </section>
       )}
 
-      {loginOpen && !authed && (
+      {!adminAuthed && (loginOpen || glpiOpen) && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
           <div className="card p-5 w-full max-w-sm grid gap-3">
             <h2 className="font-bold text-lg">Acceso administrador</h2>
-            <p className="text-sm text-muted">Ingresa la clave local (ADMIN_PASSWORD) para administrar.</p>
-            <input
-              type="password"
-              className="input"
-              value={pass}
-              onChange={(e) => setPass(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && login()}
-              autoFocus
-            />
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setLoginOpen(false)} className="btn btn-secondary text-xs">Cancelar</button>
-              <button onClick={login} className="btn btn-primary text-xs">Entrar</button>
+            <p className="text-sm text-muted">Elige una vía de acceso (clave local o usuario GLPI con perfil admin).</p>
+            <div className="flex gap-2">
+              <button onClick={() => { setLoginOpen(true); setGlpiOpen(false); }} className={`btn ${loginOpen ? "btn-primary" : "btn-secondary"} text-xs flex-1`}>Clave local</button>
+              <button onClick={() => { setGlpiOpen(true); setLoginOpen(false); }} className={`btn ${glpiOpen ? "btn-primary" : "btn-secondary"} text-xs flex-1`}>Usuario GLPI</button>
             </div>
+            {loginOpen && (
+              <>
+                <input type="password" className="input" placeholder="Clave admin local" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => e.key === "Enter" && login()} autoFocus />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setLoginOpen(false)} className="btn btn-secondary text-xs">Cancelar</button>
+                  <button onClick={login} className="btn btn-primary text-xs">Entrar</button>
+                </div>
+              </>
+            )}
+            {glpiOpen && (
+              <LoginModal open={glpiOpen} onClose={() => setGlpiOpen(false)} onSuccess={() => { fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); setGlpiOpen(false); }} />
+            )}
           </div>
         </div>
       )}

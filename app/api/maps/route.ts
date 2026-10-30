@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdmin } from "@/lib/auth";
 import { loadFloors, saveFloors, createFloor, type Floor } from "@/lib/maps";
 
-function adminOk(req: NextRequest): boolean {
-  const expected = process.env.ADMIN_PASSWORD || "plain:cambia-esto";
-  const cookie = req.cookies.get("gm_admin")?.value;
-  return !!cookie && expected.startsWith("plain:") && cookie === expected.slice(6);
-}
 
 // GET /api/maps -> lista de pisos con puestos
 export async function GET() {
@@ -14,7 +10,7 @@ export async function GET() {
 
 // POST /api/maps {name} -> crea piso (admin)
 export async function POST(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const { name } = await req.json();
   if (!name?.trim()) return NextResponse.json({ error: "name requerido" }, { status: 400 });
   const f = await createFloor(name.trim());
@@ -23,7 +19,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/maps {id, name?, rootLocationId?, puestos?} -> actualiza (admin)
 export async function PUT(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const body = await req.json();
   if (!body.id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
   const floors = await loadFloors();
@@ -55,7 +51,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/maps?id= -> elimina piso + imagen (admin)
 export async function DELETE(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
   const floors = await loadFloors();

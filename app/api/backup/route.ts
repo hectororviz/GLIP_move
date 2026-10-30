@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdmin } from "@/lib/auth";
 import AdmZip from "adm-zip";
 import { promises as fs } from "fs";
 import path from "path";
@@ -6,15 +7,10 @@ import { loadFloors, saveFloors, mapsDir } from "@/lib/maps";
 
 export const dynamic = "force-dynamic";
 
-function adminOk(req: NextRequest): boolean {
-  const expected = process.env.ADMIN_PASSWORD || "plain:cambia-esto";
-  const cookie = req.cookies.get("gm_admin")?.value;
-  return !!cookie && expected.startsWith("plain:") && cookie === expected.slice(6);
-}
 
 // GET /api/backup -> descarga ZIP con floors.json + imágenes
 export async function GET(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   try {
     const floors = await loadFloors();
     const zip = new AdmZip();
@@ -43,7 +39,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/backup (multipart: file) -> reemplaza pisos + imágenes
 export async function POST(req: NextRequest) {
-  if (!adminOk(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const MAX = 50 * 1024 * 1024;
   let form: FormData;
   try { form = await req.formData(); } catch {
