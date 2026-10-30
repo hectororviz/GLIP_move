@@ -55,3 +55,15 @@ export function isValidScan(raw: string): boolean {
   const t = (raw || "").trim();
   return /^\d{10}$/.test(t) || /^[A-Za-z]\s*\d[\d\s-]*$/.test(t);
 }
+
+export function editFormOf(type: string): string {
+  const map: Record<string, string> = {
+    Computer: "computer.form.php",
+    Monitor: "monitor.form.php",
+    Phone: "phone.form.php",
+    Printer: "printer.form.php",
+    Peripheral: "peripheral.form.php",
+    NetworkEquipment: "networkequipment.form.php",
+  };
+  return map[type] || `${type.toLowerCase()}.form.php`;
+}

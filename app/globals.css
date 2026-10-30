@@ -69,8 +69,13 @@ body {
 .btn-danger:hover { background: #991b1b; }
 
 .btn-icon {
-  padding: 0.4rem;
-  min-width: 36px;
+  padding: 0.3rem;
+  min-width: 32px;
+}
+
+.btn-icon-sm {
+  padding: 0.2rem;
+  min-width: 26px;
 }
 
 @keyframes flash-pulse {

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pan-pinch";
 import ScanModal from "./ScanModal";
 import { PlacesTree, useLocations } from "./Places";
-import { inventoryVariants } from "@/lib/inventory";
+import { inventoryVariants, editFormOf } from "@/lib/inventory";
 
 type Puesto = { glpi_id: number; x: number; y: number; w: number; h: number };
 type Floor = { id: string; name: string; image: string | null; glpiLocationId: number | null; puestos: Puesto[] };
@@ -11,9 +11,9 @@ type Asset = any;
 
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
-function TrashIcon() {
+function TrashIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M3 6h18" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -23,11 +23,20 @@ function TrashIcon() {
   );
 }
 
-function RefreshIcon() {
+function RefreshIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 12a9 9 0 1 1-2.64-6.36" />
       <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
+
+function EditIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   );
 }
@@ -50,6 +59,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [occQuery, setOccQuery] = useState("");
   const [occResults, setOccResults] = useState<any[]>([]);
   const [occByLoc, setOccByLoc] = useState<Record<number, string>>({});
+  const [glpiBase, setGlpiBase] = useState<string>("");
   const [userNames, setUserNames] = useState<Record<number, string>>({});
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -76,6 +86,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const boxRef = useRef<HTMLDivElement>(null);
 
   const { byId, childrenOf } = useLocations();
+
+  useEffect(() => {
+    fetch("/api/config").then((r) => r.json()).then((j) => setGlpiBase((j.glpiBaseUrl || "").replace(/\/$/, ""))).catch(() => {});
+  }, []);
 
   const floor = floors.find((f) => f.id === floorId) || floors[0] || null;
   const puestos: Puesto[] = calibrar && floor ? draft : floor?.puestos || [];
@@ -455,10 +469,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     <button
                       title="Cambiar ocupante"
                       aria-label="Cambiar ocupante"
-                      className="btn btn-secondary btn-icon"
+                      className="btn btn-secondary btn-icon-sm"
                       onClick={() => setOccOpen(!occOpen)}
                     >
-                      <RefreshIcon />
+                      <RefreshIcon size={13} />
                     </button>
                   ) : (
                     <button
@@ -480,10 +494,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       <button
                         title="Quitar ocupante"
                         aria-label={`Quitar ocupante ${o.name}`}
-                        className="btn btn-danger btn-icon"
+                        className="btn btn-danger btn-icon-sm"
                         onClick={() => removeOccupant(o.id, o.name)}
                       >
-                        <TrashIcon />
+                        <TrashIcon size={13} />
                       </button>
                     </li>
                   ))}
@@ -517,6 +531,18 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-semibold min-w-0">{a._type}: {disp(a.name)}</div>
                   <div className="flex gap-1 shrink-0">
+                    {glpiBase && (
+                      <a
+                        title="Editar en GLPI"
+                        aria-label={`Editar ${a._type} ${disp(a.otherserial)} en GLPI`}
+                        href={`${glpiBase}/front/${editFormOf(a._type)}.form.php?id=${a.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary btn-icon"
+                      >
+                        <EditIcon />
+                      </a>
+                    )}
                     <button
                       title="Reemplazar equipo"
                       aria-label={`Reemplazar ${a._type} ${disp(a.otherserial)}`}
