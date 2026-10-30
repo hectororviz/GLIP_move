@@ -2,6 +2,7 @@
 import { useState } from "react";
 import ScanModal from "@/components/ScanModal";
 import { useLocations } from "@/components/Places";
+import { parseGlpiUrl } from "@/lib/inventory";
 
 type Asset = any;
 type Person = { id: number; login: string | null; firstname: string | null; realname: string | null; display: string; email: string | null; phone: string | null };
@@ -112,6 +113,16 @@ export default function Buscar() {
     setMsg("Buscando...");
     setSelPerson(null);
     if (mode === "assets") {
+      const parsed = parseGlpiUrl(query);
+      if (parsed) {
+        const r = await fetch(`/api/glpi?type=${encodeURIComponent(parsed.type)}&id=${parsed.id}`);
+        const j = await r.json();
+        setLoading(false);
+        if (!r.ok || !j.item) { setMsg("No existe ese bien en GLPI"); setItems([]); return; }
+        setItems([j.item]);
+        setMsg("1 resultado(s)");
+        return;
+      }
       const r = await fetch(`/api/glpi?q=${encodeURIComponent(query)}&type=${type}`);
       const j = await r.json();
       setLoading(false);

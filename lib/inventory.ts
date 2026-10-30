@@ -67,3 +67,25 @@ export function editFormOf(type: string): string {
   };
   return map[type] || `${type.toLowerCase()}.form.php`;
 }
+
+const FORM_TO_TYPE: Record<string, string> = {
+  "computer.form.php": "Computer",
+  "monitor.form.php": "Monitor",
+  "phone.form.php": "Phone",
+  "printer.form.php": "Printer",
+  "peripheral.form.php": "Peripheral",
+  "networkequipment.form.php": "NetworkEquipment",
+};
+
+// Parsea una URL de GLPI: http://host/front/<tipo>.form.php?id=123
+// Devuelve {type, id} o null si no es una URL de GLPI válida.
+export function parseGlpiUrl(raw: string): { type: string; id: number } | null {
+  const t = (raw || "").trim();
+  const m = t.match(/\/front\/([a-z]+\.form\.php)\?[^#]*\bid=(\d+)/i);
+  if (!m) return null;
+  const type = FORM_TO_TYPE[m[1].toLowerCase()];
+  if (!type) return null;
+  const id = Number(m[2]);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return { type, id };
+}

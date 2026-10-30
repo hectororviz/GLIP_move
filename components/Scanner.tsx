@@ -131,7 +131,7 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
       </div>
       {status === "checking" && <p className="text-sm text-muted p-3">Preparando cámara…</p>}
       {status === "ready" && (
-        <p className="text-xs text-muted p-2">Apunta al Code128 dentro del recuadro (10 dígitos o letra-serie, ej. A 0001-0537). También puedes usar lector Bluetooth o el input manual.</p>
+        <p className="text-xs text-muted p-2">Apunta al código (Code128 de 10 dígitos, letra-serie ej. A 0001-0537, o QR con link de GLPI). También puedes usar lector Bluetooth o el input manual.</p>
       )}
       {(status === "unsupported" || status === "denied" || status === "error") && (
         <div className="p-4 grid gap-2 text-sm border-amber-200 bg-amber-50/60">

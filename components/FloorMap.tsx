@@ -4,7 +4,7 @@ import { TransformWrapper, TransformComponent, useControls } from "react-zoom-pa
 import ScanModal from "./ScanModal";
 import AuthModal from "./AuthModal";
 import { PlacesTree, useLocations } from "./Places";
-import { inventoryVariants, editFormOf } from "@/lib/inventory";
+import { inventoryVariants, editFormOf, parseGlpiUrl } from "@/lib/inventory";
 
 type Puesto = { glpi_id: number; x: number; y: number; w: number; h: number };
 type Floor = { id: string; name: string; image: string | null; glpiLocationId: number | null; puestos: Puesto[] };
@@ -208,12 +208,22 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   async function assignInventory(inv: string, opts: { replace?: Asset } = {}) {
     if (!sel) return;
-    setMsg("Buscando inventario " + inv + "...");
-    const s = await fetch(`/api/glpi?q=${encodeURIComponent(inv)}&type=all`).then((r) => r.json());
-    const list: Asset[] = s.items || [];
-    const variants = new Set(inventoryVariants(inv).map((v) => v.toUpperCase()));
-    const found = list.find((it) => variants.has(String(it.otherserial || "").trim().toUpperCase())) || list[0];
-    if (!found) { setMsg("No existe ese inventario en GLPI"); return; }
+    const parsed = parseGlpiUrl(inv);
+    let found: Asset | undefined;
+    if (parsed) {
+      setMsg(`Buscando ${parsed.type} #${parsed.id}...`);
+      const r = await fetch(`/api/glpi?type=${encodeURIComponent(parsed.type)}&id=${parsed.id}`);
+      const j = await r.json();
+      found = r.ok ? j.item : undefined;
+      if (!found) { setMsg("No existe ese bien en GLPI"); return; }
+    } else {
+      setMsg("Buscando inventario " + inv + "...");
+      const s = await fetch(`/api/glpi?q=${encodeURIComponent(inv)}&type=all`).then((r) => r.json());
+      const list: Asset[] = s.items || [];
+      const variants = new Set(inventoryVariants(inv).map((v) => v.toUpperCase()));
+      found = list.find((it) => variants.has(String(it.otherserial || "").trim().toUpperCase())) || list[0];
+      if (!found) { setMsg("No existe ese inventario en GLPI"); return; }
+    }
     if (opts.replace) {
       await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: opts.replace._type, id: opts.replace.id, location_id: null }) });
     }
