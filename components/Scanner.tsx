@@ -30,7 +30,18 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
   const [diag, setDiag] = useState({ secure: false, api: false });
   const [tech, setTech] = useState<Tech>(emptyTech);
   const [sent, setSent] = useState("");
+  const [previewOnly, setPreviewOnly] = useState(false);
   const watchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startingRef = useRef(false);
+  const previewRef = useRef(false);
+
+  function releaseAll() {
+    try { BrowserCodeReader.releaseAllStreams(); } catch {}
+    const video = videoRef.current;
+    const stream = video?.srcObject as MediaStream | null | undefined;
+    stream?.getTracks().forEach((tr) => { try { tr.stop(); } catch {} });
+    if (video) video.srcObject = null;
+  }
 
   useEffect(() => {
     cbRef.current = onResult;
@@ -49,14 +60,17 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
     };
 
     async function start() {
+      if (startingRef.current) return;
+      startingRef.current = true;
       setStatus("checking");
       setDetail("");
       setSent("");
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined") { startingRef.current = false; return; }
       t.secure = window.isSecureContext;
       t.api = !!navigator.mediaDevices?.getUserMedia;
       if (!cancelled) { setDiag({ secure: t.secure, api: t.api }); setTech({ ...t }); }
       if (!t.api) {
+        startingRef.current = false;
         if (!cancelled) {
           setStatus("unsupported");
           setDetail(
@@ -73,29 +87,41 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
           const devices = await BrowserMultiFormatReader.listVideoInputDevices();
           t.devices = devices.map((d) => ({ label: d.label || "(sin etiqueta)", id: d.deviceId }));
           if (!devices.length) throw new Error("No se encontraron cámaras.");
-          const back =
-            devices.find((d) => /back|rear|environment|trasera/i.test(d.label || "")) ||
-            devices[devices.length - 1];
-          t.chosenId = back?.deviceId || null;
         } catch (e) {
-          t.chosenId = null;
           pushEvent("lista-devices-fallo: " + (e instanceof Error ? e.message : String(e)).slice(0, 100));
         }
         setTech({ ...t });
         if (!videoRef.current) throw new Error("No se pudo preparar el visor.");
+        if (previewRef.current) {
+          const pv = videoRef.current;
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
+          if (cancelled) { stream.getTracks().forEach((tr) => { try { tr.stop(); } catch {} }); startingRef.current = false; return; }
+          pv.srcObject = stream;
+          try { await pv.play(); } catch {}
+          snapVideo();
+          setTech({ ...t });
+          startingRef.current = false;
+          if (!cancelled) setStatus("ready");
+          return;
+        }
         const v = videoRef.current;
         v.onloadedmetadata = () => { pushEvent("loadedmetadata"); snapVideo(); setTech({ ...t }); };
         v.onplaying = () => { pushEvent("playing"); snapVideo(); setTech({ ...t }); };
         v.onpause = () => { pushEvent("pause"); snapVideo(); setTech({ ...t }); };
         v.onerror = () => { pushEvent("video-error"); snapVideo(); setTech({ ...t }); };
-        controls = await reader.decodeFromVideoDevice(t.chosenId || undefined, v, (res) => {
-          if (cancelled || done || !res) return;
-          const text = res.getText().trim();
-          if (!text) return;
-          done = true;
-          try { controls?.stop(); } catch {}
-          cbRef.current(text);
-        });
+        // facingMode en lugar de deviceId explícito: evita streams vacíos por ID obsoleto.
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
+          v,
+          (res) => {
+            if (cancelled || done || !res) return;
+            const text = res.getText().trim();
+            if (!text) return;
+            done = true;
+            try { controls?.stop(); } catch {}
+            cbRef.current(text);
+          }
+        );
         const stream = v.srcObject as MediaStream | null | undefined;
         const track = stream?.getVideoTracks()[0];
         if (track) {
@@ -116,6 +142,7 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
           pushEvent("play-fallo: " + (e instanceof Error ? e.message : String(e)).slice(0, 100));
           setTech({ ...t });
         }
+        startingRef.current = false;
         if (!cancelled) {
           setStatus("ready");
           if (watchRef.current) clearTimeout(watchRef.current);
@@ -124,7 +151,7 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
             snapVideo();
             if (!cancelled && vv && (vv.videoWidth === 0 || vv.paused)) {
               try { controls?.stop(); } catch {}
-              t.lastError = `watchdog: w=${vv.videoWidth} paused=${vv.paused}`;
+              t.lastError = `watchdog: w=${vv.videoWidth} paused=${vv.paused} src=${!!vv.srcObject} vis=${document.visibilityState}`;
               setStatus("error");
               setDetail("La cámara no entrega imagen. Revisa que ninguna otra app la esté usando y reintenta.");
               setTech({ ...t });
@@ -132,6 +159,7 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
           }, 10000);
         }
       } catch (ex) {
+        startingRef.current = false;
         if (cancelled) return;
         const message = ex instanceof Error ? `${ex.name}: ${ex.message}` : String(ex);
         t.lastError = message.slice(0, 200);
@@ -153,11 +181,9 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
       if (watchRef.current) clearTimeout(watchRef.current);
       cancelled = true;
       done = true;
+      startingRef.current = false;
       try { controls?.stop(); } catch {}
-      const video = videoRef.current;
-      const stream = video?.srcObject as MediaStream | null | undefined;
-      stream?.getTracks().forEach((tr) => { try { tr.stop(); } catch {} });
-      if (video) video.srcObject = null;
+      releaseAll();
     };
   }, [attempt]);
 
@@ -176,19 +202,46 @@ export default function Scanner({ onResult }: { onResult: (v: string) => void })
   }
 
   const retry = () => {
-    try { BrowserCodeReader.releaseAllStreams(); } catch {}
+    releaseAll();
+    setPreviewOnly(false);
     setAttempt((n) => n + 1);
   };
+
+  // Vista previa sin decodificar: aísla captura vs. decodificación.
+  // Usa el mismo efecto (un solo stream a la vez).
+  function startPreview() {
+    releaseAll();
+    previewRef.current = true;
+    setPreviewOnly(true);
+    setDetail("");
+    setAttempt((n) => n + 1);
+  }
+
+  function stopPreview() {
+    releaseAll();
+    previewRef.current = false;
+    setPreviewOnly(false);
+    setAttempt((n) => n + 1);
+  }
 
   const diagLine = `Diagnóstico · contexto seguro: ${diag.secure ? "sí" : "no"} · API cámara: ${diag.api ? "sí" : "no"}`;
 
   return (
     <div className="card overflow-hidden">
-      <div className={`relative bg-black ${status === "ready" ? "" : "hidden"}`}>
+      <div className={`relative bg-black ${status === "ready" || previewOnly ? "" : "hidden"}`}>
         <video ref={videoRef} className="w-full max-h-72 object-cover" muted playsInline autoPlay />
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="h-24 w-56 rounded-lg border-2 border-white/80" />
-        </div>
+        {!previewOnly && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center">
+            <div className="h-24 w-56 rounded-lg border-2 border-white/80" />
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2 px-3 py-1">
+        {!previewOnly ? (
+          <button className="btn btn-ghost text-xs" onClick={startPreview}>Solo vista previa (probar cámara)</button>
+        ) : (
+          <button className="btn btn-ghost text-xs" onClick={stopPreview}>Volver a escanear</button>
+        )}
       </div>
       {status === "checking" && <p className="text-sm text-muted p-3">Preparando cámara…</p>}
       {status === "ready" && (
