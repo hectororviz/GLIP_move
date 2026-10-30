@@ -6,3 +6,4 @@ data/floors.json
 data/maps/
 .env
 data/brand/
+localhost-*.log
