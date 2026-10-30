@@ -1,0 +1,7 @@
+node_modules
+.next
+tsconfig.tsbuildinfo
+data/config.json
+data/floors.json
+data/maps/
+.env

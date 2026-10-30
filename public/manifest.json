@@ -1,0 +1,9 @@
+{
+  "name": "GLPI Move",
+  "short_name": "GLPI Move",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f6fb",
+  "theme_color": "#0b5ed7",
+  "icons": []
+}

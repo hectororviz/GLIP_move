@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    # host: el bridge de Docker de este entorno no llega a la LAN de GLPI;
+    # con host el contenedor usa la red del equipo (igual que tu navegador).
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    # Corre como tu UID para poder escribir en ./data (config, planos).
+    # En prod con volumen Docker nominal puedes quitar esta línea (usa USER app).
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped
