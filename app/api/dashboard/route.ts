@@ -82,19 +82,38 @@ export async function GET() {
     }
   } catch {}
 
+  const estadoDe = (items: number, users: number) =>
+    items > 0 && users > 0 ? "en-uso" : items > 0 ? "disponible" : items === 0 && users === 0 ? "incompleto" : "inconsistente";
+
+  // Mapa locId -> { items, users, estado } (solo dibujados).
+  const estados: Record<number, { items: number; users: number; estado: string }> = {};
+  for (const [id, e] of byLoc) estados[id] = { items: e.items, users: e.users.size, estado: estadoDe(e.items, e.users.size) };
+  // Incluir dibujados sin bienes ni usuarios como incompletos.
+  for (const id of drawn) if (!estados[id]) estados[id] = { items: 0, users: 0, estado: "incompleto" };
+
   const floorStats = floors.map((f) => {
     const ids = f.puestos.map((p) => p.glpi_id);
     let withItems = 0;
     let occupied = 0;
+    let enUso = 0;
+    let disponible = 0;
+    let incompleto = 0;
+    let inconsistente = 0;
     const top = ids
-      .map((id) => ({ id, name: locName.get(id) || `#${id}`, items: byLoc.get(id)?.items || 0, users: byLoc.get(id)?.users.size || 0 }))
+      .map((id) => ({ id, name: locName.get(id) || `#${id}`, items: byLoc.get(id)?.items || 0, users: byLoc.get(id)?.users.size || 0, estado: estados[id]?.estado || "incompleto" }))
       .sort((a, b) => b.items - a.items);
     for (const t of top) {
       if (t.items > 0) withItems++;
       if (t.users > 0) occupied++;
+      if (t.estado === "en-uso") enUso++;
+      else if (t.estado === "disponible") disponible++;
+      else if (t.estado === "incompleto") incompleto++;
+      else inconsistente++;
     }
-    return { id: f.id, name: f.name, hasMap: !!f.image, puestos: ids.length, withItems, occupied, top: top.slice(0, 3) };
+    return { id: f.id, name: f.name, hasMap: !!f.image, puestos: ids.length, withItems, occupied, enUso, disponible, incompleto, inconsistente, top: top.slice(0, 3) };
   });
+
+  const countEstado = (e: string) => Object.values(estados).filter((s) => s.estado === e).length;
 
   const cfg = await loadConfig();
   const data = {
@@ -104,7 +123,12 @@ export async function GET() {
       drawn: drawn.size,
       withItems: [...byLoc.values()].filter((e) => e.items > 0).length,
       occupied: [...byLoc.values()].filter((e) => e.users.size > 0).length,
+      enUso: countEstado("en-uso"),
+      disponible: countEstado("disponible"),
+      incompleto: countEstado("incompleto"),
+      inconsistente: countEstado("inconsistente"),
     },
+    estados,
     recent: await readActivity(10),
     health: {
       glpiOk,

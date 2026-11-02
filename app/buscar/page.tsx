@@ -4,286 +4,26 @@ import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
 import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
+import { Spinner, EmptyState, TypeIcon } from "@/components/ui";
+import { formatLocationDisplay } from "@/lib/location-display";
+import AssetEditModal from "@/components/AssetEditModal";
+
+function CompactLocation({ locId, fallback, byId }: { locId: number | null | undefined; fallback: any; byId: Map<number, any> }) {
+  if (locId == null) return <span className="badge badge-warning">Sin ubicación</span>;
+  const d = formatLocationDisplay(locId, byId as any, fallback != null ? String(fallback) : null);
+  return (
+    <span className="block min-w-0" title={d.full}>
+      <span className="block truncate font-medium text-ink">{d.primary}</span>
+      {d.secondary && <span className="block truncate text-xs text-muted">{d.secondary}</span>}
+    </span>
+  );
+}
 
 type Asset = any;
 type Person = { id: number; login: string | null; firstname: string | null; realname: string | null; display: string; email: string | null; phone: string | null };
 type PersonGroup = { location_id: number; items: Asset[] };
 type AuthUser = { login: string; name: string; profiles: string[]; canOperate: boolean };
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
-
-function EditIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
-  );
-}
-
-function TrashIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 6h18" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-    </svg>
-  );
-}
-
-function Ficha({ a, byId, canEdit, requireEdit, onChanged }: {
-  a: Asset;
-  byId: Map<number, any>;
-  canEdit: boolean;
-  requireEdit: (fn: () => void) => void;
-  onChanged: () => void;
-}) {
-  const [showPerson, setShowPerson] = useState(false);
-  const [pq, setPq] = useState("");
-  const [presults, setPresults] = useState<Person[]>([]);
-  const [pmsg, setPmsg] = useState("");
-  const [showLocEdit, setShowLocEdit] = useState(false);
-  const [locPick, setLocPick] = useState("");
-  const [locMsg, setLocMsg] = useState("");
-  const [resolvedUser, setResolvedUser] = useState<string | null>(null);
-
-  const locName = a._locationName && a._locationName !== "—" ? String(a._locationName) : null;
-  const hasLoc = a._locationId != null && locName;
-  const hasUser = a._userId != null;
-
-  // Si GLPI devolvió users_id expandido vacío pero hay _userId, resolver nombre real.
-  useEffect(() => {
-    let alive = true;
-    setResolvedUser(null);
-    if (a?._userId != null && (!a._userName || a._userName === "—")) {
-      fetch(`/api/glpi/users?id=${a._userId}`)
-        .then((r) => r.json())
-        .then((j) => { if (alive && j?.user?.display) setResolvedUser(j.user.display); })
-        .catch(() => {});
-    }
-    return () => { alive = false; };
-  }, [a?._userId, a?._userName]);
-
-  const userDisplay = (a._userName && a._userName !== "—" ? String(a._userName) : resolvedUser)
-    || (hasUser ? `Usuario #${a._userId}` : null);
-
-  async function searchPerson() {
-    if (!pq.trim()) return;
-    setPmsg("Buscando personas...");
-    const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(pq.trim())}`);
-    const j = await r.json();
-    if (!r.ok) { setPmsg("Error: " + j.error); setPresults([]); return; }
-    setPresults(j.users || []);
-    setPmsg(j.users?.length ? "" : "Sin personas.");
-  }
-
-  async function assignToUser(u: Person) {
-    const curLoc = locName;
-    if (!confirm(`Reasignar ${a._type} ${a.otherserial || a.name} a ${u.display}? ${curLoc ? `Saldrá del puesto ${curLoc}.` : "Quedará sin puesto."}`)) return;
-    const r = await fetch("/api/glpi", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: a._type, id: a.id, location_id: null, user_id: u.id }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setPmsg("Error: " + (j.error || r.status)); return; }
-    setShowPerson(false);
-    setPq("");
-    setPresults([]);
-    setPmsg("");
-    onChanged();
-  }
-
-  async function desasignarUsuario() {
-    if (!hasUser) return;
-    const label = userDisplay || `usuario #${a._userId}`;
-    if (!confirm(`Quitar a ${label} como usuario de ${a._type} ${a.otherserial || a.name}? El equipo conservará su puesto.`)) return;
-    setPmsg("Quitando usuario...");
-    const r = await fetch("/api/glpi", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: a._type, id: a.id, location_id: a._locationId, user_id: null }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setPmsg("Error: " + (j.error || r.status)); return; }
-    setPmsg("");
-    onChanged();
-  }
-
-  async function desasignarUbicacion() {
-    if (a._locationId == null) return;
-    if (!confirm(`Sacar ${a._type} ${a.otherserial || a.name} del puesto ${locName || a._locationId}? Conservará su usuario.`)) return;
-    setLocMsg("Quitando del puesto...");
-    const r = await fetch("/api/glpi", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: a._type, id: a.id, location_id: null }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setLocMsg("Error: " + (j.error || r.status)); return; }
-    setLocMsg("");
-    setShowLocEdit(false);
-    onChanged();
-  }
-
-  async function reasignarUbicacion() {
-    const newId = Number(locPick);
-    if (!Number.isFinite(newId) || newId <= 0) { setLocMsg("Elegí un puesto válido."); return; }
-    if (newId === a._locationId) { setLocMsg("Ya está en ese puesto."); return; }
-    const destName = byId.get(newId)?.name || byId.get(newId)?.completename || `puesto ${newId}`;
-    const owner = userDisplay ? ` Conservará su usuario (${userDisplay}).` : "";
-    if (!confirm(`Mover ${a._type} ${a.otherserial || a.name} al puesto ${destName}?${owner}`)) return;
-    setLocMsg("Moviendo...");
-    const r = await fetch("/api/glpi", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: a._type, id: a.id, location_id: newId }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setLocMsg("Error: " + (j.error || r.status)); return; }
-    setLocMsg("");
-    setShowLocEdit(false);
-    onChanged();
-  }
-
-  const locOptions = [...byId.values()].sort((x, y) => String(x.completename || x.name || "").localeCompare(String(y.completename || y.name || "")));
-
-  return (
-    <div className="card p-4 grid gap-2 text-sm">
-      <div className="flex items-start justify-between gap-2 flex-wrap">
-        <div className="font-bold text-ink">{a._type} — {disp(a.name)}</div>
-        <div className="flex gap-2 flex-wrap">
-          {a._locationId ? (
-            <a className="btn btn-secondary text-xs" href={`/mapa?focus=${a._locationId}`}>Ver en mapa →</a>
-          ) : (
-            <span className="badge">Sin ubicación</span>
-          )}
-          {canEdit && (
-            <button className="btn btn-secondary text-xs" onClick={() => setShowPerson(!showPerson)}>Asignar a persona</button>
-          )}
-        </div>
-      </div>
-      <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 text-muted">
-        <div><b className="text-ink">Fabricante:</b> {disp(a._manufacturer)}</div>
-        <div><b className="text-ink">Modelo:</b> {disp(a._model)}</div>
-        <div><b className="text-ink">Inventario:</b> <span className="tabular-nums">{disp(a.otherserial)}</span></div>
-        <div><b className="text-ink">Serie:</b> <span className="tabular-nums">{disp(a.serial)}</span></div>
-      </div>
-
-      <div className="grid gap-2 rounded-xl border border-line bg-canvas/60 p-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base" aria-hidden="true">📍</span>
-            <b className="text-ink">Ubicación:</b>
-            {hasLoc ? (
-              <span className="badge badge-brand truncate max-w-[220px]" title={locName || undefined}>{locName}</span>
-            ) : (
-              <span className="badge badge-warning">Sin ubicación</span>
-            )}
-          </div>
-          {canEdit ? (
-            <div className="flex gap-1 shrink-0">
-              <button
-                title="Reasignar ubicación"
-                aria-label={`Reasignar ubicación de ${a._type} ${disp(a.otherserial)}`}
-                className="btn btn-secondary btn-icon-sm"
-                onClick={() => setShowLocEdit(!showLocEdit)}
-              >
-                <EditIcon size={13} />
-              </button>
-              {a._locationId != null && (
-                <button
-                  title="Desasignar ubicación (sacar del puesto, conserva usuario)"
-                  aria-label={`Sacar ${a._type} ${disp(a.otherserial)} del puesto`}
-                  className="btn btn-danger btn-icon-sm"
-                  onClick={() => requireEdit(desasignarUbicacion)}
-                >
-                  <TrashIcon size={13} />
-                </button>
-              )}
-            </div>
-          ) : (
-            <span className="text-[11px] text-muted">Inicia sesión para editar</span>
-          )}
-        </div>
-        {showLocEdit && canEdit && (
-          <div className="grid gap-2 border-t pt-2">
-            <select className="input text-sm" value={locPick} onChange={(e) => setLocPick(e.target.value)}>
-              <option value="">Elegir puesto…</option>
-              {locOptions.map((l: any) => (
-                <option key={l.id} value={l.id}>{l.completename || l.name} (id {l.id})</option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              <button className="btn btn-primary text-xs" onClick={() => requireEdit(reasignarUbicacion)}>Mover aquí</button>
-              <button className="btn btn-secondary text-xs" onClick={() => { setShowLocEdit(false); setLocMsg(""); }}>Cancelar</button>
-            </div>
-            {locMsg && <p className="text-xs text-muted">{locMsg}</p>}
-          </div>
-        )}
-        {!showLocEdit && locMsg && <p className="text-xs text-muted">{locMsg}</p>}
-
-        <div className="flex items-center justify-between gap-2 flex-wrap border-t pt-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base" aria-hidden="true">👤</span>
-            <b className="text-ink">Usuario:</b>
-            {userDisplay ? (
-              <span className="badge badge-success truncate max-w-[220px]" title={userDisplay}>{userDisplay}</span>
-            ) : (
-              <span className="badge">Sin asignar</span>
-            )}
-          </div>
-          {canEdit ? (
-            <div className="flex gap-1 shrink-0">
-              <button
-                title="Reasignar usuario"
-                aria-label={`Reasignar usuario de ${a._type} ${disp(a.otherserial)}`}
-                className="btn btn-secondary btn-icon-sm"
-                onClick={() => setShowPerson(!showPerson)}
-              >
-                <EditIcon size={13} />
-              </button>
-              {hasUser && (
-                <button
-                  title="Desasignar usuario (conserva el puesto)"
-                  aria-label={`Quitar usuario de ${a._type} ${disp(a.otherserial)}`}
-                  className="btn btn-danger btn-icon-sm"
-                  onClick={() => requireEdit(desasignarUsuario)}
-                >
-                  <TrashIcon size={13} />
-                </button>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {showPerson && canEdit && (
-        <div className="grid gap-2 border-t pt-2">
-          <div className="flex gap-2">
-            <input
-              className="input flex-1 text-sm"
-              placeholder="Nombre, apellido o usuario GLPI…"
-              value={pq}
-              onChange={(e) => setPq(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && searchPerson()}
-            />
-            <button className="btn btn-primary text-xs" onClick={searchPerson}>Buscar</button>
-          </div>
-          {pmsg && <p className="text-xs text-muted">{pmsg}</p>}
-          {presults.map((u) => (
-            <div key={u.id} className="flex items-center justify-between gap-2 text-sm">
-              <span>{u.display} <span className="text-xs text-muted">#{u.id}</span></span>
-              <button className="btn btn-secondary text-xs" onClick={() => requireEdit(() => assignToUser(u))}>Asignar</button>
-            </div>
-          ))}
-        </div>
-      )}
-      {!canEdit && pmsg && <p className="text-xs text-muted">{pmsg}</p>}
-    </div>
-  );
-}
 
 function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh }: {
   p: Person;
@@ -431,12 +171,37 @@ export default function Buscar() {
   const [authOpen, setAuthOpen] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
   const { byId } = useLocations();
+  const [editAsset, setEditAsset] = useState<Asset | null>(null);
+  const openEdit = (a: Asset) => {
+    if (!authUser?.canOperate) {
+      pendingAction.current = () => setEditAsset(a);
+      setAuthOpen(true);
+      return;
+    }
+    setEditAsset(a);
+  };
+  const [sortKey, setSortKey] = useState<"type" | "name" | "otherserial" | "location">("type");
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const sortedItems = [...items].sort((a, b) => {
+    const va = sortKey === "type" ? String(a._type || "") : sortKey === "name" ? String(a.name || "") : sortKey === "otherserial" ? String(a.otherserial || "") : String(a._locationName || "");
+    const vb = sortKey === "type" ? String(b._type || "") : sortKey === "name" ? String(b.name || "") : sortKey === "otherserial" ? String(b.otherserial || "") : String(b._locationName || "");
+    return va.localeCompare(vb, undefined, { numeric: true }) * sortDir;
+  });
+  const toggleSort = (k: typeof sortKey) => {
+    if (k === sortKey) setSortDir((d) => (d === 1 ? -1 : 1));
+    else { setSortKey(k); setSortDir(1); }
+  };
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); })
-      .catch(() => {});
+    const syncAuth = () => {
+      fetch("/api/auth/me")
+        .then((r) => r.json())
+        .then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); })
+        .catch(() => {});
+    };
+    syncAuth();
+    window.addEventListener("auth-changed", syncAuth);
+    return () => window.removeEventListener("auth-changed", syncAuth);
   }, []);
 
   const requireEdit = (action: () => void) => {
@@ -510,32 +275,15 @@ export default function Buscar() {
         <p>Busca equipos por inventario/serie/nombre o personas por nombre/apellido/usuario GLPI.</p>
       </div>
 
-      <div className="card p-3 flex items-center justify-between gap-2 text-sm flex-wrap">
-        {authUser ? (
-          <>
-            <span className="text-muted truncate">{authUser.name} <span className="text-xs">({authUser.canOperate ? "editor" : "lectura"})</span></span>
-            <button
-              className="btn btn-secondary text-xs"
-              onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); setAuthUser(null); }}
-            >
-              Salir
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="text-muted text-xs">Inicia sesión para reasignar o desasignar ubicación/usuario.</span>
-            <button className="btn btn-primary text-xs" onClick={() => setAuthOpen(true)}>Iniciar sesión para editar</button>
-          </>
-        )}
-      </div>
-
-      <div className="card p-4 grid gap-3">
-        <div className="flex gap-2 flex-wrap">
+      <div className="card p-3 grid gap-2">
+        <div className="flex gap-1.5 flex-wrap" role="tablist" aria-label="Qué buscar">
           {(["assets", "people"] as const).map((m) => (
             <button
               key={m}
-              onClick={() => { setMode(m); setMsg(""); setItems([]); setPeople([]); setSelPerson(null); }}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => { setMode(m); setType("all"); setMsg(""); setItems([]); setPeople([]); setSelPerson(null); }}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
                 mode === m ? "text-white border-transparent" : "bg-white text-muted border-line hover:text-ink"
               }`}
               style={mode === m ? { background: "var(--accent)", borderColor: "var(--accent)" } : undefined}
@@ -546,12 +294,13 @@ export default function Buscar() {
         </div>
 
         {mode === "assets" && (
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Filtrar por tipo">
             {["all", "Computer", "Monitor", "Phone", "Printer", "Peripheral"].map((t) => (
               <button
                 key={t}
+                aria-pressed={type === t}
                 onClick={() => setType(t)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${
+                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
                   type === t ? "text-white border-transparent" : "bg-white text-muted border-line hover:text-ink"
                 }`}
                 style={type === t ? { background: "var(--accent)", borderColor: "var(--accent)" } : undefined}
@@ -589,17 +338,47 @@ export default function Buscar() {
 
       {mode === "assets" && (
         <div className="grid gap-3">
-          {items.map((a) => (
-            <Ficha
-              key={`${a._type}-${a.id}`}
-              a={a}
-              byId={byId}
-              canEdit={!!authUser?.canOperate}
-              requireEdit={requireEdit}
-              onChanged={() => search()}
-            />
-          ))}
-          {!items.length && !msg && <div className="empty-state card"><span>Sin resultados aún. Realiza una búsqueda.</span></div>}
+          {sortedItems.length > 0 && (
+            <p className="text-xs text-muted" role="status">{sortedItems.length} resultado(s){msg.startsWith("Error") ? ` · ${msg}` : ""}</p>
+          )}
+          {sortedItems.length > 0 && (
+            <div className="card overflow-x-auto p-0">
+              <table className="table-dense min-w-[760px]">
+                <thead>
+                  <tr>
+                    {(["type", "name", "otherserial", "location"] as const).map((k) => (
+                      <th key={k} aria-sort={sortKey === k ? (sortDir === 1 ? "ascending" : "descending") : "none"}>
+                        <button onClick={() => toggleSort(k)} className="font-bold uppercase text-[11px] tracking-wide">
+                          {k === "type" ? "Tipo" : k === "name" ? "Nombre" : k === "otherserial" ? "Inventario" : "Ubicación / Usuario"}{sortKey === k ? (sortDir === 1 ? " ▲" : " ▼") : ""}
+                        </button>
+                      </th>
+                    ))}
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedItems.map((a) => (
+                    <tr key={`${a._type}-${a.id}`}>
+                      <td><span className="inline-flex items-center gap-1.5 whitespace-nowrap"><TypeIcon type={a._type} /><b>{a._type}</b><span className="text-muted text-xs hidden xl:inline">{disp(a._model)}</span></span></td>
+                      <td className="max-w-[220px]"><span className="block truncate font-medium" title={disp(a.name)}>{disp(a.name)}</span><span className="text-xs text-muted tabular-nums">S. {disp(a.serial)}</span></td>
+                      <td className="tabular-nums font-semibold">{disp(a.otherserial)}</td>
+                      <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} /><span className="text-xs text-muted block truncate" title={disp(a._userName)}>👤 {disp(a._userName)}</span></td>
+                      <td>
+                        <span className="inline-flex gap-1 flex-wrap">
+                          {a._locationId != null && <a className="btn btn-secondary text-xs !min-h-[30px] !py-1" href={`/mapa?focus=${a._locationId}`}>Ver mapa</a>}
+                          <button className="btn btn-secondary text-xs !min-h-[30px] !py-1" onClick={() => openEdit(a)} aria-label={`Editar ${a._type} ${disp(a.otherserial)}`}>Editar</button>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {loading && <Spinner label="Buscando en GLPI…" />}
+          {!items.length && !msg && <EmptyState title="Sin resultados aún" hint="Buscá por inventario, serie o nombre." />}
+          {!items.length && !!msg && !msg.startsWith("Error") && !loading && <EmptyState title={msg} hint="Probá con/sin ceros o por serie." />}
+          {!!msg && msg.startsWith("Error") && <div className="card p-4 text-sm toast-err border" role="alert">{msg}. No es lo mismo que “sin resultados”: revisá GLPI.</div>}
         </div>
       )}
 
@@ -624,12 +403,23 @@ export default function Buscar() {
           <FichaPersona p={selPerson} groups={groups} unlocated={unlocated} byId={byId} onQuitar={(g) => requireEdit(() => quitarDelPuesto(g))} onRefresh={() => selPerson && openPerson(selPerson)} />
         </div>
       )}
+      {editAsset && (
+        <AssetEditModal
+          key={`${editAsset._type}-${editAsset.id}`}
+          asset={editAsset}
+          byId={byId}
+          canEdit={!!authUser?.canOperate}
+          onClose={() => setEditAsset(null)}
+          onSaved={() => { const a = editAsset; setEditAsset(null); search(); }}
+        />
+      )}
       {authOpen && (
         <AuthModal
           open={authOpen}
           onClose={() => { setAuthOpen(false); pendingAction.current = null; }}
           onSuccess={() => {
             fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {});
+            window.dispatchEvent(new Event("auth-changed"));
             const a = pendingAction.current; pendingAction.current = null;
             if (a) a();
           }}

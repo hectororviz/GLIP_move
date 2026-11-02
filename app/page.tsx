@@ -1,27 +1,22 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { SegmentedBar, Spinner } from "@/components/ui";
 
 type TypeStat = { type: string; total: number; truncated: boolean; unlocated: number; assigned: number };
-type FloorStat = { id: string; name: string; hasMap: boolean; puestos: number; withItems: number; occupied: number; top: { id: number; name: string; items: number; users: number }[] };
+type FloorStat = { id: string; name: string; hasMap: boolean; puestos: number; withItems: number; occupied: number; enUso: number; disponible: number; incompleto: number; inconsistente: number; top: { id: number; name: string; items: number; users: number }[] };
 type Recent = { ts: number; actor: string; action: string; type: string; id: number };
 type Dash = {
   stats: { total: number; unlocated: number; assigned: number; truncated: boolean; byType: TypeStat[] };
   floors: FloorStat[];
-  puestos: { drawn: number; withItems: number; occupied: number };
+  puestos: { drawn: number; withItems: number; occupied: number; enUso: number; disponible: number; incompleto: number; inconsistente: number };
   recent: Recent[];
   health: { glpiOk: boolean; glpiError: string | null; latencyMs: number | null; appTokenSet: boolean; userTokenSet: boolean; floorsWithoutMap: { id: string; name: string }[]; undrawn: number };
   cached_at: number;
   cached: boolean;
 };
 
-function Bar({ pct, color }: { pct: number; color?: string }) {
-  return (
-    <div className="h-1.5 rounded-full bg-canvas overflow-hidden" style={{ background: "#eef2f8" }}>
-      <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: color || "var(--accent)" }} />
-    </div>
-  );
-}
+const TYPE_ICON: Record<string, string> = { Computer: "🖥️", Monitor: "🖵", Phone: "☎️", Printer: "🖨️", Peripheral: "⌨️", NetworkEquipment: "🌐" };
 
 export default function Home() {
   const [dash, setDash] = useState<Dash | null>(null);
@@ -47,19 +42,19 @@ export default function Home() {
 
   const maxType = Math.max(1, ...(dash?.stats.byType.map((b) => b.total) || [1]));
   const cards = [
-    { href: "/mapa", title: "Control por piso", desc: "Mapa JPG, zoom, clic en puesto, ver equipos, asignar o escanear Code128.", icon: "🗺️" },
-    { href: "/mapa?calibrar=1", title: "Calibración", desc: "Dibujar, mover y redimensionar puestos; asignar ubicaciones GLPI.", icon: "✏️" },
-    { href: "/buscar", title: "Búsqueda", desc: "Por inventario, serie o nombre. Ficha completa y acceso al mapa.", icon: "🔎" },
-    { href: "/config", title: "Configuración", desc: "Conexión GLPI, planos, puestos y apariencia.", icon: "⚙️" },
+    { href: "/mapa", title: "Control por piso", desc: "Mapa, estados por color, búsqueda en plano y panel del puesto.", icon: "🗺️" },
+    { href: "/mapa?calibrar=1", title: "Calibración", desc: "Dibujar, mover y redimensionar puestos.", icon: "✏️" },
+    { href: "/buscar", title: "Búsqueda", desc: "Inventario, serie, nombre y personas. Vista tabla.", icon: "🔎" },
+    { href: "/config", title: "Configuración", desc: "Conexión GLPI, planos y apariencia.", icon: "⚙️" },
   ];
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-5">
       <div className="page-header">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1>Panel de control</h1>
-            <p>Estado operativo de GLPI, actividad reciente y salud del sistema.</p>
+            <p>Estado operativo de GLPI, puestos por estado y salud del sistema.</p>
           </div>
           <button onClick={load} disabled={loading} className="btn btn-secondary text-xs">
             {loading ? "Actualizando…" : "↻ Actualizar"}
@@ -68,56 +63,83 @@ export default function Home() {
       </div>
 
       {error && (
-        <div className="card p-4 text-sm text-danger border-danger">
-          No se pudo cargar el panel: {error}
+        <div className="card p-4 text-sm toast-err border" role="alert">
+          No se pudo cargar el panel: {error}. Revisá la conexión con GLPI.
         </div>
       )}
 
       {dash?.health.glpiOk === false && !error && (
-        <div className="card p-4 text-sm" style={{ borderColor: "#f59e0b", background: "#fffbeb" }}>
+        <div className="card p-4 text-sm toast-warn border" role="alert">
           <b>GLPI no responde:</b> {(dash.health.glpiError || "sin conexión").slice(0, 160)}
           <Link href="/config" className="underline ml-2">Revisar conexión</Link>
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* KPIs principales */}
+      <section aria-label="Indicadores principales" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "Equipos en GLPI", value: dash ? String(dash.stats.total) + (dash.stats.truncated ? "+" : "") : "…", sub: dash?.stats.truncated ? "conteo parcial (límite GLPI)" : "6 tipos" },
-          { label: "Asignados a usuario", value: dash ? String(dash.stats.assigned) : "…", sub: dash ? `${Math.round((dash.stats.assigned / Math.max(1, dash.stats.total)) * 100)}% del total` : "" },
-          { label: "Sin ubicación", value: dash ? String(dash.stats.unlocated) : "…", sub: "locations_id = 0" },
-          { label: "Puestos ocupados", value: dash ? `${dash.puestos.occupied}/${dash.puestos.drawn}` : "…", sub: dash ? `${dash.puestos.withItems} con equipos` : "dibujados en planos" },
+          { label: "Equipos en GLPI", value: dash ? String(dash.stats.total) + (dash.stats.truncated ? "+" : "") : "…", sub: dash?.stats.truncated ? "conteo parcial (límite GLPI 1000/tipo)" : "6 tipos de bienes" },
+          { label: "Asignados directos a usuario", value: dash ? String(dash.stats.assigned) : "…", sub: dash ? `${Math.round((dash.stats.assigned / Math.max(1, dash.stats.total)) * 100)}% del total · estén o no en puesto` : "" },
+          { label: "Sin ubicación", value: dash ? String(dash.stats.unlocated) : "…", sub: "locations_id = 0 (no cuenta no dibujados)" },
+          { label: "Puestos dibujados", value: dash ? String(dash.puestos.drawn) : "…", sub: dash ? `${dash.puestos.withItems} equipados · ${dash.puestos.occupied} con usuario` : "" },
         ].map((k) => (
           <div key={k.label} className="card p-4 grid gap-1">
             <span className="text-xs text-muted uppercase tracking-wide font-semibold">{k.label}</span>
-            <span className="text-3xl font-bold tabular-nums">{loading && !dash ? "…" : k.value}</span>
+            <span className="text-3xl font-bold tabular-nums">{loading && !dash ? <Spinner label="" /> : k.value}</span>
             <span className="text-xs text-muted">{k.sub}</span>
           </div>
         ))}
-      </div>
+      </section>
+
+      {/* Estados de puestos */}
+      <section aria-label="Estados de puestos" className="card p-4 grid gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h2 className="font-bold">Puestos por estado</h2>
+          {dash && <span className="text-xs text-muted">Equipado ≠ ocupado: el puesto es la unidad principal; el usuario se asocia al puesto.</span>}
+        </div>
+        {!dash ? <p className="text-sm text-muted">{loading ? <Spinner /> : "Sin datos."}</p> : (
+          <>
+            <SegmentedBar parts={[
+              { value: dash.puestos.enUso, color: "#15803d", label: "Equipado en uso" },
+              { value: dash.puestos.disponible, color: "#2563eb", label: "Equipado disponible" },
+              { value: dash.puestos.incompleto, color: "#b45309", label: "Incompleto" },
+              { value: dash.puestos.inconsistente, color: "#dc2626", label: "Inconsistente" },
+            ]} />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
+              <span><b className="tabular-nums" style={{ color: "#15803d" }}>{dash.puestos.enUso}</b> <span className="text-muted">Equipados en uso (bien + usuario)</span></span>
+              <span><b className="tabular-nums" style={{ color: "#2563eb" }}>{dash.puestos.disponible}</b> <span className="text-muted">Equipados disponibles (bien, sin usuario)</span></span>
+              <span><b className="tabular-nums" style={{ color: "#b45309" }}>{dash.puestos.incompleto}</b> <span className="text-muted">Incompletos (sin bien ni usuario)</span></span>
+              <span><b className="tabular-nums" style={{ color: "#dc2626" }}>{dash.puestos.inconsistente}</b> <span className="text-muted">Inconsistentes (usuario sin bien) ⚠</span></span>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Por tipo + por piso */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="card p-4 grid gap-3">
-          <div className="font-bold">Equipos por tipo</div>
-          {!dash ? <p className="text-sm text-muted">{loading ? "Cargando…" : "Sin datos."}</p> : (
-            <div className="grid gap-2">
+        <section aria-label="Equipos por tipo" className="card p-4 grid gap-3">
+          <h2 className="font-bold">Equipos por tipo</h2>
+          {!dash ? <p className="text-sm text-muted">{loading ? <Spinner /> : "Sin datos."}</p> : (
+            <div className="grid gap-2.5">
               {dash.stats.byType.map((b) => (
                 <div key={b.type} className="grid gap-1">
                   <div className="flex justify-between text-sm gap-2">
-                    <span className="font-medium">{b.type}</span>
-                    <span className="tabular-nums text-muted">{b.total}{b.truncated ? "+" : ""} · {b.assigned} asign.</span>
+                    <span className="font-medium"><span aria-hidden="true" className="mr-1">{TYPE_ICON[b.type] || "📦"}</span>{b.type}</span>
+                    <span className="tabular-nums text-muted text-xs sm:text-sm">{b.total}{b.truncated ? "+" : ""} · {b.assigned} con usuario · {b.unlocated} sin ubic.</span>
                   </div>
-                  <Bar pct={(b.total / maxType) * 100} />
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#eef2f8" }}>
+                    <div className="h-full rounded-full" style={{ width: `${(b.total / maxType) * 100}%`, background: "var(--accent)" }} />
+                  </div>
                 </div>
               ))}
+              {dash.stats.truncated && <p className="text-xs text-muted">“+” indica truncado en 1000 por tipo (límite GLPI): los porcentajes son sobre el parcial.</p>}
             </div>
           )}
-        </div>
+        </section>
 
-        <div className="card p-4 grid gap-3">
-          <div className="font-bold">Ocupación por piso</div>
-          {!dash ? <p className="text-sm text-muted">{loading ? "Cargando…" : "Sin datos."}</p> : dash.floors.length === 0 ? (
+        <section aria-label="Ocupación por piso" className="card p-4 grid gap-3">
+          <h2 className="font-bold">Distribución por piso</h2>
+          {!dash ? <p className="text-sm text-muted">{loading ? <Spinner /> : "Sin datos."}</p> : dash.floors.length === 0 ? (
             <p className="text-sm text-muted">Sin pisos configurados. <Link href="/config" className="underline">Crear uno en /config</Link>.</p>
           ) : (
             <div className="grid gap-3">
@@ -125,9 +147,14 @@ export default function Home() {
                 <div key={f.id} className="grid gap-1">
                   <div className="flex justify-between text-sm gap-2 flex-wrap">
                     <Link href={`/mapa?floor=${f.id}`} className="font-medium underline">{f.name}</Link>
-                    <span className="tabular-nums text-muted">{f.occupied}/{f.puestos} ocupados{f.hasMap ? "" : " · sin plano"}</span>
+                    <span className="tabular-nums text-muted text-xs">{f.puestos} puestos · {f.enUso} uso · {f.disponible} disp. · {f.incompleto} inc.{f.inconsistente ? ` · ${f.inconsistente} ⚠` : ""}{f.hasMap ? "" : " · sin plano"}</span>
                   </div>
-                  <Bar pct={f.puestos ? (f.occupied / f.puestos) * 100 : 0} color="#15803d" />
+                  <SegmentedBar parts={[
+                    { value: f.enUso, color: "#15803d", label: "en uso" },
+                    { value: f.disponible, color: "#2563eb", label: "disponible" },
+                    { value: f.incompleto, color: "#b45309", label: "incompleto" },
+                    { value: f.inconsistente, color: "#dc2626", label: "inconsistente" },
+                  ]} />
                   {f.top.filter((t) => t.items > 0).length > 0 && (
                     <div className="text-xs text-muted truncate">
                       Top: {f.top.filter((t) => t.items > 0).map((t) => `${t.name} (${t.items})`).join(" · ")}
@@ -137,14 +164,14 @@ export default function Home() {
               ))}
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       {/* Actividad + salud */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="card p-4 grid gap-3">
-          <div className="font-bold">Actividad reciente</div>
-          {!dash ? <p className="text-sm text-muted">{loading ? "Cargando…" : "Sin datos."}</p> : dash.recent.length === 0 ? (
+        <section aria-label="Actividad reciente" className="card p-4 grid gap-3">
+          <h2 className="font-bold">Actividad reciente</h2>
+          {!dash ? <p className="text-sm text-muted">{loading ? <Spinner /> : "Sin datos."}</p> : dash.recent.length === 0 ? (
             <p className="text-sm text-muted">Aún no hay movimientos registrados desde la app.</p>
           ) : (
             <ul className="grid gap-2 text-sm">
@@ -160,16 +187,16 @@ export default function Home() {
               ))}
             </ul>
           )}
-        </div>
+        </section>
 
-        <div className="card p-4 grid gap-3">
-          <div className="font-bold">Salud del sistema</div>
-          {!dash ? <p className="text-sm text-muted">{loading ? "Cargando…" : "Sin datos."}</p> : (
+        <section aria-label="Salud del sistema" className="card p-4 grid gap-3">
+          <h2 className="font-bold">Salud del sistema</h2>
+          {!dash ? <p className="text-sm text-muted">{loading ? <Spinner /> : "Sin datos."}</p> : (
             <ul className="grid gap-1.5 text-sm">
               <li>
-                {dash.health.glpiOk ? <span className="badge badge-success">GLPI conectado</span> : <span className="badge badge-danger">GLPI caído</span>}
+                {dash.health.glpiOk ? <span className="badge badge-success">● GLPI conectado</span> : <span className="badge badge-danger">● GLPI caído</span>}
                 {dash.health.latencyMs != null && <span className="text-xs text-muted ml-2 tabular-nums">{dash.health.latencyMs} ms</span>}
-                {dash.cached && <span className="text-xs text-muted ml-2">datos en caché ({new Date(dash.cached_at).toLocaleTimeString()})</span>}
+                <span className="text-xs text-muted ml-2">sync {new Date(dash.cached_at).toLocaleTimeString()}{dash.cached ? " (caché 5 min)" : ""}</span>
               </li>
               {!dash.health.appTokenSet && <li>⚠️ Falta el App-Token. <Link href="/config" className="underline">Cargarlo en /config</Link>.</li>}
               {!dash.health.userTokenSet && <li>⚠️ Falta el User token. <Link href="/config" className="underline">Cargarlo en /config</Link>.</li>}
@@ -178,24 +205,24 @@ export default function Home() {
               ))}
               {dash.health.undrawn > 0 && <li>✏️ {dash.health.undrawn} puesto(s) GLPI sin dibujar. <Link href="/mapa?calibrar=1" className="underline">Calibrar</Link>.</li>}
               {dash.health.appTokenSet && dash.health.userTokenSet && !dash.health.floorsWithoutMap.length && !dash.health.undrawn && (
-                <li><span className="badge badge-success">Todo en orden</span></li>
+                <li><span className="badge badge-success">● Todo en orden</span></li>
               )}
             </ul>
           )}
-        </div>
+        </section>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <nav aria-label="Accesos rápidos" className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {cards.map((c) => (
-          <Link key={c.href} href={c.href} className="card p-5 grid gap-2 hover:-translate-y-0.5 transition">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{c.icon}</span>
+          <Link key={c.href} href={c.href} className="card p-4 grid gap-1 hover:-translate-y-0.5 transition">
+            <span className="flex items-center gap-2">
+              <span className="text-xl" aria-hidden="true">{c.icon}</span>
               <span className="font-bold text-ink">{c.title}</span>
-            </div>
-            <p className="text-sm text-muted">{c.desc}</p>
+            </span>
+            <span className="text-sm text-muted">{c.desc}</span>
           </Link>
         ))}
-      </div>
+      </nav>
     </div>
   );
 }

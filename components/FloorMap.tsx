@@ -5,6 +5,8 @@ import ScanModal from "./ScanModal";
 import AuthModal from "./AuthModal";
 import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants, editFormOf, parseGlpiUrl } from "@/lib/inventory";
+import { clasificarPuesto, ESTADO_META, type EstadoPuesto } from "@/lib/puesto-state";
+import { Spinner } from "./ui";
 
 type Puesto = { glpi_id: number; x: number; y: number; w: number; h: number };
 type Floor = { id: string; name: string; image: string | null; glpiLocationId: number | null; puestos: Puesto[] };
@@ -67,6 +69,19 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [roomMsg, setRoomMsg] = useState("");
 
   const [occByLoc, setOccByLoc] = useState<Record<number, string>>({});
+  const [countByLoc, setCountByLoc] = useState<Record<number, { items: number; users: number }>>({});
+  const [dashEstados, setDashEstados] = useState<Record<number, { items: number; users: number; estado: EstadoPuesto }>>({});
+  const [dashLoading, setDashLoading] = useState(false);
+  const [hoverId, setHoverId] = useState<number | null>(null);
+  const [mapQuery, setMapQuery] = useState("");
+  const [mapResults, setMapResults] = useState<{ id: number; label: string; detail: string }[]>([]);
+  const [mapMsg, setMapMsg] = useState("");
+  const [showPuestos, setShowPuestos] = useState(true);
+  const [showNumeros, setShowNumeros] = useState(true);
+  const [showEstados, setShowEstados] = useState(true);
+  const [filtro, setFiltro] = useState<"todos" | EstadoPuesto>("todos");
+  const mapWrapRef = useRef<HTMLDivElement>(null);
+  const [isFull, setIsFull] = useState(false);
   const [glpiBase, setGlpiBase] = useState<string>("");
   const [authUser, setAuthUser] = useState<{ login: string; name: string; profiles: string[]; canOperate: boolean } | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -119,13 +134,18 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   useEffect(() => {
     fetch("/api/config").then((r) => r.json()).then((j) => setGlpiBase((j.glpiBaseUrl || "").replace(/\/$/, ""))).catch(() => {});
-    fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); }).catch(() => {});
+    const syncAuth = () => {
+      fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); }).catch(() => {});
+    };
+    syncAuth();
+    window.addEventListener("auth-changed", syncAuth);
     if (calibrar) {
       fetch("/api/admin/check").then((r) => r.json()).then((j) => {
         setAdminAuthed(!!j.admin);
         if (!j.admin) setAuthOpen(true);
       }).catch(() => setAuthOpen(true));
     }
+    return () => window.removeEventListener("auth-changed", syncAuth);
   }, [calibrar]);
 
   const requireEdit = (action: () => void) => {
@@ -158,6 +178,92 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       if (!floorParam && fl.length) setFloorId((cur) => cur || fl[0].id);
     }).catch(() => setMsg("No se pudieron cargar los pisos. Créelos en /config."));
   }, [floorParam]);
+
+  // Estados A/B/C desde el agregado del dashboard (una sola llamada, sin N×6).
+  useEffect(() => {
+    if (calibrar) return;
+    setDashLoading(true);
+    fetch("/api/dashboard", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.estados) setDashEstados(j.estados);
+        if (j.byLoc) {
+          const m: Record<number, { items: number; users: number }> = {};
+          for (const [k, v] of Object.entries<any>(j.byLoc)) m[Number(k)] = { items: v.items || 0, users: v.users?.length ?? v.users ?? 0 };
+          setCountByLoc(m);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setDashLoading(false));
+  }, [calibrar]);
+
+  const estadoOf = (id: number): EstadoPuesto => {
+    const d = dashEstados[id];
+    if (d?.estado) return d.estado as EstadoPuesto;
+    const c = countByLoc[id];
+    if (c) return clasificarPuesto(c.items, c.users);
+    // Fallback local: si ya abrimos el puesto conocemos items/usuarios reales.
+    if (sel?.glpi_id === id) return clasificarPuesto(items.length, occByLoc[id] ? occByLoc[id].split(",").filter(Boolean).length : 0);
+    if (occByLoc[id] !== undefined) {
+      const nUsers = occByLoc[id] ? occByLoc[id].split(",").filter(Boolean).length : 0;
+      if (nUsers > 0) return "inconsistente";
+    }
+    return "incompleto";
+  };
+
+  const countsFloor = useMemo(() => {
+    const c: Record<EstadoPuesto, number> = { "en-uso": 0, disponible: 0, incompleto: 0, inconsistente: 0 };
+    for (const p of puestos) c[estadoOf(p.glpi_id)]++;
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puestos, dashEstados, countByLoc, occByLoc, sel, items]);
+
+  async function buscarEnPlano() {
+    const q = mapQuery.trim();
+    if (!q) return;
+    setMapMsg("Buscando…");
+    setMapResults([]);
+    const needle = q.toLowerCase();
+    const out: { id: number; label: string; detail: string }[] = [];
+    // 1) Puestos dibujados del piso actual por número/nombre/interno/usuario.
+    for (const p of puestos) {
+      const loc = byId.get(p.glpi_id);
+      const hay = `${p.glpi_id} ${loc?.name || ""} ${loc?.completename || ""} ${loc?.room || ""} ${occByLoc[p.glpi_id] || ""}`.toLowerCase();
+      if (hay.includes(needle) || shortNameOf(p.glpi_id).toLowerCase() === needle) {
+        const e = estadoOf(p.glpi_id);
+        out.push({ id: p.glpi_id, label: `${shortNameOf(p.glpi_id)} · ${ESTADO_META[e].label}`, detail: `${occByLoc[p.glpi_id] || "sin usuario"} · ${dashEstados[p.glpi_id]?.items ?? countByLoc[p.glpi_id]?.items ?? 0} bienes` });
+      }
+      if (out.length >= 8) break;
+    }
+    // 2) Si no hay coincidencia local, resolver inventario en GLPI y mapear a puesto.
+    if (!out.length) {
+      try {
+        const r = await fetch(`/api/glpi?q=${encodeURIComponent(q)}&type=all`);
+        const j = await r.json();
+        const list: any[] = j.items || [];
+        for (const a of list.slice(0, 8)) {
+          if (a._locationId != null) {
+            const f = floorOf(a._locationId);
+            out.push({ id: a._locationId, label: `${a._type} ${a.otherserial || a.name}`, detail: `${nameOf(a._locationId)}${f ? ` · ${f.name}` : ""}` });
+          }
+        }
+      } catch {}
+    }
+    setMapResults(out);
+    setMapMsg(out.length ? "" : "Sin coincidencias en puestos dibujados.");
+  }
+
+  function toggleFullscreen() {
+    const el = mapWrapRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else el.requestFullscreen?.().catch(() => setMsg("Pantalla completa no disponible en este navegador."));
+  }
+  useEffect(() => {
+    const onFs = () => setIsFull(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
 
   // al cambiar de piso en modo calibración, parte del server
   useEffect(() => {
@@ -272,6 +378,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     const fullName = (a: Asset) => resolved[a._userId] || userNames[a._userId] || a._userName || `Usuario ${a._userId}`;
     const names = [...new Map(loaded.filter((a) => a._userId != null).map((a) => [a._userId, fullName(a)] as const)).values()];
     setOccByLoc((m) => ({ ...m, [p.glpi_id]: names.join(", ") }));
+    const nUsers = new Set(loaded.map((a) => a._userId).filter((v) => v != null)).size;
+    setCountByLoc((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers } }));
+    setDashEstados((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers, estado: clasificarPuesto(loaded.length, nUsers) } }));
     setMsg(loaded.length ? "" : "Puesto vacío");
     // Bienes personales de cada ocupante (asignados a ella, sin puesto). No bloquea.
     const userIds = [...new Set(loaded.map((a) => a._userId).filter((id) => id != null))] as number[];
@@ -538,19 +647,21 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   }
 
   return (
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_370px] gap-4 overflow-x-clip items-start">
+    <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-4 overflow-x-clip items-start">
       <div className="min-w-0 overflow-hidden lg:sticky lg:top-20">
         <div className="flex gap-2 items-center mb-2 flex-wrap">
           <h1 className="text-xl font-bold">Control {floor ? `· ${floor.name}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
+          {dashLoading && !calibrar && <Spinner label="Estados…" />}
           {floors.length > 1 && floors.length <= MAX_FLOOR_BUTTONS && (
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex gap-1 flex-wrap" role="tablist" aria-label="Pisos">
               {floors.map((f) => {
                 const active = f.id === floor?.id;
                 return (
                   <button
                     key={f.id}
-                    aria-pressed={active}
-                    onClick={() => { setFloorId(f.id); setSel(null); setItems([]); }}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => { setFloorId(f.id); setSel(null); setItems([]); setMapResults([]); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${active ? "text-white" : "bg-white text-muted border border-line hover:text-ink"}`}
                     style={active ? { background: "var(--accent)" } : undefined}
                   >
@@ -561,11 +672,58 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             </div>
           )}
           {floors.length > MAX_FLOOR_BUTTONS && (
-            <select className="input w-auto text-sm py-1.5" value={floor?.id || ""} onChange={(e) => { setFloorId(e.target.value); setSel(null); setItems([]); }}>
+            <select aria-label="Piso" className="input w-auto text-sm py-1.5" value={floor?.id || ""} onChange={(e) => { setFloorId(e.target.value); setSel(null); setItems([]); setMapResults([]); }}>
               {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           )}
         </div>
+        {!calibrar && floor && (
+          <div className="card px-3 py-2 mb-2 flex gap-2 items-center flex-wrap text-xs">
+            <span className="font-bold text-ink">Leyenda:</span>
+            {(["en-uso", "disponible", "incompleto", "inconsistente"] as EstadoPuesto[]).map((e) => (
+              <span key={e} className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="inline-block w-3.5 h-3.5 rounded border-2" style={{ background: e === "en-uso" ? "var(--st-use-bg)" : e === "disponible" ? "var(--st-free-bg)" : e === "incompleto" ? "var(--st-inc-bg)" : "var(--st-warn-bg)", borderColor: ESTADO_META[e].color }} />
+                <span className="text-muted">{ESTADO_META[e].label} <b className="text-ink tabular-nums">{countsFloor[e]}</b></span>
+              </span>
+            ))}
+          </div>
+        )}
+        {!calibrar && floor && (
+          <div className="card px-3 py-2 mb-2 grid gap-2">
+            <div className="flex gap-2 flex-wrap items-center">
+              <label htmlFor="map-search" className="text-xs font-bold text-ink">Buscar en plano</label>
+              <input id="map-search" className="input flex-1 min-w-[180px] !py-1.5 text-sm" placeholder="Nº puesto, usuario o inventario…" value={mapQuery} onChange={(e) => setMapQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && buscarEnPlano()} />
+              <button className="btn btn-primary text-xs" onClick={buscarEnPlano}>Buscar</button>
+              <span className="text-xs text-muted" role="status">{mapMsg}</span>
+            </div>
+            {!!mapResults.length && (
+              <ul className="grid gap-1 max-h-36 overflow-auto" role="listbox" aria-label="Resultados en plano">
+                {mapResults.map((r) => (
+                  <li key={r.id}>
+                    <button role="option" aria-selected="false" className="w-full text-left text-sm px-2 py-1.5 rounded-lg hover:bg-canvas border border-transparent hover:border-line" onClick={() => { setMapResults([]); setMapQuery(""); focusPuesto(r.id); }}>
+                      <b>{r.label}</b> <span className="text-muted text-xs">— {r.detail}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex gap-3 items-center flex-wrap text-xs text-muted">
+              <span className="font-bold text-ink">Capas:</span>
+              <label className="inline-flex items-center gap-1"><input type="checkbox" checked={showPuestos} onChange={(e) => setShowPuestos(e.target.checked)} /> Puestos</label>
+              <label className="inline-flex items-center gap-1"><input type="checkbox" checked={showNumeros} onChange={(e) => setShowNumeros(e.target.checked)} /> Números</label>
+              <label className="inline-flex items-center gap-1"><input type="checkbox" checked={showEstados} onChange={(e) => setShowEstados(e.target.checked)} /> Estados</label>
+              <label className="inline-flex items-center gap-1">Filtro:
+                <select aria-label="Filtrar por estado" className="border rounded px-1 py-0.5 text-xs bg-white" value={filtro} onChange={(e) => setFiltro(e.target.value as any)}>
+                  <option value="todos">Todos</option>
+                  <option value="en-uso">Equipados en uso</option>
+                  <option value="disponible">Equipados disponibles</option>
+                  <option value="incompleto">Incompletos</option>
+                  <option value="inconsistente">Inconsistentes</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        )}
         {!floor ? (
           <p className="text-sm text-slate-500 bg-white rounded p-4">Sin pisos configurados. Crea uno y sube su plano en <a className="underline" href="/config">/config</a>.</p>
         ) : !floor.image ? (
@@ -573,6 +731,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         ) : noParent ? (
           <p className="text-sm text-amber-800 bg-amber-50 border rounded p-4">Este piso no tiene ubicación GLPI padre. <a className="underline" href="/config">Vincúlalo en /config</a> para dibujar puestos.</p>
         ) : (
+            <div ref={mapWrapRef} className={`relative ${isFull ? "bg-white" : ""}`}>
             <TransformWrapper ref={transformRef} minScale={0.5} maxScale={8} panning={{ disabled: panDisabled }}>
               <div className="relative">
                 <TransformComponent wrapperClass="!w-full !h-[60vh] bg-white rounded-xl shadow overflow-hidden">
@@ -590,9 +749,21 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     style={{ touchAction: panDisabled ? "none" : undefined, cursor: calibrar && tool === "draw" ? "crosshair" : undefined }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[60vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, focusEpoch.current, 0); }} />
-                {puestos.map((p) => (
+                {showPuestos && puestos.map((p) => {
+                  const est = showEstados && !calibrar ? estadoOf(p.glpi_id) : null;
+                  const dim = !calibrar && filtro !== "todos" && est !== filtro;
+                  const nItems = dashEstados[p.glpi_id]?.items ?? countByLoc[p.glpi_id]?.items ?? (sel?.glpi_id === p.glpi_id ? items.length : 0);
+                  const usersTxt = occByLoc[p.glpi_id] || "";
+                  const nUsers = dashEstados[p.glpi_id]?.users ?? countByLoc[p.glpi_id]?.users ?? (usersTxt ? usersTxt.split(",").filter(Boolean).length : 0);
+                  const label = `${nameOf(p.glpi_id)}, ${est ? ESTADO_META[est].label : "puesto"}, ${nItems} bienes, ${nUsers} usuarios${byId.get(p.glpi_id)?.room ? `, interno ${byId.get(p.glpi_id)?.room}` : ""}`;
+                  return (
                   <div key={p.glpi_id} data-puesto ref={(el) => { if (el) puestoRefs.current.set(p.glpi_id, el); else puestoRefs.current.delete(p.glpi_id); }}
+                    role={calibrar ? undefined : "button"}
+                    tabIndex={calibrar ? undefined : 0}
+                    aria-label={calibrar ? undefined : label}
+                    aria-selected={calibrar ? undefined : sel?.glpi_id === p.glpi_id}
                     onClick={() => { if (!calibrar) { setFlashId(p.glpi_id); openPuesto(p); } }}
+                    onKeyDown={(e) => { if (!calibrar && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setFlashId(p.glpi_id); openPuesto(p); } }}
                     onPointerDown={(e) => {
                       if (!calibrar) return;
                       e.stopPropagation();
@@ -605,10 +776,23 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       e.stopPropagation();
                       setCtxMenu({ x: e.clientX, y: e.clientY, kind: "reassign", targetId: p.glpi_id });
                     }}
-                    title={`${nameOf(p.glpi_id)}${byId.get(p.glpi_id)?.room ? ` · Int. ${byId.get(p.glpi_id)?.room}` : ""}${occByLoc[p.glpi_id] ? ` · ${occByLoc[p.glpi_id]}` : ""} (GLPI ${p.glpi_id})`}
-                    className={`absolute border-2 rounded-lg text-[11px] font-bold overflow-hidden shadow-sm flex items-center justify-center text-center ${sel?.glpi_id === p.glpi_id ? "border-success bg-green-300/60" : "border-brand-600 bg-blue-300/50 hover:bg-blue-300/80"} ${calibrar ? "cursor-move" : "cursor-pointer"} ${flashId === p.glpi_id ? "flash-puesto" : ""}`}
+                    onMouseEnter={() => !calibrar && setHoverId(p.glpi_id)}
+                    onMouseLeave={() => setHoverId((h) => (h === p.glpi_id ? null : h))}
+                    onFocus={() => !calibrar && setHoverId(p.glpi_id)}
+                    onBlur={() => setHoverId((h) => (h === p.glpi_id ? null : h))}
+                    title={`${nameOf(p.glpi_id)}${byId.get(p.glpi_id)?.room ? ` · Int. ${byId.get(p.glpi_id)?.room}` : ""}${usersTxt ? ` · ${usersTxt}` : ""} (GLPI ${p.glpi_id})`}
+                    data-state={est || undefined}
+                    className={`puesto tip absolute border-2 rounded-lg text-[11px] font-bold overflow-visible shadow-sm flex items-center justify-center text-center ${calibrar ? "cursor-move border-brand-600 bg-blue-300/50" : ""} ${!calibrar && !est ? "border-brand-600 bg-blue-300/50" : ""} ${calibrar ? "" : "cursor-pointer"} ${flashId === p.glpi_id ? "flash-puesto" : ""} ${dim ? "puesto-dim" : ""}`}
                     style={{ left: `${p.x}%`, top: `${p.y}%`, width: `${p.w}%`, height: `${p.h}%` }}>
-                    <span className="px-1 leading-tight break-words">{shortNameOf(p.glpi_id)}</span>
+                    {showNumeros && <span className="puesto-num px-1 leading-tight break-words">{shortNameOf(p.glpi_id)}</span>}
+                    {!calibrar && hoverId === p.glpi_id && (
+                      <span className="tip-bubble" role="tooltip" style={{ left: "50%", bottom: "calc(100% + 6px)", transform: "translateX(-50%)" }}>
+                        <b>{nameOf(p.glpi_id)}</b><br />
+                        {est ? ESTADO_META[est].label : ""} · {nItems} bienes · {nUsers} usuarios<br />
+                        {usersTxt ? <span>{usersTxt.slice(0, 80)}</span> : <span>Sin usuario asociado</span>}
+                        {byId.get(p.glpi_id)?.room ? <><br />Int. {byId.get(p.glpi_id)?.room}</> : null}
+                      </span>
+                    )}
                     {calibrar && (
                       <span
                         onPointerDown={(e) => {
@@ -616,21 +800,23 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                           const q = toPct(e.clientX, e.clientY);
                           setDrag({ mode: "resize", id: p.glpi_id, sx: q.x, sy: q.y, ow: p.w, oh: p.h });
                         }}
-                        className="absolute right-0 bottom-0 w-3 h-3 bg-blue-800 cursor-nwse-resize"
+                        className="absolute right-0 bottom-0 w-4 h-4 bg-blue-800 cursor-nwse-resize rounded-tl"
                         title="Redimensionar"
                       />
                     )}
                   </div>
-                ))}
+                  );
+                })}
                 {drawRect && drawRect.w > 0.5 && (
                   <div className="absolute border-2 border-dashed border-amber-600 bg-amber-200/40 pointer-events-none"
                     style={{ left: `${drawRect.x}%`, top: `${drawRect.y}%`, width: `${drawRect.w}%`, height: `${drawRect.h}%` }} />
                 )}
               </div>
             </TransformComponent>
-            <ZoomControls />
+            <ZoomControls onFullscreen={toggleFullscreen} isFull={isFull} />
             </div>
           </TransformWrapper>
+          </div>
         )}
         {calibrar && floor && floor.image && floor.glpiLocationId != null && (
           <div className="card p-4 mt-2 grid gap-2 text-sm bg-amber-50/60 border-amber-200">
@@ -683,26 +869,30 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         )}
       </div>
 
-      <aside className="card p-4 grid gap-3 min-w-0 overflow-x-hidden">
-        <div className="flex items-center justify-between gap-2 text-sm">
-          {authUser ? (
-            <>
-              <span className="text-muted truncate">{authUser.name} <span className="text-xs">({authUser.canOperate ? "editor" : "lectura"})</span></span>
-              <button className="btn btn-secondary text-xs" onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); setAuthUser(null); }}>Salir</button>
-            </>
-          ) : (
-            <button className="btn btn-primary text-xs" onClick={() => setAuthOpen(true)}>Iniciar sesión para editar</button>
-          )}
-        </div>
+      <aside className="card p-0 min-w-0 overflow-hidden lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] flex flex-col" aria-label="Panel del puesto">
+        <div className="p-4 pb-3 border-b border-line grid gap-3 bg-white sticky top-0 z-10">
+        {!authUser?.canOperate && (
+          <p className="text-xs text-muted">Iniciá sesión desde el botón superior derecho para editar.</p>
+        )}
         <details>
           <summary className="text-sm font-bold cursor-pointer">Lugares (árbol GLPI)</summary>
           <div className="mt-2">
             <PlacesTree floors={floors} occByLoc={occByLoc} onPuesto={(id) => openById(id)} onPiso={(f) => { setFloorId(f.id); setSel(null); setItems([]); }} />
           </div>
         </details>
+        </div>
+        <div className="p-4 pt-3 grid gap-3 overflow-y-auto overflow-x-hidden min-w-0 max-w-full">
         {!sel ? <p className="text-sm text-slate-500">Selecciona un puesto en el mapa o en Lugares.</p> : (
           <>
-            <div className="font-bold">{nameOf(sel.glpi_id)}{byId.get(sel.glpi_id)?.room && <span className="badge badge-brand ml-2">Int. {byId.get(sel.glpi_id)?.room}</span>} <span className="text-xs font-normal text-slate-500">GLPI loc {sel.glpi_id}</span></div>
+            <div className="grid gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-lg font-bold text-ink">{nameOf(sel.glpi_id)}</span>
+                {(() => { const e = estadoOf(sel.glpi_id); return <span className="badge" style={{ background: e === "en-uso" ? "#ecfdf5" : e === "disponible" ? "#eef4ff" : e === "incompleto" ? "#fffbeb" : "#fef2f2", color: ESTADO_META[e].color, border: `1px solid ${ESTADO_META[e].color}55` }}>● {ESTADO_META[e].label}</span>; })()}
+              </div>
+              <div className="text-xs text-muted">{floor?.name} · GLPI loc {sel.glpi_id} · {items.length} bien(es) · {occupants.length} usuario(s)
+                {byId.get(sel.glpi_id)?.room && <span className="badge badge-brand ml-2">Int. {byId.get(sel.glpi_id)?.room}</span>}
+              </div>
+            </div>
             <div className="grid gap-2 border rounded-lg p-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-sm font-semibold">Ocupante</span>
@@ -711,7 +901,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     <button
                       title="Cambiar ocupante"
                       aria-label="Cambiar ocupante"
-                      className="btn btn-secondary btn-icon-sm"
+                      className="btn btn-secondary icon-btn-sm"
                       onClick={() => setOccOpen(!occOpen)}
                     >
                       <RefreshIcon size={13} />
@@ -729,23 +919,23 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                 </div>
               </div>
               {occupants.length ? (
-                <ul className="grid gap-1 text-sm">
+                <ul className="grid gap-1 text-sm min-w-0">
                   {occupants.map((o) => (
-                    <li key={o.id} className="grid gap-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span>{o.name}</span>
+                    <li key={o.id} className="grid gap-1 min-w-0">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                        <span className="break-anywhere" title={o.name}>{o.name}</span>
                         <button
                           title="Quitar ocupante"
                           aria-label={`Quitar ocupante ${o.name}`}
-                          className="btn btn-danger btn-icon-sm"
+                          className="btn btn-danger icon-btn-sm"
                           onClick={() => requireEdit(() => removeOccupant(o.id, o.name))}
                         >
                           <TrashIcon size={13} />
                         </button>
                       </div>
                       {(personalByUser[o.id] || []).map((pa) => (
-                        <div key={`${pa._type}-${pa.id}`} className="flex items-center justify-between gap-2 pl-2 text-xs text-muted">
-                          <span className="min-w-0 truncate">{pa._type}: <b className="text-ink">{disp(pa.name)}</b> · Inv <span className="tabular-nums">{disp(pa.otherserial)}</span></span>
+                        <div key={`${pa._type}-${pa.id}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pl-2 text-xs text-muted">
+                          <span className="break-anywhere" title={`${pa._type} ${disp(pa.name)} Inv ${disp(pa.otherserial)}`}>{pa._type}: <b className="text-ink">{disp(pa.name)}</b> · Inv <span className="tabular-nums">{disp(pa.otherserial)}</span></span>
                           {glpiBase && (
                             <a
                               title="Editar en GLPI"
@@ -753,7 +943,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                               href={`${glpiBase}/front/${editFormOf(pa._type)}?id=${pa.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="btn btn-secondary btn-icon-sm shrink-0"
+                              className="btn btn-secondary icon-btn-sm"
                             >
                               <EditIcon size={13} />
                             </a>
@@ -800,7 +990,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     <button
                       title="Editar interno del puesto"
                       aria-label={`Editar interno de ${sel ? nameOf(sel.glpi_id) : "puesto"}`}
-                      className="btn btn-secondary btn-icon-sm"
+                      className="btn btn-secondary icon-btn-sm"
                       onClick={() => { setRoomVal((sel && byId.get(sel.glpi_id)?.room) || ""); setRoomMsg(""); setRoomOpen(!roomOpen); }}
                     >
                       <EditIcon size={13} />
@@ -809,7 +999,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       <button
                         title="Quitar interno del puesto"
                         aria-label={`Quitar interno de ${nameOf(sel.glpi_id)}`}
-                        className="btn btn-danger btn-icon-sm"
+                        className="btn btn-danger icon-btn-sm"
                         onClick={() => requireEdit(clearRoom)}
                       >
                         <TrashIcon size={13} />
@@ -838,11 +1028,19 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
               )}
               {!roomOpen && roomMsg && <p className="text-xs text-muted">{roomMsg}</p>}
             </div>
-            {items.map((a) => (
-              <div key={`${a._type}-${a.id}`} className={`card p-3 grid gap-1 min-w-0 text-sm ${highlightKey === `${a._type}-${a.id}` ? "flash-highlight" : ""}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-semibold min-w-0">{a._type}: {disp(a.name)}</div>
-                  <div className="flex gap-1 shrink-0">
+            <section aria-label="Bienes del puesto" className="grid gap-2 min-w-0">
+              <h3 className="text-sm font-bold text-ink">Bienes ({items.length})</h3>
+              {items.length === 0 && <p className="text-xs text-muted">Sin bienes asociados a este puesto.</p>}
+            {items.map((a) => {
+              const title = `${a._type} · ${disp(a.name)} · Inv. ${disp(a.otherserial)}`;
+              return (
+              <div key={`${a._type}-${a.id}`} className={`border border-line rounded-xl px-2.5 py-2 min-w-0 max-w-full text-sm bg-white overflow-hidden ${highlightKey === `${a._type}-${a.id}` ? "flash-highlight" : ""}`}>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[13px] clamp-2" title={title}><span aria-hidden="true" className="mr-1">{a._type === "Computer" ? "🖥️" : a._type === "Monitor" ? "🖵" : a._type === "Phone" ? "☎️" : a._type === "Printer" ? "🖨️" : a._type === "Peripheral" ? "⌨️" : "📦"}</span>{a._type} · {disp(a.name)}</div>
+                    <div className="text-xs text-muted break-anywhere">Inv. <span className="tabular-nums">{disp(a.otherserial)}</span></div>
+                  </div>
+                  <div className="flex gap-1 shrink-0 items-center" role="group" aria-label={`Acciones para ${disp(a.otherserial)}`}>
                     {glpiBase && (
                       <a
                         title="Editar en GLPI"
@@ -850,43 +1048,43 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                         href={`${glpiBase}/front/${editFormOf(a._type)}?id=${a.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn btn-secondary btn-icon"
+                        className="btn btn-secondary icon-btn-sm"
                       >
-                        <EditIcon />
+                        <EditIcon size={13} />
                       </a>
                     )}
                     <button
                       title="Reemplazar equipo"
                       aria-label={`Reemplazar ${a._type} ${disp(a.otherserial)}`}
                       onClick={() => requireEdit(() => { setReplaceTarget(a); setScanMode("replace"); })}
-                      className="btn btn-secondary btn-icon"
+                      className="btn btn-secondary icon-btn-sm"
                     >
-                      <RefreshIcon />
+                      <RefreshIcon size={13} />
                     </button>
                     <button
-                      title="Quitar equipo del puesto"
-                      aria-label={`Quitar ${a._type} ${disp(a.otherserial)}`}
+                      title="Desvincular del puesto (no elimina en GLPI)"
+                      aria-label={`Desvincular ${a._type} ${disp(a.otherserial)} del puesto`}
                       onClick={() => requireEdit(() => unassign(a))}
-                      className="btn btn-danger btn-icon"
+                      className="btn btn-danger icon-btn-sm"
                     >
-                      <TrashIcon />
+                      <TrashIcon size={13} />
                     </button>
                   </div>
                 </div>
-                <div className="text-xs text-slate-600 grid gap-0.5">
-                  <div>Mod.: {disp(a._model)}</div>
-                  <div>Inv.: <span className="tabular-nums">{disp(a.otherserial)}</span></div>
-                </div>
+                <div className="text-xs text-muted break-anywhere">Mod. {disp(a._model)} · Serie <span className="tabular-nums">{disp(a.serial)}</span> · Us. {disp(a._userName)}</div>
               </div>
-            ))}
-            <p className="text-sm text-slate-500">{msg}</p>
+              );
+            })}
+            </section>
+            <p className={`text-sm ${msg.startsWith("Error") || msg.startsWith("No ") ? "text-danger" : "text-muted"}`} role="status">{msg}</p>
             <div className="grid gap-2 border-t pt-2">
               <div className="text-sm font-semibold">Agregar por inventario</div>
               <div className="flex gap-2">
-                <input className="border rounded p-2 flex-1 text-sm" placeholder="0000012865, 12865 o A 0001-0537" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && requireEdit(() => assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {}))} />
+                <input aria-label="Número de inventario" className="input flex-1 text-sm !py-2" placeholder="0000012865, 12865 o A 0001-0537" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && requireEdit(() => assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {}))} />
                 <button onClick={() => manualInv && requireEdit(() => assignInventory(manualInv))} className="btn btn-primary text-xs">OK</button>
-                <button onClick={() => scanMode ? setScanMode(null) : requireEdit(() => setScanMode("add"))} className="btn btn-secondary text-xs">📷</button>
+                <button aria-label="Escanear código" onClick={() => scanMode ? setScanMode(null) : requireEdit(() => setScanMode("add"))} className="btn btn-secondary text-xs">📷</button>
               </div>
+              <p className="text-[11px] text-muted">Buscando → encontrado / no encontrado / error. La operación confirma antes de mover equipos con usuario.</p>
             </div>
             {scanMode && (
               <ScanModal
@@ -897,6 +1095,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             )}
           </>
         )}
+        </div>
        </aside>
       {ctxMenu && (
         <>
@@ -930,6 +1129,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           onSuccess={() => {
             fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {});
             fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {});
+            window.dispatchEvent(new Event("auth-changed"));
             const a = pendingAction.current; pendingAction.current = null;
             if (a) a();
           }}
@@ -939,14 +1139,16 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
    );
 }
 
-function ZoomControls() {
-  const { zoomIn, zoomOut, resetTransform } = useControls();
-  const btn = "bg-white/90 border rounded w-8 h-8 text-lg leading-none shadow";
+function ZoomControls({ onFullscreen, isFull }: { onFullscreen: () => void; isFull: boolean }) {
+  const { zoomIn, zoomOut, resetTransform, centerView } = useControls();
+  const btn = "bg-white/95 border border-line rounded-lg w-9 h-9 text-lg leading-none shadow flex items-center justify-center hover:bg-canvas";
   return (
-    <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
-      <button className={btn} onClick={() => zoomIn()} title="Acercar">+</button>
-      <button className={btn} onClick={() => zoomOut()} title="Alejar">−</button>
-      <button className={btn} onClick={() => resetTransform()} title="Encuadre inicial">⤾</button>
+    <div className="absolute top-2 right-2 flex flex-col gap-1 z-10" role="toolbar" aria-label="Controles del plano">
+      <button className={btn} onClick={() => zoomIn()} title="Acercar" aria-label="Acercar">+</button>
+      <button className={btn} onClick={() => zoomOut()} title="Alejar" aria-label="Alejar">−</button>
+      <button className={btn} onClick={() => resetTransform()} title="Restablecer zoom" aria-label="Restablecer zoom">⤾</button>
+      <button className={btn} onClick={() => centerView(1, 400)} title="Ajustar plano a pantalla" aria-label="Ajustar plano a pantalla">⛶</button>
+      <button className={btn} onClick={onFullscreen} title={isFull ? "Salir de pantalla completa" : "Pantalla completa"} aria-label={isFull ? "Salir de pantalla completa" : "Ver en pantalla completa"}>🖵</button>
     </div>
   );
 }

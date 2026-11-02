@@ -217,10 +217,12 @@ export default function ConfigPage() {
         {msg && <span className="text-sm text-muted">{msg}</span>}
       </div>
 
-      <div className="card p-2 flex gap-1 flex-wrap">
+      <div className="card p-2 flex gap-1 flex-wrap" role="tablist" aria-label="Secciones de configuración">
         {tabs.map((t) => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
             className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
               tab === t.id ? "text-white" : "text-muted hover:text-ink hover:bg-canvas"
@@ -233,8 +235,9 @@ export default function ConfigPage() {
       </div>
 
       {tab === "conn" && (
-        <section className="card p-4 grid gap-3">
+        <section className="card p-4 grid gap-3" aria-label="Conexión GLPI">
           <h2 className="font-bold">Conexión GLPI 10 (API legacy)</h2>
+          <p className="text-xs text-muted">Los tokens se guardan solo en el servidor (cifrado AES en disco). Nunca se exponen al navegador; aquí solo se ven indicadores “guardado”.</p>
           <label className="text-sm grid gap-1">GLPI Base URL
             <input className="input" value={form.glpiBaseUrl} onChange={(e) => setForm({ ...form, glpiBaseUrl: e.target.value })} placeholder="http://192.168.170.125" disabled={!adminAuthed} />
           </label>

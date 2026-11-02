@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import AuthButton from "./AuthButton";
 
 type PubConfig = { appName?: string; accentColor?: string; brandIcon?: string | null };
 
@@ -9,6 +10,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [cfg, setCfg] = useState<PubConfig>({ appName: "GLPI Move", accentColor: "#0b5ed7", brandIcon: null });
   const [open, setOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -23,6 +25,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("focus", onFocus);
     window.addEventListener("brand-icon-changed", load as EventListener);
     return () => { alive = false; window.removeEventListener("focus", onFocus); window.removeEventListener("brand-icon-changed", load as EventListener); };
+  }, []);
+
+  useEffect(() => {
+    const checkAdmin = () => {
+      fetch("/api/admin/check", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => setIsAdmin(!!j.admin))
+        .catch(() => setIsAdmin(false));
+    };
+    checkAdmin();
+    window.addEventListener("auth-changed", checkAdmin);
+    window.addEventListener("focus", checkAdmin);
+    return () => {
+      window.removeEventListener("auth-changed", checkAdmin);
+      window.removeEventListener("focus", checkAdmin);
+    };
   }, []);
 
   useEffect(() => {
@@ -74,14 +92,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <div className="text-[11px] text-muted truncate">Control de bienes GLPI</div>
             </div>
           </div>
-          <nav className="hidden md:flex gap-1 ml-auto">
+          <nav className="hidden md:flex gap-1 ml-auto" aria-label="Navegación principal">
             {nav.map((n) => {
               const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
+              const locked = n.href === "/config" && !isAdmin;
+              if (locked) {
+                return (
+                  <span
+                    key={n.href}
+                    aria-disabled="true"
+                    title="Iniciá sesión con un perfil autorizado para ver Configuración"
+                    className="px-3 py-2 rounded-lg text-sm font-medium text-muted/50 cursor-not-allowed select-none"
+                  >
+                    {n.label}
+                  </span>
+                );
+              }
               return (
                 <Link
                   key={n.href}
                   href={n.href}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                  aria-current={active ? "page" : undefined}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition relative ${
                     active ? "text-white" : "text-muted hover:text-ink hover:bg-canvas"
                   }`}
                   style={active ? { background: "var(--accent)" } : undefined}
@@ -91,23 +123,43 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <button
-            className="md:hidden ml-auto btn btn-secondary btn-icon"
-            aria-label="Abrir menú"
-            onClick={() => setOpen((v) => !v)}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M4 6h16" />
-              <path d="M4 12h16" />
-              <path d="M4 18h16" />
-            </svg>
-          </button>
+          <div className="hidden md:block ml-3 shrink-0">
+            <AuthButton />
+          </div>
+          <div className="md:hidden ml-auto flex items-center gap-2 shrink-0">
+            <AuthButton compact />
+            <button
+              className="btn btn-secondary btn-icon"
+              aria-label={open ? "Cerrar menú" : "Abrir menú"}
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 6h16" />
+                <path d="M4 12h16" />
+                <path d="M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
         {open && (
           <div className="md:hidden border-t border-line bg-white">
             <nav className="max-w-[1500px] mx-auto px-4 py-2 grid gap-1">
               {nav.map((n) => {
                 const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
+                const locked = n.href === "/config" && !isAdmin;
+                if (locked) {
+                  return (
+                    <span
+                      key={n.href}
+                      aria-disabled="true"
+                      title="Iniciá sesión con un perfil autorizado para ver Configuración"
+                      className="px-3 py-2 rounded-lg text-sm font-medium text-muted/50 cursor-not-allowed select-none"
+                    >
+                      {n.label} 🔒
+                    </span>
+                  );
+                }
                 return (
                   <Link
                     key={n.href}
