@@ -1,19 +1,72 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ScanModal from "@/components/ScanModal";
+import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
 import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
 
 type Asset = any;
 type Person = { id: number; login: string | null; firstname: string | null; realname: string | null; display: string; email: string | null; phone: string | null };
 type PersonGroup = { location_id: number; items: Asset[] };
+type AuthUser = { login: string; name: string; profiles: string[]; canOperate: boolean };
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
-function Ficha({ a, onChanged }: { a: Asset; onChanged: () => void }) {
+function EditIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function TrashIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function Ficha({ a, byId, canEdit, requireEdit, onChanged }: {
+  a: Asset;
+  byId: Map<number, any>;
+  canEdit: boolean;
+  requireEdit: (fn: () => void) => void;
+  onChanged: () => void;
+}) {
   const [showPerson, setShowPerson] = useState(false);
   const [pq, setPq] = useState("");
   const [presults, setPresults] = useState<Person[]>([]);
   const [pmsg, setPmsg] = useState("");
+  const [showLocEdit, setShowLocEdit] = useState(false);
+  const [locPick, setLocPick] = useState("");
+  const [locMsg, setLocMsg] = useState("");
+  const [resolvedUser, setResolvedUser] = useState<string | null>(null);
+
+  const locName = a._locationName && a._locationName !== "—" ? String(a._locationName) : null;
+  const hasLoc = a._locationId != null && locName;
+  const hasUser = a._userId != null;
+
+  // Si GLPI devolvió users_id expandido vacío pero hay _userId, resolver nombre real.
+  useEffect(() => {
+    let alive = true;
+    setResolvedUser(null);
+    if (a?._userId != null && (!a._userName || a._userName === "—")) {
+      fetch(`/api/glpi/users?id=${a._userId}`)
+        .then((r) => r.json())
+        .then((j) => { if (alive && j?.user?.display) setResolvedUser(j.user.display); })
+        .catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [a?._userId, a?._userName]);
+
+  const userDisplay = (a._userName && a._userName !== "—" ? String(a._userName) : resolvedUser)
+    || (hasUser ? `Usuario #${a._userId}` : null);
 
   async function searchPerson() {
     if (!pq.trim()) return;
@@ -26,8 +79,8 @@ function Ficha({ a, onChanged }: { a: Asset; onChanged: () => void }) {
   }
 
   async function assignToUser(u: Person) {
-    const curLoc = a._locationName && a._locationName !== "—" ? a._locationName : null;
-    if (!confirm(`Asignar ${a._type} ${a.otherserial || a.name} a ${u.display}? ${curLoc ? `Saldrá del puesto ${curLoc}.` : "Quedará sin puesto."}`)) return;
+    const curLoc = locName;
+    if (!confirm(`Reasignar ${a._type} ${a.otherserial || a.name} a ${u.display}? ${curLoc ? `Saldrá del puesto ${curLoc}.` : "Quedará sin puesto."}`)) return;
     const r = await fetch("/api/glpi", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -38,8 +91,63 @@ function Ficha({ a, onChanged }: { a: Asset; onChanged: () => void }) {
     setShowPerson(false);
     setPq("");
     setPresults([]);
+    setPmsg("");
     onChanged();
   }
+
+  async function desasignarUsuario() {
+    if (!hasUser) return;
+    const label = userDisplay || `usuario #${a._userId}`;
+    if (!confirm(`Quitar a ${label} como usuario de ${a._type} ${a.otherserial || a.name}? El equipo conservará su puesto.`)) return;
+    setPmsg("Quitando usuario...");
+    const r = await fetch("/api/glpi", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: a._type, id: a.id, location_id: a._locationId, user_id: null }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPmsg("Error: " + (j.error || r.status)); return; }
+    setPmsg("");
+    onChanged();
+  }
+
+  async function desasignarUbicacion() {
+    if (a._locationId == null) return;
+    if (!confirm(`Sacar ${a._type} ${a.otherserial || a.name} del puesto ${locName || a._locationId}? Conservará su usuario.`)) return;
+    setLocMsg("Quitando del puesto...");
+    const r = await fetch("/api/glpi", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: a._type, id: a.id, location_id: null }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setLocMsg("Error: " + (j.error || r.status)); return; }
+    setLocMsg("");
+    setShowLocEdit(false);
+    onChanged();
+  }
+
+  async function reasignarUbicacion() {
+    const newId = Number(locPick);
+    if (!Number.isFinite(newId) || newId <= 0) { setLocMsg("Elegí un puesto válido."); return; }
+    if (newId === a._locationId) { setLocMsg("Ya está en ese puesto."); return; }
+    const destName = byId.get(newId)?.name || byId.get(newId)?.completename || `puesto ${newId}`;
+    const owner = userDisplay ? ` Conservará su usuario (${userDisplay}).` : "";
+    if (!confirm(`Mover ${a._type} ${a.otherserial || a.name} al puesto ${destName}?${owner}`)) return;
+    setLocMsg("Moviendo...");
+    const r = await fetch("/api/glpi", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: a._type, id: a.id, location_id: newId }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setLocMsg("Error: " + (j.error || r.status)); return; }
+    setLocMsg("");
+    setShowLocEdit(false);
+    onChanged();
+  }
+
+  const locOptions = [...byId.values()].sort((x, y) => String(x.completename || x.name || "").localeCompare(String(y.completename || y.name || "")));
 
   return (
     <div className="card p-4 grid gap-2 text-sm">
@@ -51,7 +159,9 @@ function Ficha({ a, onChanged }: { a: Asset; onChanged: () => void }) {
           ) : (
             <span className="badge">Sin ubicación</span>
           )}
-          <button className="btn btn-secondary text-xs" onClick={() => setShowPerson(!showPerson)}>Asignar a persona</button>
+          {canEdit && (
+            <button className="btn btn-secondary text-xs" onClick={() => setShowPerson(!showPerson)}>Asignar a persona</button>
+          )}
         </div>
       </div>
       <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 text-muted">
@@ -59,10 +169,97 @@ function Ficha({ a, onChanged }: { a: Asset; onChanged: () => void }) {
         <div><b className="text-ink">Modelo:</b> {disp(a._model)}</div>
         <div><b className="text-ink">Inventario:</b> <span className="tabular-nums">{disp(a.otherserial)}</span></div>
         <div><b className="text-ink">Serie:</b> <span className="tabular-nums">{disp(a.serial)}</span></div>
-        <div><b className="text-ink">Lugar:</b> {disp(a._locationName)}</div>
-        <div><b className="text-ink">Usuario:</b> {disp(a._userName)}</div>
       </div>
-      {showPerson && (
+
+      <div className="grid gap-2 rounded-xl border border-line bg-canvas/60 p-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base" aria-hidden="true">📍</span>
+            <b className="text-ink">Ubicación:</b>
+            {hasLoc ? (
+              <span className="badge badge-brand truncate max-w-[220px]" title={locName || undefined}>{locName}</span>
+            ) : (
+              <span className="badge badge-warning">Sin ubicación</span>
+            )}
+          </div>
+          {canEdit ? (
+            <div className="flex gap-1 shrink-0">
+              <button
+                title="Reasignar ubicación"
+                aria-label={`Reasignar ubicación de ${a._type} ${disp(a.otherserial)}`}
+                className="btn btn-secondary btn-icon-sm"
+                onClick={() => setShowLocEdit(!showLocEdit)}
+              >
+                <EditIcon size={13} />
+              </button>
+              {a._locationId != null && (
+                <button
+                  title="Desasignar ubicación (sacar del puesto, conserva usuario)"
+                  aria-label={`Sacar ${a._type} ${disp(a.otherserial)} del puesto`}
+                  className="btn btn-danger btn-icon-sm"
+                  onClick={() => requireEdit(desasignarUbicacion)}
+                >
+                  <TrashIcon size={13} />
+                </button>
+              )}
+            </div>
+          ) : (
+            <span className="text-[11px] text-muted">Inicia sesión para editar</span>
+          )}
+        </div>
+        {showLocEdit && canEdit && (
+          <div className="grid gap-2 border-t pt-2">
+            <select className="input text-sm" value={locPick} onChange={(e) => setLocPick(e.target.value)}>
+              <option value="">Elegir puesto…</option>
+              {locOptions.map((l: any) => (
+                <option key={l.id} value={l.id}>{l.completename || l.name} (id {l.id})</option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button className="btn btn-primary text-xs" onClick={() => requireEdit(reasignarUbicacion)}>Mover aquí</button>
+              <button className="btn btn-secondary text-xs" onClick={() => { setShowLocEdit(false); setLocMsg(""); }}>Cancelar</button>
+            </div>
+            {locMsg && <p className="text-xs text-muted">{locMsg}</p>}
+          </div>
+        )}
+        {!showLocEdit && locMsg && <p className="text-xs text-muted">{locMsg}</p>}
+
+        <div className="flex items-center justify-between gap-2 flex-wrap border-t pt-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base" aria-hidden="true">👤</span>
+            <b className="text-ink">Usuario:</b>
+            {userDisplay ? (
+              <span className="badge badge-success truncate max-w-[220px]" title={userDisplay}>{userDisplay}</span>
+            ) : (
+              <span className="badge">Sin asignar</span>
+            )}
+          </div>
+          {canEdit ? (
+            <div className="flex gap-1 shrink-0">
+              <button
+                title="Reasignar usuario"
+                aria-label={`Reasignar usuario de ${a._type} ${disp(a.otherserial)}`}
+                className="btn btn-secondary btn-icon-sm"
+                onClick={() => setShowPerson(!showPerson)}
+              >
+                <EditIcon size={13} />
+              </button>
+              {hasUser && (
+                <button
+                  title="Desasignar usuario (conserva el puesto)"
+                  aria-label={`Quitar usuario de ${a._type} ${disp(a.otherserial)}`}
+                  className="btn btn-danger btn-icon-sm"
+                  onClick={() => requireEdit(desasignarUsuario)}
+                >
+                  <TrashIcon size={13} />
+                </button>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {showPerson && canEdit && (
         <div className="grid gap-2 border-t pt-2">
           <div className="flex gap-2">
             <input
@@ -78,11 +275,12 @@ function Ficha({ a, onChanged }: { a: Asset; onChanged: () => void }) {
           {presults.map((u) => (
             <div key={u.id} className="flex items-center justify-between gap-2 text-sm">
               <span>{u.display} <span className="text-xs text-muted">#{u.id}</span></span>
-              <button className="btn btn-secondary text-xs" onClick={() => assignToUser(u)}>Asignar</button>
+              <button className="btn btn-secondary text-xs" onClick={() => requireEdit(() => assignToUser(u))}>Asignar</button>
             </div>
           ))}
         </div>
       )}
+      {!canEdit && pmsg && <p className="text-xs text-muted">{pmsg}</p>}
     </div>
   );
 }
@@ -229,7 +427,23 @@ export default function Buscar() {
   const [msg, setMsg] = useState("");
   const [scan, setScan] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
   const { byId } = useLocations();
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); })
+      .catch(() => {});
+  }, []);
+
+  const requireEdit = (action: () => void) => {
+    if (authUser?.canOperate) { action(); return; }
+    pendingAction.current = action;
+    setAuthOpen(true);
+  };
 
   async function search(v?: string) {
     const query = (v ?? q).trim();
@@ -296,6 +510,25 @@ export default function Buscar() {
         <p>Busca equipos por inventario/serie/nombre o personas por nombre/apellido/usuario GLPI.</p>
       </div>
 
+      <div className="card p-3 flex items-center justify-between gap-2 text-sm flex-wrap">
+        {authUser ? (
+          <>
+            <span className="text-muted truncate">{authUser.name} <span className="text-xs">({authUser.canOperate ? "editor" : "lectura"})</span></span>
+            <button
+              className="btn btn-secondary text-xs"
+              onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); setAuthUser(null); }}
+            >
+              Salir
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-muted text-xs">Inicia sesión para reasignar o desasignar ubicación/usuario.</span>
+            <button className="btn btn-primary text-xs" onClick={() => setAuthOpen(true)}>Iniciar sesión para editar</button>
+          </>
+        )}
+      </div>
+
       <div className="card p-4 grid gap-3">
         <div className="flex gap-2 flex-wrap">
           {(["assets", "people"] as const).map((m) => (
@@ -356,7 +589,16 @@ export default function Buscar() {
 
       {mode === "assets" && (
         <div className="grid gap-3">
-          {items.map((a) => <Ficha key={`${a._type}-${a.id}`} a={a} onChanged={() => search()} />)}
+          {items.map((a) => (
+            <Ficha
+              key={`${a._type}-${a.id}`}
+              a={a}
+              byId={byId}
+              canEdit={!!authUser?.canOperate}
+              requireEdit={requireEdit}
+              onChanged={() => search()}
+            />
+          ))}
           {!items.length && !msg && <div className="empty-state card"><span>Sin resultados aún. Realiza una búsqueda.</span></div>}
         </div>
       )}
@@ -379,8 +621,19 @@ export default function Buscar() {
       {mode === "people" && selPerson && (
         <div className="grid gap-3">
           <button className="text-sm text-muted underline w-fit" onClick={() => { setSelPerson(null); setGroups([]); setUnlocated([]); }}>← Volver a personas</button>
-          <FichaPersona p={selPerson} groups={groups} unlocated={unlocated} byId={byId} onQuitar={quitarDelPuesto} onRefresh={() => selPerson && openPerson(selPerson)} />
+          <FichaPersona p={selPerson} groups={groups} unlocated={unlocated} byId={byId} onQuitar={(g) => requireEdit(() => quitarDelPuesto(g))} onRefresh={() => selPerson && openPerson(selPerson)} />
         </div>
+      )}
+      {authOpen && (
+        <AuthModal
+          open={authOpen}
+          onClose={() => { setAuthOpen(false); pendingAction.current = null; }}
+          onSuccess={() => {
+            fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {});
+            const a = pendingAction.current; pendingAction.current = null;
+            if (a) a();
+          }}
+        />
       )}
     </div>
   );

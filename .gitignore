@@ -3,6 +3,7 @@ node_modules
 tsconfig.tsbuildinfo
 data/config.json
 data/floors.json
+data/activity.json
 data/maps/
 .env
 data/brand/

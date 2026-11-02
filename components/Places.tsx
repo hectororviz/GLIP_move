@@ -2,22 +2,27 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Floor } from "@/lib/maps";
 
-export type GLoc = { id: number; name: string; completename: string; parentId: number | null };
+export type GLoc = { id: number; name: string; completename: string; parentId: number | null; room?: string | null };
 
 export function useLocations() {
   const [locations, setLocations] = useState<GLoc[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    fetch("/api/glpi/locations")
-      .then(async (r) => {
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || "Error");
-        setLocations(j.locations || []);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/glpi/locations");
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Error");
+      setLocations(j.locations || []);
+      setError("");
+    } catch (e: any) {
+      setError(e.message || "Error");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
   const byId = useMemo(() => new Map(locations.map((l) => [l.id, l])), [locations]);
   const childrenOf = useMemo(() => {
     const m = new Map<number | null, GLoc[]>();
@@ -29,7 +34,7 @@ export function useLocations() {
     for (const arr of m.values()) arr.sort((a, b) => a.name.localeCompare(b.name));
     return m;
   }, [locations]);
-  return { locations, byId, childrenOf, error, loading };
+  return { locations, byId, childrenOf, error, loading, refresh: load };
 }
 
 // Desplegable plano con breadcrumb para elegir ubicación padre (piso).
@@ -110,7 +115,7 @@ export function PlacesTree({
                   {sub.map((c) => (
                     <li key={c.id} className="min-w-0">
                       {placed!.has(c.id) ? (
-                        <button onClick={() => onPuesto(c.id)} className="text-sm text-slate-700 underline text-left break-words">{c.name}{occByLoc?.[c.id] ? ` · ${occByLoc[c.id]}` : ""}</button>
+                        <button onClick={() => onPuesto(c.id)} className="text-sm text-slate-700 underline text-left break-words">{c.name}{byId.get(c.id)?.room ? ` · Int. ${byId.get(c.id)?.room}` : ""}{occByLoc?.[c.id] ? ` · ${occByLoc[c.id]}` : ""}</button>
                       ) : (
                         <span className="text-sm text-slate-400 break-words">{c.name} <span className="text-[10px]">(sin dibujar)</span></span>
                       )}

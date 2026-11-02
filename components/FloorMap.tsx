@@ -62,6 +62,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [occOpen, setOccOpen] = useState(false);
   const [occQuery, setOccQuery] = useState("");
   const [occResults, setOccResults] = useState<any[]>([]);
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [roomVal, setRoomVal] = useState("");
+  const [roomMsg, setRoomMsg] = useState("");
 
   const [occByLoc, setOccByLoc] = useState<Record<number, string>>({});
   const [glpiBase, setGlpiBase] = useState<string>("");
@@ -112,7 +115,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   >(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  const { byId, childrenOf } = useLocations();
+  const { byId, childrenOf, refresh: refreshLoc } = useLocations();
 
   useEffect(() => {
     fetch("/api/config").then((r) => r.json()).then((j) => setGlpiBase((j.glpiBaseUrl || "").replace(/\/$/, ""))).catch(() => {});
@@ -258,6 +261,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   async function openPuesto(p: Puesto) {
     setSel(p); setMsg("Cargando equipos..."); setScanMode(null);
+    setRoomOpen(false); setRoomMsg("");
     setPersonalByUser({});
     const r = await fetch(`/api/glpi?location_id=${p.glpi_id}`);
     const j = await r.json();
@@ -390,6 +394,42 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
     }
     openPuesto(sel);
+  }
+
+  async function saveRoom() {
+    if (!sel) return;
+    const v = roomVal.trim().slice(0, 50);
+    const cur = byId.get(sel.glpi_id)?.room || "";
+    if (v && v === cur) { setRoomMsg("Sin cambios."); return; }
+    if (!v && cur && !confirm(`Quitar el interno ${cur} del puesto ${nameOf(sel.glpi_id)}?`)) return;
+    setRoomMsg("Guardando...");
+    const r = await fetch("/api/glpi/locations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: sel.glpi_id, room: v }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setRoomMsg("Error: " + (j.error || r.status)); return; }
+    setRoomMsg("");
+    setRoomOpen(false);
+    refreshLoc();
+  }
+
+  async function clearRoom() {
+    if (!sel) return;
+    const cur = byId.get(sel.glpi_id)?.room || "";
+    if (!cur) return;
+    if (!confirm(`Quitar el interno ${cur} del puesto ${nameOf(sel.glpi_id)}?`)) return;
+    setRoomMsg("Quitando interno...");
+    const r = await fetch("/api/glpi/locations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: sel.glpi_id, room: "" }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setRoomMsg("Error: " + (j.error || r.status)); return; }
+    setRoomMsg("");
+    refreshLoc();
   }
 
   // ---------- calibración: dibujar / mover / redimensionar ----------
@@ -565,7 +605,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                       e.stopPropagation();
                       setCtxMenu({ x: e.clientX, y: e.clientY, kind: "reassign", targetId: p.glpi_id });
                     }}
-                    title={`${nameOf(p.glpi_id)}${occByLoc[p.glpi_id] ? ` · ${occByLoc[p.glpi_id]}` : ""} (GLPI ${p.glpi_id})`}
+                    title={`${nameOf(p.glpi_id)}${byId.get(p.glpi_id)?.room ? ` · Int. ${byId.get(p.glpi_id)?.room}` : ""}${occByLoc[p.glpi_id] ? ` · ${occByLoc[p.glpi_id]}` : ""} (GLPI ${p.glpi_id})`}
                     className={`absolute border-2 rounded-lg text-[11px] font-bold overflow-hidden shadow-sm flex items-center justify-center text-center ${sel?.glpi_id === p.glpi_id ? "border-success bg-green-300/60" : "border-brand-600 bg-blue-300/50 hover:bg-blue-300/80"} ${calibrar ? "cursor-move" : "cursor-pointer"} ${flashId === p.glpi_id ? "flash-puesto" : ""}`}
                     style={{ left: `${p.x}%`, top: `${p.y}%`, width: `${p.w}%`, height: `${p.h}%` }}>
                     <span className="px-1 leading-tight break-words">{shortNameOf(p.glpi_id)}</span>
@@ -662,7 +702,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         </details>
         {!sel ? <p className="text-sm text-slate-500">Selecciona un puesto en el mapa o en Lugares.</p> : (
           <>
-            <div className="font-bold">{nameOf(sel.glpi_id)} <span className="text-xs font-normal text-slate-500">GLPI loc {sel.glpi_id}</span></div>
+            <div className="font-bold">{nameOf(sel.glpi_id)}{byId.get(sel.glpi_id)?.room && <span className="badge badge-brand ml-2">Int. {byId.get(sel.glpi_id)?.room}</span>} <span className="text-xs font-normal text-slate-500">GLPI loc {sel.glpi_id}</span></div>
             <div className="grid gap-2 border rounded-lg p-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-sm font-semibold">Ocupante</span>
@@ -746,6 +786,57 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                   ))}
                 </div>
               )}
+              <div className="flex items-center justify-between gap-2 flex-wrap border-t pt-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm font-semibold">Int.:</span>
+                  {sel && byId.get(sel.glpi_id)?.room ? (
+                    <span className="badge badge-brand" title={`Interno ${byId.get(sel!.glpi_id)?.room}`}>{byId.get(sel!.glpi_id)?.room}</span>
+                  ) : (
+                    <span className="text-xs text-muted">Sin interno</span>
+                  )}
+                </div>
+                {authUser?.canOperate ? (
+                  <div className="flex gap-1 shrink-0">
+                    <button
+                      title="Editar interno del puesto"
+                      aria-label={`Editar interno de ${sel ? nameOf(sel.glpi_id) : "puesto"}`}
+                      className="btn btn-secondary btn-icon-sm"
+                      onClick={() => { setRoomVal((sel && byId.get(sel.glpi_id)?.room) || ""); setRoomMsg(""); setRoomOpen(!roomOpen); }}
+                    >
+                      <EditIcon size={13} />
+                    </button>
+                    {sel && byId.get(sel.glpi_id)?.room && (
+                      <button
+                        title="Quitar interno del puesto"
+                        aria-label={`Quitar interno de ${nameOf(sel.glpi_id)}`}
+                        className="btn btn-danger btn-icon-sm"
+                        onClick={() => requireEdit(clearRoom)}
+                      >
+                        <TrashIcon size={13} />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-muted">Inicia sesión para editar</span>
+                )}
+              </div>
+              {roomOpen && authUser?.canOperate && (
+                <div className="grid gap-2">
+                  <div className="flex gap-2">
+                    <input
+                      className="input flex-1 text-sm"
+                      placeholder="Nº de interno… (vacío para quitar)"
+                      value={roomVal}
+                      maxLength={50}
+                      onChange={(e) => setRoomVal(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && requireEdit(saveRoom)}
+                    />
+                    <button className="btn btn-primary text-xs" onClick={() => requireEdit(saveRoom)}>Guardar</button>
+                  </div>
+                  {roomMsg && <p className="text-xs text-muted">{roomMsg}</p>}
+                </div>
+              )}
+              {!roomOpen && roomMsg && <p className="text-xs text-muted">{roomMsg}</p>}
             </div>
             {items.map((a) => (
               <div key={`${a._type}-${a.id}`} className={`card p-3 grid gap-1 min-w-0 text-sm ${highlightKey === `${a._type}-${a.id}` ? "flash-highlight" : ""}`}>

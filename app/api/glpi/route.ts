@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { glpiFetch, enrich, ASSET_TYPES } from "@/lib/glpi";
 import { inventoryVariants } from "@/lib/inventory";
 import { getAuth, isOperator } from "@/lib/auth";
+import { appendActivity } from "@/lib/activity";
 
 function params(o: Record<string, string>): string {
   return new URLSearchParams(o).toString();
@@ -121,6 +122,24 @@ export async function PATCH(req: NextRequest) {
       method: "PUT",
       body: JSON.stringify({ input }),
     }, true, sessionToken);
+    const actor = auth.kind === "admin" ? "admin" : auth.session?.login || "?";
+    const action =
+      user_id !== undefined && location_id !== undefined
+        ? (user_id == null ? "reasignó usuario (sale del puesto)" : "asignó usuario (sale del puesto)")
+        : user_id !== undefined
+          ? (user_id == null ? "quitó usuario" : "asignó usuario")
+          : location_id == null
+            ? "sacó del puesto"
+            : "movió de puesto";
+    await appendActivity({
+      ts: Date.now(),
+      actor,
+      action,
+      type: String(type),
+      id: Number(id),
+      location_id: location_id === undefined ? undefined : (location_id == null ? null : Number(location_id)),
+      user_id: user_id === undefined ? undefined : (user_id == null ? null : Number(user_id)),
+    });
     return NextResponse.json({ ok: true, result: r });
   } catch (e: any) {
     const msg = String(e.message || "");

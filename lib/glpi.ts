@@ -143,6 +143,7 @@ export type GlpiLocation = {
   name: string;
   completename: string;
   parentId: number | null;
+  room: string | null; // interno del puesto (campo "Sala" de GLPI)
 };
 
 // Lista plana de ubicaciones (paginada). Sin expand_dropdowns para que
@@ -161,6 +162,7 @@ export async function fetchLocations(): Promise<GlpiLocation[]> {
         name: String(l.name || ""),
         completename: String(l.completename || l.name || ""),
         parentId: pid,
+        room: clean(l.room),
       });
     }
     if (list.length < step) break;
@@ -178,6 +180,10 @@ export async function getLocationsCached(): Promise<GlpiLocation[]> {
   const data = await fetchLocations();
   locCache = { at: Date.now(), data };
   return data;
+}
+
+export function clearLocationsCache(): void {
+  locCache = null;
 }
 export const ASSET_TYPES = [
   "Computer",
