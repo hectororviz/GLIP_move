@@ -43,7 +43,7 @@ export default function Home() {
   const maxType = Math.max(1, ...(dash?.stats.byType.map((b) => b.total) || [1]));
   const cards = [
     { href: "/mapa", title: "Control por piso", desc: "Mapa, estados por color, búsqueda en plano y panel del puesto.", icon: "🗺️" },
-    { href: "/mapa?calibrar=1", title: "Calibración", desc: "Dibujar, mover y redimensionar puestos.", icon: "✏️" },
+    { href: "/masivo", title: "Movimiento masivo", desc: "Destino + escaneo en ráfaga y confirmación conjunta.", icon: "📦" },
     { href: "/buscar", title: "Búsqueda", desc: "Inventario, serie, nombre y personas. Vista tabla.", icon: "🔎" },
     { href: "/config", title: "Configuración", desc: "Conexión GLPI, planos y apariencia.", icon: "⚙️" },
   ];

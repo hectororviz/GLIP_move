@@ -65,6 +65,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Inicio" },
     { href: "/mapa", label: "Control" },
     { href: "/buscar", label: "Búsqueda" },
+    { href: "/masivo", label: "Masivo" },
     { href: "/config", label: "Config" },
   ];
 

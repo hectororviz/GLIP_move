@@ -89,3 +89,25 @@ pantalla lo indica con link a `/config`).
 - Cámara: modal centrado, librería ZXing (requiere HTTPS o localhost). Si la
   cámara falla, muestra el motivo exacto + Reintentar; siempre queda el input
   manual / lector BT.
+
+## Movimiento masivo (`/masivo`)
+
+Solo a puesto (v1, sin modo usuario). Requiere login operador al confirmar.
+
+1. **Destino**: cascada Piso (solo pisos con mapa) → filtro → Puesto (todos los
+   hijos GLPI del piso). Se puede cambiar hasta antes de Confirmar; las filas
+   "ya está ahí" se recalculan solas.
+2. **Escaneo en ráfaga**: la cámara queda abierta; cada lectura da destello
+   verde + beep + suma un renglón sin cerrar. Cooldown anti-doble lectura y
+   aviso amarillo + sonido grave si es duplicado. Input manual y lector BT
+   agregan igual (Enter o Agregar).
+3. **Lista**: `Código | Tipo | Inventario | Nombre | Ubicación actual | Estado`.
+   Estados: `buscando / listo / duplicado / ya-ahí / no-existe / error /
+   moviendo / movido / falló`. ✕ quita (no en curso), Limpiar vacía todo.
+4. **Recuento por tipo**: badges `🖥️ Computer ×N` + `Total listos: N` (solo
+   cuentan `listo`, lo movible).
+5. **Confirmar** (footer sticky): valida destino + ≥1 listo, pide un solo
+   `confirm(N → puesto)`, ejecuta PATCH secuencial con progreso `i/N`,
+   conserva `users_id` y registra en Actividad por ítem. Al terminar muestra
+   `OK n/m` y `Reintentar` es implícito (fallidos quedan en `falló` para
+   re-confirmar). `Nuevo lote` limpia movidos/ya-ahí.
