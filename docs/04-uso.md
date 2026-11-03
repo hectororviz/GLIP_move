@@ -46,10 +46,9 @@ Modos **Equipos** y **Personas** (requieren login solo para editar, no para ver)
   puesto no se llame “Puesto X” (se detecta por ser hijo directo del piso). Si el
   bien está directamente en el piso, muestra el piso + badge `Sin puesto`.
 - **Editar (modal)**: la sección Ubicación muestra la actual compacta y el
-  selector en cascada **Piso → Puesto**, enraizado en
-  `Polo Científico Tecnológico - Edificio Blanco` (no se lista nada fuera de
-  esa raíz). Elegí el piso (`PB`, `1°`…`4°`; `PB` aparece como
-  `PB (aún no relevado en GLPI)` si todavía no existe) y luego el puesto entre
+  selector en cascada **Piso → Puesto**. El desplegable Piso lista **solo los
+  pisos cargados con mapa** (`/api/maps` → `floors.json`: `1°`…`4°`; `PB`
+  aparece cuando se cree en `/config → Pisos y planos`). Luego el puesto entre
   **todos los hijos GLPI de ese piso** (dibujados o no). El campo de filtro
   busca por nombre, interno (`room`) o id dentro del piso elegido. El piso
   actual se preselecciona; el puesto destino hay que elegirlo explícito.

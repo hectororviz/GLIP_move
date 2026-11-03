@@ -1,32 +1,19 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { comparePisos, formatLocationDisplay, isPisoName } from "@/lib/location-display";
+import { comparePisos, formatLocationDisplay } from "@/lib/location-display";
 
 type Asset = any;
 type Person = { id: number; display: string };
+type FloorRef = { id: string; name: string; glpiLocationId: number | null };
 
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
 /**
  * Modal de edición reutilizable: ubicación + usuario, misma lógica y
  * permisos que la ficha, sin cambiar de vista. No muta hasta confirmar.
+ * Pisos = los cargados con mapa en /api/maps (floors.json); puestos = todos
+ * los hijos GLPI del piso elegido.
  */
-function normRoot(s: string): string {
-  return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
-// Raíz fija: Polo Científico Tecnológico - Edificio Blanco. Fuera de ella no se lista nada.
-function findPoloRootId(byId: Map<number, any>): number | null {
-  const vals = [...byId.values()];
-  const hit = vals.find((l: any) => {
-    const n = normRoot(String(l.completename || l.name || ""));
-    return n.includes("polo cientifico") && n.includes("blanco");
-  });
-  if (hit) return Number(hit.id);
-  const roots = vals.filter((l: any) => l.parentId == null);
-  if (roots.length === 1) return Number(roots[0].id);
-  return null;
-}
 
 export default function AssetEditModal({
   asset,
@@ -64,7 +51,8 @@ export default function AssetEditModal({
   const compact = formatLocationDisplay(asset._locationId, byId as any, locName);
   const dirty = locPick !== "" || pq !== "";
 
-  // Árbol Polo → pisos → puestos (todos los hijos GLPI del piso).
+  // Pisos = los cargados con mapa (floors.json vía /api/maps).
+  // Puestos = todos los hijos GLPI del piso elegido.
   const kidsOf: Map<number | null, any[]> = useMemo(() => {
     if (childrenOf) return childrenOf as Map<number | null, any[]>;
     const m = new Map<number | null, any[]>();
@@ -76,21 +64,30 @@ export default function AssetEditModal({
     return m;
   }, [byId, childrenOf]);
 
-  const rootId = useMemo(() => findPoloRootId(byId), [byId]);
-  const rootName = rootId != null ? String(byId.get(rootId)?.name || byId.get(rootId)?.completename || `id ${rootId}`) : null;
+  const [floors, setFloors] = useState<FloorRef[]>([]);
+  const [floorsMsg, setFloorsMsg] = useState("");
+  useEffect(() => {
+    if (!canEdit) return;
+    fetch("/api/maps").then((r) => r.json()).then((j) => {
+      if (Array.isArray(j?.floors)) {
+        setFloors(j.floors.filter((f: any) => f && f.glpiLocationId != null).map((f: any) => ({
+          id: String(f.id),
+          name: String(f.name || f.id),
+          glpiLocationId: Number(f.glpiLocationId),
+        })));
+        setFloorsMsg("");
+      } else setFloorsMsg("No se pudo cargar la lista de pisos.");
+    }).catch(() => setFloorsMsg("No se pudo cargar la lista de pisos."));
+  }, [canEdit]);
 
   const pisos = useMemo(() => {
-    const raw = kidsOf.get(rootId) || [];
-    // Pisos primero (PB, 1°, 2°...), luego resto de hijos directos como "otros".
-    const pisoLike = raw.filter((l: any) => isPisoName(l.name));
-    const others = raw.filter((l: any) => !isPisoName(l.name));
-    pisoLike.sort((a: any, b: any) => comparePisos(String(a.name), String(b.name)));
-    others.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
-    return [...pisoLike, ...others];
-  }, [kidsOf, rootId]);
+    const only = floors.filter((f) => Number.isFinite(f.glpiLocationId as number));
+    only.sort((a, b) => comparePisos(a.name, b.name));
+    return only;
+  }, [floors]);
 
   const hasPB = useMemo(
-    () => pisos.some((l: any) => /(^|\s)pb(\s|$)/i.test(String(l.name)) || /planta\s*baja/i.test(String(l.name))),
+    () => pisos.some((f) => /(^|\s)pb(\s|$)/i.test(f.name) || /planta\s*baja/i.test(f.name)),
     [pisos]
   );
 
@@ -110,22 +107,18 @@ export default function AssetEditModal({
     );
   }, [puestosDelPiso, puestoQuery]);
 
-  // Preselección del piso (no del puesto): subir por parentId desde la ubicación actual.
+  // Preselección del piso (no del puesto): el piso es el floor cuyo
+  // glpiLocationId coincide con la ubicación actual o con su padre.
   // Se preselecciona solo el piso para que el usuario elija el puesto destino.
   useEffect(() => {
-    if (asset._locationId == null) return;
+    if (asset._locationId == null || !floors.length) return;
+    const ids = new Set(floors.map((f) => Number(f.glpiLocationId)));
     const cur: any = byId.get(asset._locationId);
-    if (!cur) return;
-    if (rootId != null && cur.parentId === rootId) {
-      setPisoPick(String(cur.id));
-      return;
-    }
-    const parent: any = cur.parentId != null ? byId.get(cur.parentId) : undefined;
-    if (parent && (parent.id === rootId || isPisoName(parent.name))) {
-      setPisoPick(String(parent.id));
-    }
+    if (cur && ids.has(Number(cur.id))) { setPisoPick(String(cur.id)); return; }
+    const parentId = cur?.parentId != null ? Number(cur.parentId) : null;
+    if (parentId != null && ids.has(parentId)) setPisoPick(String(parentId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asset._locationId, rootId]);
+  }, [asset._locationId, floors]);
 
   useEffect(() => {
     opener.current = document.activeElement;
@@ -251,8 +244,7 @@ export default function AssetEditModal({
             </div>
             {canEdit && (
               <div className="grid gap-2">
-                {rootName && <p className="text-xs text-muted" title={`Raíz fija del árbol: ${rootName}`}>Raíz: <b className="text-ink">{rootName}</b></p>}
-                <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-piso">Piso</label>
+                <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-piso">Piso (con mapa)</label>
                 <select
                   id="asset-edit-piso"
                   ref={firstField}
@@ -262,11 +254,14 @@ export default function AssetEditModal({
                   onChange={(e) => { setPisoPick(e.target.value); setLocPick(""); setPuestoQuery(""); }}
                 >
                   <option value="">Elegir piso…</option>
-                  {pisos.map((l: any) => (
-                    <option key={l.id} value={l.id}>{l.name} (id {l.id})</option>
+                  {pisos.map((f) => (
+                    <option key={f.id} value={String(f.glpiLocationId)}>{f.name} (id {f.glpiLocationId})</option>
                   ))}
-                  {!hasPB && <option value="" disabled>PB (aún no relevado en GLPI)</option>}
                 </select>
+                {floorsMsg && <p className="text-xs text-danger" role="alert">{floorsMsg}</p>}
+                {!floorsMsg && !hasPB && pisos.length > 0 && (
+                  <p className="text-xs text-muted">PB aún no cargado — crealo en /config → Pisos y planos.</p>
+                )}
                 <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-loc">Mover a puesto</label>
                 <input
                   className="input text-sm"
