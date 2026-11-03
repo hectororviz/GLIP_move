@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { formatLocationDisplay } from "@/lib/location-display";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { comparePisos, formatLocationDisplay, isPisoName } from "@/lib/location-display";
 
 type Asset = any;
 type Person = { id: number; display: string };
@@ -11,20 +11,41 @@ const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
  * Modal de edición reutilizable: ubicación + usuario, misma lógica y
  * permisos que la ficha, sin cambiar de vista. No muta hasta confirmar.
  */
+function normRoot(s: string): string {
+  return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+// Raíz fija: Polo Científico Tecnológico - Edificio Blanco. Fuera de ella no se lista nada.
+function findPoloRootId(byId: Map<number, any>): number | null {
+  const vals = [...byId.values()];
+  const hit = vals.find((l: any) => {
+    const n = normRoot(String(l.completename || l.name || ""));
+    return n.includes("polo cientifico") && n.includes("blanco");
+  });
+  if (hit) return Number(hit.id);
+  const roots = vals.filter((l: any) => l.parentId == null);
+  if (roots.length === 1) return Number(roots[0].id);
+  return null;
+}
+
 export default function AssetEditModal({
   asset,
   byId,
+  childrenOf,
   canEdit,
   onClose,
   onSaved,
 }: {
   asset: Asset;
   byId: Map<number, any>;
+  childrenOf?: Map<number | null, any[]>;
   canEdit: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [locPick, setLocPick] = useState("");
+  const [pisoPick, setPisoPick] = useState("");
+  const [puestoQuery, setPuestoQuery] = useState("");
   const [locMsg, setLocMsg] = useState("");
   const [pq, setPq] = useState("");
   const [presults, setPresults] = useState<Person[]>([]);
@@ -42,9 +63,69 @@ export default function AssetEditModal({
     (hasUser ? `Usuario #${asset._userId}` : null);
   const compact = formatLocationDisplay(asset._locationId, byId as any, locName);
   const dirty = locPick !== "" || pq !== "";
-  const locOptions = [...byId.values()].sort((x, y) =>
-    String(x.completename || x.name || "").localeCompare(String(y.completename || y.name || ""))
+
+  // Árbol Polo → pisos → puestos (todos los hijos GLPI del piso).
+  const kidsOf: Map<number | null, any[]> = useMemo(() => {
+    if (childrenOf) return childrenOf as Map<number | null, any[]>;
+    const m = new Map<number | null, any[]>();
+    for (const l of byId.values()) {
+      const k = (l.parentId ?? null) as number | null;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(l);
+    }
+    return m;
+  }, [byId, childrenOf]);
+
+  const rootId = useMemo(() => findPoloRootId(byId), [byId]);
+  const rootName = rootId != null ? String(byId.get(rootId)?.name || byId.get(rootId)?.completename || `id ${rootId}`) : null;
+
+  const pisos = useMemo(() => {
+    const raw = kidsOf.get(rootId) || [];
+    // Pisos primero (PB, 1°, 2°...), luego resto de hijos directos como "otros".
+    const pisoLike = raw.filter((l: any) => isPisoName(l.name));
+    const others = raw.filter((l: any) => !isPisoName(l.name));
+    pisoLike.sort((a: any, b: any) => comparePisos(String(a.name), String(b.name)));
+    others.sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+    return [...pisoLike, ...others];
+  }, [kidsOf, rootId]);
+
+  const hasPB = useMemo(
+    () => pisos.some((l: any) => /(^|\s)pb(\s|$)/i.test(String(l.name)) || /planta\s*baja/i.test(String(l.name))),
+    [pisos]
   );
+
+  const puestosDelPiso = useMemo(() => {
+    if (!pisoPick) return [];
+    const arr = kidsOf.get(Number(pisoPick)) || [];
+    return [...arr].sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
+  }, [kidsOf, pisoPick]);
+
+  const puestosFiltrados = useMemo(() => {
+    const q = puestoQuery.trim().toLowerCase();
+    if (!q) return puestosDelPiso;
+    return puestosDelPiso.filter((l: any) =>
+      String(l.name || "").toLowerCase().includes(q) ||
+      String(l.room || "").toLowerCase().includes(q) ||
+      String(l.id) === q.trim()
+    );
+  }, [puestosDelPiso, puestoQuery]);
+
+  // Preselección del piso (no del puesto): subir por parentId desde la ubicación actual.
+  // Se preselecciona solo el piso para que el usuario elija el puesto destino.
+  useEffect(() => {
+    if (asset._locationId == null) return;
+    const cur: any = byId.get(asset._locationId);
+    if (!cur) return;
+    if (rootId != null && cur.parentId === rootId) {
+      setPisoPick(String(cur.id));
+      return;
+    }
+    const parent: any = cur.parentId != null ? byId.get(cur.parentId) : undefined;
+    if (parent && (parent.id === rootId || isPisoName(parent.name))) {
+      setPisoPick(String(parent.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asset._locationId, rootId]);
 
   useEffect(() => {
     opener.current = document.activeElement;
@@ -170,20 +251,49 @@ export default function AssetEditModal({
             </div>
             {canEdit && (
               <div className="grid gap-2">
-                <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-loc">Mover a puesto</label>
+                {rootName && <p className="text-xs text-muted" title={`Raíz fija del árbol: ${rootName}`}>Raíz: <b className="text-ink">{rootName}</b></p>}
+                <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-piso">Piso</label>
                 <select
-                  id="asset-edit-loc"
+                  id="asset-edit-piso"
                   ref={firstField}
                   className="input text-sm"
-                  value={locPick}
+                  value={pisoPick}
                   disabled={busy}
+                  onChange={(e) => { setPisoPick(e.target.value); setLocPick(""); setPuestoQuery(""); }}
+                >
+                  <option value="">Elegir piso…</option>
+                  {pisos.map((l: any) => (
+                    <option key={l.id} value={l.id}>{l.name} (id {l.id})</option>
+                  ))}
+                  {!hasPB && <option value="" disabled>PB (aún no relevado en GLPI)</option>}
+                </select>
+                <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-loc">Mover a puesto</label>
+                <input
+                  className="input text-sm"
+                  placeholder={pisoPick ? "Filtrar puestos por nombre, interno o id…" : "Primero elegí un piso…"}
+                  aria-label="Filtrar puestos del piso"
+                  value={puestoQuery}
+                  disabled={busy || !pisoPick}
+                  onChange={(e) => setPuestoQuery(e.target.value)}
+                />
+                <select
+                  id="asset-edit-loc"
+                  className="input text-sm"
+                  value={locPick}
+                  disabled={busy || !pisoPick}
                   onChange={(e) => setLocPick(e.target.value)}
+                  size={Math.min(8, Math.max(3, puestosFiltrados.length))}
                 >
                   <option value="">Elegir puesto…</option>
-                  {locOptions.map((l: any) => (
-                    <option key={l.id} value={l.id}>{l.completename || l.name} (id {l.id})</option>
+                  {puestosFiltrados.map((l: any) => (
+                    <option key={l.id} value={l.id}>{l.name}{l.room ? ` · Int. ${l.room}` : ""} (id {l.id})</option>
                   ))}
                 </select>
+                {pisoPick && !puestosFiltrados.length && (
+                  <p className="text-xs text-muted" role="status">
+                    {puestosDelPiso.length ? "Sin coincidencias para ese filtro." : "Este piso aún no tiene puestos cargados en GLPI."}
+                  </p>
+                )}
                 <div className="flex gap-2 flex-wrap">
                   <button className="btn btn-primary text-xs" disabled={busy || !locPick} onClick={doMove}>
                     {busy ? "Guardando…" : "Mover aquí"}

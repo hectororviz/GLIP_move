@@ -14,7 +14,10 @@ function CompactLocation({ locId, fallback, byId }: { locId: number | null | und
   return (
     <span className="block min-w-0" title={d.full}>
       <span className="block truncate font-medium text-ink">{d.primary}</span>
-      {d.secondary && <span className="block truncate text-xs text-muted">{d.secondary}</span>}
+      {d.isFloorOnly
+        ? <span className="badge badge-warning mt-0.5 w-fit">Sin puesto</span>
+        : d.secondary && <span className="block truncate text-xs text-muted">{d.secondary}</span>}
+      {d.isFloorOnly && d.secondary && <span className="block truncate text-xs text-muted">{d.secondary}</span>}
     </span>
   );
 }
@@ -116,11 +119,12 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh }: {
       )}
 
       {groups.map((g) => {
-        const locName = byId.get(g.location_id)?.name || g.items[0]?._locationName || `Puesto ${g.location_id}`;
+        const d = formatLocationDisplay(g.location_id, byId as any, g.items[0]?._locationName || null);
+        const locName = d.isFloorOnly ? `${d.primary} (sin puesto)` : d.primary;
         return (
           <div key={g.location_id} className="card p-3 grid gap-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <b className="text-ink">{locName}</b>
+              <b className="text-ink" title={d.full}>{locName}</b>
               <div className="flex gap-2">
                 <a className="btn btn-secondary text-xs" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
                 <button className="btn btn-danger text-xs" onClick={() => onQuitar(g)}>Quitar del puesto</button>
@@ -170,7 +174,7 @@ export default function Buscar() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
-  const { byId } = useLocations();
+  const { byId, childrenOf } = useLocations();
   const [editAsset, setEditAsset] = useState<Asset | null>(null);
   const openEdit = (a: Asset) => {
     if (!authUser?.canOperate) {
@@ -182,9 +186,10 @@ export default function Buscar() {
   };
   const [sortKey, setSortKey] = useState<"type" | "name" | "otherserial" | "location">("type");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
+  const locLabel = (a: Asset) => formatLocationDisplay(a._locationId, byId as any, a._locationName != null ? String(a._locationName) : null).primary;
   const sortedItems = [...items].sort((a, b) => {
-    const va = sortKey === "type" ? String(a._type || "") : sortKey === "name" ? String(a.name || "") : sortKey === "otherserial" ? String(a.otherserial || "") : String(a._locationName || "");
-    const vb = sortKey === "type" ? String(b._type || "") : sortKey === "name" ? String(b.name || "") : sortKey === "otherserial" ? String(b.otherserial || "") : String(b._locationName || "");
+    const va = sortKey === "type" ? String(a._type || "") : sortKey === "name" ? String(a.name || "") : sortKey === "otherserial" ? String(a.otherserial || "") : locLabel(a);
+    const vb = sortKey === "type" ? String(b._type || "") : sortKey === "name" ? String(b.name || "") : sortKey === "otherserial" ? String(b.otherserial || "") : locLabel(b);
     return va.localeCompare(vb, undefined, { numeric: true }) * sortDir;
   });
   const toggleSort = (k: typeof sortKey) => {
@@ -408,6 +413,7 @@ export default function Buscar() {
           key={`${editAsset._type}-${editAsset.id}`}
           asset={editAsset}
           byId={byId}
+          childrenOf={childrenOf}
           canEdit={!!authUser?.canOperate}
           onClose={() => setEditAsset(null)}
           onSaved={() => { const a = editAsset; setEditAsset(null); search(); }}

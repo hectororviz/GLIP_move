@@ -15,6 +15,8 @@
 | Mapa vacío / `Sin pisos` | No hay pisos o sin imagen/padre | `/config`: crear piso, elegir padre GLPI, subir plano |
 | Puesto vacío en sidebar | Sin activos con ese `locations_id` | Verificar en GLPI que los equipos tengan esa ubicación; el filtro es exacto |
 | Búsqueda sin resultados | Inventario con formato distinto | Probar con/sin ceros, forma con letra (`A 0001-0537`), nombre o serie; revisar `otherserial` real en GLPI. Ojo: el código de barras puede no existir (`A 0001-0045` no existe si la serie salta de `0445` a `0450`) |
+| Ubicación muestra solo el piso | Bien directamente en el piso (sin puesto) | Es esperado: sale badge `Sin puesto`. Si debería tener puesto, moverlo desde Editar → Piso → Puesto |
+| Editar no lista un puesto | Se mira otro piso o filtro activo | Cambiar el desplegable Piso (PB/1°…4°) y limpiar el filtro por nombre/interno/id; el árbol está enraizado en Polo–Edificio Blanco |
 | `A 0001-XXXX` no encuentra | GLPI lo guarda como `A-001-XXXX` | La app ya mapea ambas formas; si falla, buscar `A-001-XXXX` directo para confirmar que existe |
 | Cámara no abre | Permisos / no-HTTPS | Solo `localhost` o HTTPS (ver `01-instalacion.md`); alternativa: lector BT/USB (modo teclado) |
 | Cámara negra / “no entrega imagen” | Otra pestaña/app con la cámara, o stream vacío | Cerrar otras pestañas/apps con cámara; Reintentar (libera streams); el aviso muestra el motivo exacto |
