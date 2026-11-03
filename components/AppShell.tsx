@@ -11,6 +11,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [cfg, setCfg] = useState<PubConfig>({ appName: "GLPI Move", accentColor: "#0b5ed7", brandIcon: null });
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canOperate, setCanOperate] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -34,12 +35,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         .then((j) => setIsAdmin(!!j.admin))
         .catch(() => setIsAdmin(false));
     };
+    const checkOperate = () => {
+      fetch("/api/auth/me", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => setCanOperate(!!j.canOperate))
+        .catch(() => setCanOperate(false));
+    };
     checkAdmin();
+    checkOperate();
     window.addEventListener("auth-changed", checkAdmin);
+    window.addEventListener("auth-changed", checkOperate);
     window.addEventListener("focus", checkAdmin);
+    window.addEventListener("focus", checkOperate);
     return () => {
       window.removeEventListener("auth-changed", checkAdmin);
+      window.removeEventListener("auth-changed", checkOperate);
       window.removeEventListener("focus", checkAdmin);
+      window.removeEventListener("focus", checkOperate);
     };
   }, []);
 
@@ -96,16 +108,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="hidden md:flex gap-1 ml-auto" aria-label="Navegación principal">
             {nav.map((n) => {
               const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
-              const locked = n.href === "/config" && !isAdmin;
+              const locked =
+                (n.href === "/config" && !isAdmin) || (n.href === "/masivo" && !canOperate);
               if (locked) {
+                const title =
+                  n.href === "/masivo"
+                    ? "Requiere sesión con perfil operador para movimientos masivos"
+                    : "Iniciá sesión con un perfil autorizado para ver Configuración";
                 return (
                   <span
                     key={n.href}
                     aria-disabled="true"
-                    title="Iniciá sesión con un perfil autorizado para ver Configuración"
+                    title={title}
                     className="px-3 py-2 rounded-lg text-sm font-medium text-muted/50 cursor-not-allowed select-none"
                   >
-                    {n.label}
+                    {n.label} 🔒
                   </span>
                 );
               }
@@ -148,13 +165,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="max-w-[1500px] mx-auto px-4 py-2 grid gap-1">
               {nav.map((n) => {
                 const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
-                const locked = n.href === "/config" && !isAdmin;
+                const locked =
+                  (n.href === "/config" && !isAdmin) || (n.href === "/masivo" && !canOperate);
                 if (locked) {
+                  const title =
+                    n.href === "/masivo"
+                      ? "Requiere sesión con perfil operador para movimientos masivos"
+                      : "Iniciá sesión con un perfil autorizado para ver Configuración";
                   return (
                     <span
                       key={n.href}
                       aria-disabled="true"
-                      title="Iniciá sesión con un perfil autorizado para ver Configuración"
+                      title={title}
                       className="px-3 py-2 rounded-lg text-sm font-medium text-muted/50 cursor-not-allowed select-none"
                     >
                       {n.label} 🔒

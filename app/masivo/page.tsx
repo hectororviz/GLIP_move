@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import BatchScanner from "@/components/BatchScanner";
+import BatchScanModal from "@/components/BatchScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
 import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
@@ -45,7 +45,9 @@ export default function Masivo() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState("");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
   const listEndRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +61,8 @@ export default function Masivo() {
             setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate });
           else setAuthUser(null);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setAuthChecked(true));
     };
     syncAuth();
     window.addEventListener("auth-changed", syncAuth);
@@ -290,6 +293,68 @@ export default function Masivo() {
   }
 
   const confirmDisabled = busy || !destLocId || !readyRows.length;
+  const canOperate = !!authUser?.canOperate;
+
+  if (!authChecked) {
+    return (
+      <div className="grid gap-4">
+        <div className="page-header">
+          <h1>Movimiento masivo</h1>
+          <p>Verificando permisos…</p>
+        </div>
+        <Spinner label="Verificando sesión…" />
+      </div>
+    );
+  }
+
+  if (!canOperate) {
+    return (
+      <div className="grid gap-4">
+        <div className="page-header">
+          <h1>Movimiento masivo 🔒</h1>
+          <p>Acceso restringido a usuarios con permiso de edición.</p>
+        </div>
+        <div className="card p-6 grid gap-3 text-center max-w-[480px] mx-auto w-full">
+          <span className="text-4xl" aria-hidden="true">
+            🔒
+          </span>
+          <b className="text-ink">
+            {authUser ? `Sesión como ${authUser.login} sin permiso de edición` : "Iniciá sesión para continuar"}
+          </b>
+          <p className="text-sm text-muted">
+            El movimiento masivo mueve bienes en GLPI y queda registrado en Actividad. Requiere un perfil operador
+            (Super-Admin/Admin según <span className="tabular-nums">GLPI_OPERATOR_PROFILES</span>).
+          </p>
+          <button className="btn btn-primary text-sm mx-auto" onClick={() => setAuthOpen(true)}>
+            {authUser ? "Cambiar de usuario" : "Iniciar sesión"}
+          </button>
+        </div>
+        {authOpen && (
+          <AuthModal
+            open={authOpen}
+            onClose={() => {
+              setAuthOpen(false);
+              pendingAction.current = null;
+            }}
+            onSuccess={() => {
+              fetch("/api/auth/me")
+                .then((r) => r.json())
+                .then((j) => {
+                  if (j.authenticated)
+                    setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate });
+                })
+                .catch(() => {});
+              window.dispatchEvent(new Event("auth-changed"));
+              const a = pendingAction.current;
+              pendingAction.current = null;
+              setAuthOpen(false);
+              if (a) a();
+            }}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4">
@@ -377,7 +442,20 @@ export default function Masivo() {
       {/* Escaneo */}
       <section aria-label="Escaneo en ráfaga" className="card p-4 grid gap-2">
         <h2 className="font-bold text-ink">2 · Escaneá en ráfaga</h2>
-        <BatchScanner onScan={addCode} paused={busy} />
+        <div className="flex gap-2 flex-wrap">
+          <button className="btn btn-primary text-sm" disabled={busy} onClick={() => setScanOpen(true)}>
+            📷 Escanear
+          </button>
+          <span className="text-xs text-muted self-center">La cámara abre en modal; el destello verde confirma sin cerrar.</span>
+        </div>
+        {scanOpen && (
+          <BatchScanModal
+            title={`Escanear en ráfaga${destName ? ` → ${destName}` : ""}`}
+            onScan={addCode}
+            onClose={() => setScanOpen(false)}
+            paused={busy}
+          />
+        )}
         <div className="flex gap-2">
           <input
             className="input flex-1 text-sm"
@@ -562,11 +640,6 @@ export default function Masivo() {
       {!destLocId && rows.length > 0 && (
         <p className="text-xs text-muted" role="status">
           Elegí el puesto destino para habilitar Confirmar.
-        </p>
-      )}
-      {authUser && !authUser.canOperate && (
-        <p className="text-xs text-muted" role="status">
-          Sesión como {authUser.login} sin permiso de edición: te pedirá login con perfil operador al confirmar.
         </p>
       )}
 

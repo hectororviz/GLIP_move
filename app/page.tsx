@@ -22,6 +22,7 @@ export default function Home() {
   const [dash, setDash] = useState<Dash | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [canOperate, setCanOperate] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,6 +40,22 @@ export default function Home() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const check = () => {
+      fetch("/api/auth/me", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => setCanOperate(!!j.canOperate))
+        .catch(() => setCanOperate(false));
+    };
+    check();
+    window.addEventListener("auth-changed", check);
+    window.addEventListener("focus", check);
+    return () => {
+      window.removeEventListener("auth-changed", check);
+      window.removeEventListener("focus", check);
+    };
+  }, []);
 
   const maxType = Math.max(1, ...(dash?.stats.byType.map((b) => b.total) || [1]));
   const cards = [
@@ -213,15 +230,33 @@ export default function Home() {
       </div>
 
       <nav aria-label="Accesos rápidos" className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {cards.map((c) => (
-          <Link key={c.href} href={c.href} className="card p-4 grid gap-1 hover:-translate-y-0.5 transition">
-            <span className="flex items-center gap-2">
-              <span className="text-xl" aria-hidden="true">{c.icon}</span>
-              <span className="font-bold text-ink">{c.title}</span>
-            </span>
-            <span className="text-sm text-muted">{c.desc}</span>
-          </Link>
-        ))}
+        {cards.map((c) => {
+          if (c.href === "/masivo" && !canOperate) {
+            return (
+              <span
+                key={c.href}
+                aria-disabled="true"
+                title="Requiere sesión con perfil operador para movimientos masivos"
+                className="card p-4 grid gap-1 text-muted/60 select-none"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-xl" aria-hidden="true">{c.icon}</span>
+                  <span className="font-bold text-ink">{c.title} 🔒</span>
+                </span>
+                <span className="text-sm text-muted">Iniciá sesión con perfil operador para mover en lote.</span>
+              </span>
+            );
+          }
+          return (
+            <Link key={c.href} href={c.href} className="card p-4 grid gap-1 hover:-translate-y-0.5 transition">
+              <span className="flex items-center gap-2">
+                <span className="text-xl" aria-hidden="true">{c.icon}</span>
+                <span className="font-bold text-ink">{c.title}</span>
+              </span>
+              <span className="text-sm text-muted">{c.desc}</span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

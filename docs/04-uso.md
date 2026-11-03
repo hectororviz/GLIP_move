@@ -92,15 +92,19 @@ pantalla lo indica con link a `/config`).
 
 ## Movimiento masivo (`/masivo`)
 
-Solo a puesto (v1, sin modo usuario). Requiere login operador al confirmar.
+Solo a puesto (v1, sin modo usuario). **Solo visible/usable con sesión de perfil
+operador**: nav y card de inicio muestran 🔒 sin permiso, y la ruta directa
+muestra pantalla de acceso restringido + botón Iniciar sesión. El backend igual
+exige operador en `PATCH /api/glpi` (401/403).
 
 1. **Destino**: cascada Piso (solo pisos con mapa) → filtro → Puesto (todos los
    hijos GLPI del piso). Se puede cambiar hasta antes de Confirmar; las filas
    "ya está ahí" se recalculan solas.
-2. **Escaneo en ráfaga**: la cámara queda abierta; cada lectura da destello
-   verde + beep + suma un renglón sin cerrar. Cooldown anti-doble lectura y
-   aviso amarillo + sonido grave si es duplicado. Input manual y lector BT
-   agregan igual (Enter o Agregar).
+2. **Escaneo en ráfaga (modal)**: botón **📷 Escanear** abre modal con la cámara;
+   botón **Cerrar** (o Esc/backdrop) la cierra y libera el hardware. Cada lectura
+   da destello verde + beep + suma un renglón sin cerrar el modal. Cooldown
+   anti-doble lectura y aviso amarillo + sonido grave si es duplicado. Input
+   manual y lector BT agregan igual (Enter o Agregar) sin abrir el modal.
 3. **Lista**: `Código | Tipo | Inventario | Nombre | Ubicación actual | Estado`.
    Estados: `buscando / listo / duplicado / ya-ahí / no-existe / error /
    moviendo / movido / falló`. ✕ quita (no en curso), Limpiar vacía todo.
