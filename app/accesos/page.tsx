@@ -498,15 +498,15 @@ export default function Accesos() {
       {tab === "shares" && !loading && (
         <div className="card overflow-x-auto p-0">
           <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setShareModal({ nombre: "", ruta: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nueva carpeta</button></div>
-          <table className="table-dense min-w-[640px]">
-            <thead><tr><th>Nombre</th><th>Ruta</th><th className="hidden md:table-cell">Área</th><th>Personas</th><th>Acciones</th></tr></thead>
+          <table className="table-dense min-w-[380px]">
+            <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Ruta</th><th className="hidden md:table-cell">Área</th><th>Personas</th><th>Acciones</th></tr></thead>
             <tbody>
               {shares.map((s) => (
                 <tr key={s.id} className="cursor-pointer" title={`Ver personas de ${s.nombre}`} tabIndex={0}
                   onClick={() => openShare(s)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShare(s); } }}>
-                  <td><b>{s.nombre}</b><span className="block text-xs text-muted font-normal md:hidden">{s.area}</span></td>
-                  <td className="tabular-nums text-sm max-w-[280px]"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
+                  <td><b>{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area}</span></td>
+                  <td className="tabular-nums text-sm max-w-[280px] hidden md:table-cell"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
                   <td className="text-sm hidden md:table-cell">{s.area}</td>
                   <td className="tabular-nums">{s.personas} <span className="text-muted" aria-hidden="true">›</span></td>
                   <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1">
@@ -525,16 +525,16 @@ export default function Accesos() {
       {tab === "personas" && (
         <div className="grid gap-3">
           <div className="card p-4 grid gap-2">
-            <div className="flex gap-2 flex-wrap">
-              <input className="input flex-1 min-w-[200px]" placeholder="Nombre, apellido o usuario GLPI…" value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Enter" && searchPeople()} />
-              <button className="btn btn-primary" onClick={searchPeople}>Buscar</button>
+            <div className="flex gap-2">
+              <input className="input flex-1 min-w-0" placeholder="Nombre, apellido o usuario GLPI…" value={pq} onChange={(e) => setPq(e.target.value)} onKeyDown={(e) => e.key === "Enter" && searchPeople()} />
+              <button className="btn btn-primary shrink-0" onClick={searchPeople}>Buscar</button>
             </div>
             {pmsg && <p className="text-sm text-muted" role="status">{pmsg}</p>}
             <div className="grid gap-2">
               {presults.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-3 text-sm card p-3">
-                  <span><b>{p.display}</b> <span className="text-xs text-muted">#{p.id}</span></span>
-                  <button className="btn btn-secondary text-xs" onClick={() => openPerson(p)}>Ver accesos →</button>
+                <div key={p.id} className="flex items-center justify-between gap-2 flex-wrap text-sm card p-3">
+                  <span className="min-w-0"><b className="block truncate">{p.display}</b> <span className="text-xs text-muted">#{p.id}</span></span>
+                  <button className="btn btn-secondary text-xs shrink-0" onClick={() => openPerson(p)}>Ver accesos →</button>
                 </div>
               ))}
             </div>
@@ -549,9 +549,9 @@ export default function Accesos() {
                 <div className="card p-3 grid gap-2">
                   <b className="text-sm">✉️ Correos ({pMails.length})</b>
                   {pMails.map((g) => (
-                    <div key={g.accountId} className="flex items-center justify-between gap-2 text-sm border-t pt-2">
-                      <span className="min-w-0"><span className="block truncate font-medium">{g.nombre}</span><span className="block truncate text-xs text-muted">{g.direccion} · {g.area}</span></span>
-                      <span className="inline-flex gap-1 shrink-0">
+                    <div key={g.accountId} className="flex items-center justify-between gap-2 flex-wrap text-sm border-t pt-2">
+                      <span className="min-w-0 flex-1 basis-40"><span className="block truncate font-medium">{g.nombre}</span><span className="block truncate text-xs text-muted">{g.direccion} · {g.area}</span></span>
+                      <span className="inline-flex gap-1 shrink-0 flex-wrap justify-end">
                         <label className="badge cursor-pointer" title="Puede enviar"><input type="checkbox" checked={g.canSend} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /> ✉️</label>
                         <label className="badge cursor-pointer" title="Puede recibir/leer"><input type="checkbox" checked={g.canRead} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /> 👁️</label>
                         <button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeMailGrant(g)}>🗑️</button>
@@ -563,8 +563,8 @@ export default function Accesos() {
                 <div className="card p-3 grid gap-2">
                   <b className="text-sm">📁 Carpetas ({pShares.length})</b>
                   {pShares.map((g) => (
-                    <div key={g.shareId} className="flex items-center justify-between gap-2 text-sm border-t pt-2">
-                      <span className="min-w-0"><span className="block truncate font-medium">{g.nombre}</span><span className="block truncate text-xs text-muted" title={g.ruta}>{g.ruta} · {g.area}</span></span>
+                    <div key={g.shareId} className="flex items-center justify-between gap-2 flex-wrap text-sm border-t pt-2">
+                      <span className="min-w-0 flex-1 basis-40"><span className="block truncate font-medium">{g.nombre}</span><span className="block truncate text-xs text-muted" title={g.ruta}>{g.ruta} · {g.area}</span></span>
                       <button className="btn btn-danger icon-btn-sm shrink-0" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeShareGrant(g)}>🗑️</button>
                     </div>
                   ))}
@@ -634,7 +634,7 @@ export default function Accesos() {
             </div>
           </div>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="table-dense min-w-[380px]">
+            <table className="table-dense min-w-[340px]">
               <thead><tr><th>Persona</th><th title="Puede enviar"><span aria-hidden="true">✉️</span><span className="sr-only">Envía</span></th><th title="Puede recibir"><span aria-hidden="true">👁️</span><span className="sr-only">Recibe</span></th><th><span className="sr-only">Quitar</span></th></tr></thead>
               <tbody>
                 {mailDetail.personas.map((g) => (
