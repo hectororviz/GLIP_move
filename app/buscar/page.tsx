@@ -504,7 +504,7 @@ export default function Buscar() {
                               <tr key={a.id} className="cursor-pointer" title={`Ver detalle de ${a.nombre}`} tabIndex={0}
                                 onClick={() => openAreaDetail(a)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAreaDetail(a); } }}>
-                                <td className="min-w-0"><b className="block truncate">{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{a.responsableNombre || "—"}</span></td>
+                                <td className="min-w-0"><b className="block break-all md:truncate">{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden break-all max-w-[38vw] leading-tight">{a.responsableNombre || "—"}</span></td>
                                 <td className="text-sm hidden md:table-cell">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
                                 <td className="tabular-nums">{a.mails}</td>
                                 <td className="tabular-nums">{a.shares}</td>
