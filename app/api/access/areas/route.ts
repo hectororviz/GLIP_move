@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isOperator, getAuth } from "@/lib/auth";
 import { createArea, loadAccess, saveAccess, validateAreaInput } from "@/lib/access";
 import { clean, glpiFetch } from "@/lib/glpi";
+import { norm } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +13,14 @@ function deny(req: NextRequest) {
   return null;
 }
 
-// GET /api/access/areas -> lista con conteos
+// GET /api/access/areas?q= -> lista con conteos
 export async function GET(req: NextRequest) {
   const d = deny(req);
   if (d) return d;
+  const q = norm(new URL(req.url).searchParams.get("q") || "");
   const db = await loadAccess();
   const areas = db.areas
+    .filter((a) => !q || norm(a.nombre).includes(q) || norm(a.responsableNombre).includes(q))
     .map((a) => ({
       ...a,
       mails: db.mails.filter((m) => m.areaId === a.id).length,

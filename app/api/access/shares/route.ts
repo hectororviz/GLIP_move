@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isOperator, getAuth } from "@/lib/auth";
 import { createShare, loadAccess, rutaKey, saveAccess, validateShareInput } from "@/lib/access";
+import { norm } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 
@@ -11,15 +12,18 @@ function deny(req: NextRequest) {
   return null;
 }
 
-// GET /api/access/shares?area=
+// GET /api/access/shares?area=&q=
 export async function GET(req: NextRequest) {
   const d = deny(req);
   if (d) return d;
-  const area = new URL(req.url).searchParams.get("area") || "";
+  const sp = new URL(req.url).searchParams;
+  const area = sp.get("area") || "";
+  const q = norm(sp.get("q") || "");
   const db = await loadAccess();
   const byArea = (id: string) => db.areas.find((a) => a.id === id) || null;
   const shares = db.shares
     .filter((s) => !area || s.areaId === area)
+    .filter((s) => !q || norm(s.nombre).includes(q) || norm(s.ruta).includes(q) || norm(byArea(s.areaId)?.nombre).includes(q))
     .map((s) => ({
       ...s,
       area: byArea(s.areaId)?.nombre || "—",

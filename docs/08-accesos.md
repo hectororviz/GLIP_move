@@ -25,6 +25,10 @@ Reglas:
 * Borrado de área **bloquea** si tiene correos/carpetas (`409`). Borrado de correo/carpeta bloquea si tiene personas (`409`), salvo `?force=1` con confirmación en UI.
 * Escritura atómica `tmp+rename` (mismo espíritu que `saveFloors`).
 
+## Búsqueda unificada (`GET /api/search?q=` + `/buscar`)
+
+Agregador server-side: en paralelo busca equipos (misma lógica inventario→nombre/serie + atajo QR), personas (3 campos User) y —solo con `isOperator()`— áreas/correos/carpetas (match contiene-insensible con `lib/search.ts:norm()` en nombre/dirección/ruta/área/responsable, tope 20/categoría). Sin operador devuelve `{locked:true}` en esas 3. `?q=` también soportado en `GET /api/access/{areas,mails,shares}` para reutilizar. `/buscar` es la vista global con 5 acordeones + detalle en modal; `/accesos` queda solo para ABM.
+
 ## APIs (`app/api/access/`)
 
 | Ruta | Uso |

@@ -37,27 +37,11 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
 
 ## Búsqueda (`/buscar`)
 
-Modos **Equipos** y **Personas** (requieren login solo para editar, no para ver).
+Buscador único con 5 acordeones colapsables: **🖥️ Equipos, 👤 Personas, 🏢 Áreas, ✉️ Correos, 📁 Carpetas**.
+Una sola caja (ej. `CTIC`, `0000012865`, `ventas@`, `\\srv`): muestra el conteo por categoría y al expandir lista todo (tope 20/categoría). Cada fila tiene **Ver detalle →** que abre un **modal** (equipo = ficha+edición, persona = ficha con puestos+accesos, correo/carpeta/área = datos + personas/recursos + link a `/accesos`).
 
-- **Equipos**: campo libre + chips por tipo. Orden: URL GLPI directa (`…/front/<tipo>.form.php?id=`) → N° inventario (`otherserial`, con/sin ceros, con letra-serie) → nombre → serie. Botón 📷 escanea y busca directo.
-  Ficha: **Tipo, Fabricante, Modelo, Inventario, Serie, Lugar, Usuario** (+ link
-  `Ver en mapa →` si tiene ubicación).
-  Columna **Ubicación**: muestra `piso · puesto` (ej. `3.º piso · 23`) aunque el
-  puesto no se llame “Puesto X” (se detecta por ser hijo directo del piso). Si el
-  bien está directamente en el piso, muestra el piso + badge `Sin puesto`.
-- **Editar (modal)**: la sección Ubicación muestra la actual compacta y el
-  selector en cascada **Piso → Puesto**. El desplegable Piso lista **solo los
-  pisos cargados con mapa** (`/api/maps` → `floors.json`: `1°`…`4°`; `PB`
-  aparece cuando se cree en `/config → Pisos y planos`). Luego el puesto entre
-  **todos los hijos GLPI de ese piso** (dibujados o no). El campo de filtro
-  busca por nombre, interno (`room`) o id dentro del piso elegido. El piso
-  actual se preselecciona; el puesto destino hay que elegirlo explícito.
-- **Personas**: por nombre, apellido o usuario GLPI. Ficha: identidad, puesto(s)
-  ocupado(s) con `Ver en mapa →`, equipos agrupados por puesto, grupo
-  **Asignados directos (sin puesto)** y botón Quitar del puesto (limpia su
-  `users_id` en esos equipos). **Asignar equipo a esta persona**: por
-  inventario/serie/URL o scan; confirma (el bien sale de su puesto si tenía) y
-  queda con `users_id` sin ubicación.
+- Equipos y Personas: lectura libre (editar exige login, como antes). Orden equipos: URL GLPI directa → inventario (con/sin ceros, letra-serie) → nombre → serie. 📷 escanea y busca directo. `?q=` linkeable.
+- Áreas/Correos/Carpetas: **🔒 solo operador** (sin login muestran candado + botón Iniciar sesión; el backend `GET /api/search` solo los incluye con `isOperator()`). Match contiene-insensible (tildes, mayúsculas) en nombre/dirección/ruta/área/responsable.
 
 ## Calibración de puestos (`/mapa?calibrar=1[&floor=...]`)
 
