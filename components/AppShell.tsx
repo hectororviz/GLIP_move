@@ -77,9 +77,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Inicio" },
     { href: "/mapa", label: "Control" },
     { href: "/buscar", label: "Búsqueda" },
+    { href: "/accesos", label: "Accesos" },
     { href: "/masivo", label: "Masivo" },
     { href: "/config", label: "Config" },
   ];
+
+  const isLocked = (href: string) => {
+    if (href === "/config") return !isAdmin;
+    if (href === "/masivo" || href === "/accesos") return !canOperate;
+    return false;
+  };
+  const lockTitle = (href: string) =>
+    href === "/accesos"
+      ? "Requiere sesión con perfil operador (sin lectura anónima)"
+      : href === "/masivo"
+        ? "Requiere sesión con perfil operador para movimientos masivos"
+        : "Iniciá sesión con un perfil autorizado para ver Configuración";
 
   return (
     <div className="min-h-screen">
@@ -108,13 +121,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="hidden md:flex gap-1 ml-auto" aria-label="Navegación principal">
             {nav.map((n) => {
               const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
-              const locked =
-                (n.href === "/config" && !isAdmin) || (n.href === "/masivo" && !canOperate);
+              const locked = isLocked(n.href);
               if (locked) {
-                const title =
-                  n.href === "/masivo"
-                    ? "Requiere sesión con perfil operador para movimientos masivos"
-                    : "Iniciá sesión con un perfil autorizado para ver Configuración";
+                const title = lockTitle(n.href);
                 return (
                   <span
                     key={n.href}
@@ -165,13 +174,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="max-w-[1500px] mx-auto px-4 py-2 grid gap-1">
               {nav.map((n) => {
                 const active = pathname === n.href || (n.href !== "/" && pathname?.startsWith(n.href));
-                const locked =
-                  (n.href === "/config" && !isAdmin) || (n.href === "/masivo" && !canOperate);
+                const locked = isLocked(n.href);
                 if (locked) {
-                  const title =
-                    n.href === "/masivo"
-                      ? "Requiere sesión con perfil operador para movimientos masivos"
-                      : "Iniciá sesión con un perfil autorizado para ver Configuración";
+                  const title = lockTitle(n.href);
                   return (
                     <span
                       key={n.href}

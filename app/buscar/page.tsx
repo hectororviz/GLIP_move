@@ -28,13 +28,19 @@ type PersonGroup = { location_id: number; items: Asset[] };
 type AuthUser = { login: string; name: string; profiles: string[]; canOperate: boolean };
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
-function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh }: {
+type AccessMail = { accountId: string; nombre?: string; direccion?: string; area?: string; canSend: boolean; canRead: boolean };
+type AccessShare = { shareId: string; nombre?: string; ruta?: string; area?: string };
+
+function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessMails, accessShares, canSeeAccess }: {
   p: Person;
   groups: PersonGroup[];
   unlocated: Asset[];
   byId: Map<number, any>;
   onQuitar: (group: PersonGroup) => void;
   onRefresh: () => void;
+  accessMails: AccessMail[];
+  accessShares: AccessShare[];
+  canSeeAccess: boolean;
 }) {
   const [assignInv, setAssignInv] = useState("");
   const [assignMsg, setAssignMsg] = useState("");
@@ -155,6 +161,34 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh }: {
       {!groups.length && !unlocated.length && (
         <p className="text-muted">Esta persona no tiene equipos asignados en GLPI.</p>
       )}
+
+      {canSeeAccess && (
+        <div className="grid gap-2 border-t pt-2">
+          <div className="text-sm font-semibold">Accesos (áreas / correos / carpetas) <a className="underline text-xs font-normal" href="/accesos">gestionar en Accesos →</a></div>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <div className="card p-3 grid gap-1">
+              <b className="text-sm">✉️ Correos ({accessMails.length})</b>
+              {accessMails.map((g) => (
+                <div key={g.accountId} className="text-sm text-muted">
+                  <b className="text-ink">{g.nombre || g.accountId}</b> <span className="text-xs tabular-nums">{g.direccion || ""}</span>
+                  <span className="text-xs"> · {g.canSend ? "✉️ Envía" : ""}{g.canSend && g.canRead ? " + " : ""}{g.canRead ? "👁️ Recibe" : ""} · {g.area || ""}</span>
+                </div>
+              ))}
+              {!accessMails.length && <span className="text-sm text-muted">Sin correos.</span>}
+            </div>
+            <div className="card p-3 grid gap-1">
+              <b className="text-sm">📁 Carpetas ({accessShares.length})</b>
+              {accessShares.map((g) => (
+                <div key={g.shareId} className="text-sm text-muted" title={g.ruta || ""}>
+                  <b className="text-ink">{g.nombre || g.shareId}</b> <span className="text-xs tabular-nums">{g.ruta || ""}</span>
+                  <span className="text-xs"> · {g.area || ""}</span>
+                </div>
+              ))}
+              {!accessShares.length && <span className="text-sm text-muted">Sin carpetas.</span>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -168,6 +202,8 @@ export default function Buscar() {
   const [selPerson, setSelPerson] = useState<Person | null>(null);
   const [groups, setGroups] = useState<PersonGroup[]>([]);
   const [unlocated, setUnlocated] = useState<Asset[]>([]);
+  const [accessMails, setAccessMails] = useState<AccessMail[]>([]);
+  const [accessShares, setAccessShares] = useState<AccessShare[]>([]);
   const [msg, setMsg] = useState("");
   const [scan, setScan] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -256,6 +292,21 @@ export default function Buscar() {
     if (!r.ok) { setMsg("Error: " + j.error); setGroups([]); setUnlocated([]); return; }
     setGroups(j.groups || []);
     setUnlocated(j.unlocated || []);
+    // Accesos locales (solo operadores; best-effort, no rompe la ficha si falla con 401/403).
+    try {
+      const ar = await fetch(`/api/access/grants?user_id=${p.id}`);
+      const aj = await ar.json().catch(() => ({}));
+      if (ar.ok) {
+        setAccessMails(aj.mails || []);
+        setAccessShares(aj.shares || []);
+      } else {
+        setAccessMails([]);
+        setAccessShares([]);
+      }
+    } catch {
+      setAccessMails([]);
+      setAccessShares([]);
+    }
     setMsg(j.groups?.length ? "" : "Persona sin puesto asignado.");
   }
 
@@ -404,8 +455,8 @@ export default function Buscar() {
 
       {mode === "people" && selPerson && (
         <div className="grid gap-3">
-          <button className="text-sm text-muted underline w-fit" onClick={() => { setSelPerson(null); setGroups([]); setUnlocated([]); }}>← Volver a personas</button>
-          <FichaPersona p={selPerson} groups={groups} unlocated={unlocated} byId={byId} onQuitar={(g) => requireEdit(() => quitarDelPuesto(g))} onRefresh={() => selPerson && openPerson(selPerson)} />
+          <button className="text-sm text-muted underline w-fit" onClick={() => { setSelPerson(null); setGroups([]); setUnlocated([]); setAccessMails([]); setAccessShares([]); }}>← Volver a personas</button>
+          <FichaPersona p={selPerson} groups={groups} unlocated={unlocated} byId={byId} onQuitar={(g) => requireEdit(() => quitarDelPuesto(g))} onRefresh={() => selPerson && openPerson(selPerson)} accessMails={accessMails} accessShares={accessShares} canSeeAccess={!!authUser?.canOperate} />
         </div>
       )}
       {editAsset && (

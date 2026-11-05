@@ -4,6 +4,7 @@ tsconfig.tsbuildinfo
 data/config.json
 data/floors.json
 data/activity.json
+data/access.json
 data/maps/
 .env
 data/brand/

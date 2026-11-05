@@ -8,13 +8,17 @@ import { loadFloors, saveFloors, mapsDir } from "@/lib/maps";
 export const dynamic = "force-dynamic";
 
 
-// GET /api/backup -> descarga ZIP con floors.json + imágenes
+// GET /api/backup -> descarga ZIP con floors.json + imágenes + access.json
 export async function GET(req: NextRequest) {
   if (!isAdmin(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   try {
     const floors = await loadFloors();
     const zip = new AdmZip();
     zip.addFile("floors.json", Buffer.from(JSON.stringify(floors, null, 2), "utf8"));
+    try {
+      const { loadAccess } = await import("@/lib/access");
+      zip.addFile("access.json", Buffer.from(JSON.stringify(await loadAccess(), null, 2), "utf8"));
+    } catch {}
     const mapDir = mapsDir();
     for (const f of floors) {
       if (!f.image) continue;
@@ -98,6 +102,26 @@ export async function POST(req: NextRequest) {
     await fs.writeFile(path.join(mapDir, f.image), e.getData());
   }
   await saveFloors(floors);
+  // access.json opcional: si viene en el ZIP, valida y reemplaza (sin romper backups viejos).
+  let accessInfo = "";
+  try {
+    const ae = zip.getEntry("access.json");
+    if (ae) {
+      const adb: any = JSON.parse(ae.getData().toString("utf8"));
+      const { saveAccess } = await import("@/lib/access");
+      if (adb && typeof adb === "object" && Array.isArray(adb.areas) && Array.isArray(adb.mails) && Array.isArray(adb.shares)) {
+        await saveAccess({
+          version: 1,
+          areas: adb.areas,
+          mails: adb.mails,
+          shares: adb.shares,
+          mailGrants: Array.isArray(adb.mailGrants) ? adb.mailGrants : [],
+          shareGrants: Array.isArray(adb.shareGrants) ? adb.shareGrants : [],
+        });
+        accessInfo = `, accesos: ${adb.areas.length} áreas`;
+      }
+    }
+  } catch {}
   const totalPuestos = floors.reduce((a: number, f: any) => a + (f.puestos?.length || 0), 0);
-  return NextResponse.json({ ok: true, pisos: floors.length, puestos: totalPuestos });
+  return NextResponse.json({ ok: true, pisos: floors.length, puestos: totalPuestos, extra: accessInfo });
 }
