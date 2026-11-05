@@ -521,7 +521,7 @@ export default function Buscar() {
                               <tr key={m.id} className="cursor-pointer" title={`Ver detalle de ${m.nombre}`} tabIndex={0}
                                 onClick={() => openMailDetail(m)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMailDetail(m); } }}>
-                                <td className="min-w-0"><b className="block truncate">{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[52vw]" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area} · {m.personas} 👤 ({m.envian} ✉️/{m.reciben} 👁️)</span></td>
+                                <td className="min-w-0"><b className="block truncate">{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area} · {m.personas} 👤 ({m.envian} ✉️/{m.reciben} 👁️)</span></td>
                                 <td className="tabular-nums text-sm hidden md:table-cell">{m.direccion}</td>
                                 <td className="text-sm hidden md:table-cell">{m.area}</td>
                                 <td className="tabular-nums text-xs hidden md:table-cell">{m.personas} <span className="text-muted">({m.envian} ✉️/{m.reciben} 👁️)</span></td>
@@ -541,7 +541,7 @@ export default function Buscar() {
                               <tr key={s.id} className="cursor-pointer" title={`Ver detalle de ${s.nombre}`} tabIndex={0}
                                 onClick={() => openShareDetail(s)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShareDetail(s); } }}>
-                                <td className="min-w-0"><b className="block truncate">{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[52vw]" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area} · {s.personas} 👤</span></td>
+                                <td className="min-w-0"><b className="block truncate">{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area} · {s.personas} 👤</span></td>
                                 <td className="tabular-nums text-sm max-w-[280px] hidden md:table-cell"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
                                 <td className="text-sm hidden md:table-cell">{s.area}</td>
                                 <td className="tabular-nums hidden md:table-cell">{s.personas}</td>

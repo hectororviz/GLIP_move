@@ -450,7 +450,7 @@ export default function Accesos() {
             <tbody>
               {areas.map((a) => (
                 <tr key={a.id}>
-                  <td className="min-w-0"><b className="block truncate">{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[48vw]">{a.responsableNombre || "—"}</span></td>
+                  <td className="min-w-0"><b className="block truncate">{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{a.responsableNombre || "—"}</span></td>
                   <td className="text-sm hidden md:table-cell">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
                   <td className="tabular-nums">{a.mails}</td>
                   <td className="tabular-nums">{a.shares}</td>
@@ -477,7 +477,7 @@ export default function Accesos() {
                 <tr key={m.id} className="cursor-pointer" title={`Ver personas de ${m.nombre}`} tabIndex={0}
                   onClick={() => openMail(m)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMail(m); } }}>
-                  <td className="min-w-0"><b className="block truncate">{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[48vw]" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area}</span></td>
+                  <td className="min-w-0"><b className="block truncate">{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area}</span></td>
                   <td className="tabular-nums text-sm hidden md:table-cell">{m.direccion}</td>
                   <td className="text-sm hidden md:table-cell">{m.area}</td>
                   <td className="tabular-nums hidden md:table-cell">{m.personas} <span className="text-muted" aria-hidden="true">›</span></td>
@@ -505,7 +505,7 @@ export default function Accesos() {
                 <tr key={s.id} className="cursor-pointer" title={`Ver personas de ${s.nombre}`} tabIndex={0}
                   onClick={() => openShare(s)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShare(s); } }}>
-                  <td className="min-w-0"><b className="block truncate">{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[48vw]" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area}</span></td>
+                  <td className="min-w-0"><b className="block truncate">{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area}</span></td>
                   <td className="tabular-nums text-sm max-w-[280px] hidden md:table-cell"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
                   <td className="text-sm hidden md:table-cell">{s.area}</td>
                   <td className="tabular-nums">{s.personas} <span className="text-muted" aria-hidden="true">›</span></td>
