@@ -497,16 +497,19 @@ export default function Buscar() {
                     )}
                     {!r.locked && c.id === "areas" && (r.items as any[]).length > 0 && (
                       <div className="overflow-x-auto">
-                        <table className="table-dense min-w-[420px] md:min-w-[640px]">
-                          <thead><tr><th>Área</th><th className="hidden md:table-cell">Responsable</th><th>Correos</th><th>Carpetas</th><th>Detalle</th></tr></thead>
+                        <table className="table-dense">
+                          <thead><tr><th>Área</th><th className="hidden md:table-cell">Responsable</th><th>Correos</th><th>Carpetas</th><th className="hidden md:table-cell">Detalle</th><th className="md:hidden"><span className="sr-only">Abrir</span></th></tr></thead>
                           <tbody>
                             {(r.items as any[]).map((a) => (
-                              <tr key={a.id}>
+                              <tr key={a.id} className="cursor-pointer" title={`Ver detalle de ${a.nombre}`} tabIndex={0}
+                                onClick={() => openAreaDetail(a)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAreaDetail(a); } }}>
                                 <td className="min-w-0"><b className="block truncate">{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{a.responsableNombre || "—"}</span></td>
                                 <td className="text-sm hidden md:table-cell">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
                                 <td className="tabular-nums">{a.mails}</td>
                                 <td className="tabular-nums">{a.shares}</td>
-                                <td><button className="btn btn-secondary text-xs" onClick={() => openAreaDetail(a)}>Ver detalle →</button></td>
+                                <td className="hidden md:table-cell" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><button className="btn btn-secondary text-xs" onClick={() => openAreaDetail(a)}>Ver detalle →</button></td>
+                                <td className="md:hidden text-muted" aria-hidden="true">›</td>
                               </tr>
                             ))}
                           </tbody>
