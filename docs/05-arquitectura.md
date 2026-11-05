@@ -149,5 +149,6 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 19. **Tablas mobile-first sin scroll**: columnas secundarias como sublínea bajo
     el nombre, `break-all` en vez de `nowrap` (el `truncate` solo no alcanza:
     en `auto-layout` la columna se dimensiona al contenido irrompible),
-    `max-width` en `vw` y `min-width: 0` en celdas flex; verificado con
+    `max-width` en `vw`, `min-width: 0` en celdas flex y `table-layout: fixed`
+    en móvil para modales (`table-modal-fluid`); verificado con
     Playwright a 360×800 (overflow 0).
