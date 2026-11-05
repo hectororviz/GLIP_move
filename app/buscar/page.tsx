@@ -4,6 +4,7 @@ import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
 import { Spinner, EmptyState, TypeIcon } from "@/components/ui";
+import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
 
@@ -102,7 +103,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
             onKeyDown={(e) => e.key === "Enter" && assignInv && assignToPerson(assignInv)}
           />
           <button onClick={() => assignInv && assignToPerson(assignInv)} className="btn btn-primary text-xs" disabled={assignBusy}>OK</button>
-          <button onClick={() => setAssignScan(!assignScan)} className="btn btn-secondary text-xs">📷</button>
+          <button onClick={() => setAssignScan(!assignScan)} className="btn btn-secondary text-xs" aria-label="Escanear"><IconCamera size={14} /></button>
         </div>
         {assignMsg && <p className="text-xs text-muted">{assignMsg}</p>}
       </div>
@@ -157,17 +158,17 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
           <div className="text-sm font-semibold">Accesos (áreas / correos / carpetas) <a className="underline text-xs font-normal" href="/accesos">gestionar en Accesos →</a></div>
           <div className="grid sm:grid-cols-2 gap-2">
             <div className="card p-3 grid gap-1">
-              <b className="text-sm">✉️ Correos ({accessMails.length})</b>
+              <b className="text-sm inline-flex items-center gap-1"><IconMail size={13} /> Correos ({accessMails.length})</b>
               {accessMails.map((g) => (
                 <div key={g.accountId} className="text-sm text-muted">
                   <b className="text-ink">{g.nombre || g.accountId}</b> <span className="text-xs tabular-nums">{g.direccion || ""}</span>
-                  <span className="text-xs"> · {g.canSend ? "✉️ Envía" : ""}{g.canSend && g.canRead ? " + " : ""}{g.canRead ? "👁️ Recibe" : ""} · {g.area || ""}</span>
+                  <span className="text-xs inline-flex items-center gap-1"> · {g.canSend ? <><IconMail size={11} /> Envía</> : ""}{g.canSend && g.canRead ? " + " : ""}{g.canRead ? <><IconEye size={11} /> Recibe</> : ""} · {g.area || ""}</span>
                 </div>
               ))}
               {!accessMails.length && <span className="text-sm text-muted">Sin correos.</span>}
             </div>
             <div className="card p-3 grid gap-1">
-              <b className="text-sm">📁 Carpetas ({accessShares.length})</b>
+              <b className="text-sm inline-flex items-center gap-1"><IconFolder size={13} /> Carpetas ({accessShares.length})</b>
               {accessShares.map((g) => (
                 <div key={g.shareId} className="text-sm text-muted" title={g.ruta || ""}>
                   <b className="text-ink">{g.nombre || g.shareId}</b> <span className="text-xs tabular-nums">{g.ruta || ""}</span>
@@ -192,12 +193,12 @@ type Results = {
   carpetas: { total: number; items: any[]; error?: string; locked?: boolean };
 };
 
-const CATS: { id: Cat; icon: string; label: string }[] = [
-  { id: "equipos", icon: "🖥️", label: "Equipos" },
-  { id: "personas", icon: "👤", label: "Personas" },
-  { id: "areas", icon: "🏢", label: "Áreas" },
-  { id: "correos", icon: "✉️", label: "Correos" },
-  { id: "carpetas", icon: "📁", label: "Carpetas" },
+const CATS: { id: Cat; icon: (p: { size?: number }) => React.ReactNode; label: string }[] = [
+  { id: "equipos", icon: (p) => <IconMonitor size={18} {...p} />, label: "Equipos" },
+  { id: "personas", icon: (p) => <IconUser size={18} {...p} />, label: "Personas" },
+  { id: "areas", icon: (p) => <IconBuilding size={18} {...p} />, label: "Áreas" },
+  { id: "correos", icon: (p) => <IconMail size={18} {...p} />, label: "Correos" },
+  { id: "carpetas", icon: (p) => <IconFolder size={18} {...p} />, label: "Carpetas" },
 ];
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -402,7 +403,7 @@ export default function Buscar() {
 
   const lockedBox = (label: string) => (
     <div className="p-4 grid gap-2 text-center">
-      <span className="text-2xl" aria-hidden="true">🔒</span>
+      <span className="inline-flex text-muted" aria-hidden="true"><IconLock size={36} /></span>
       <p className="text-sm text-muted">{label} requiere sesión con perfil operador. <button className="underline" onClick={() => setAuthOpen(true)}>Iniciar sesión</button></p>
     </div>
   );
@@ -427,7 +428,7 @@ export default function Buscar() {
           <button onClick={() => search()} className="btn btn-primary" disabled={loading}>
             {loading ? "Buscando…" : "Buscar"}
           </button>
-          <button onClick={() => setScan(!scan)} className="btn btn-secondary" aria-label="Escanear">📷</button>
+          <button onClick={() => setScan(!scan)} className="btn btn-secondary" aria-label="Escanear"><IconCamera size={15} /></button>
         </div>
         {scan && (
           <ScanModal
@@ -456,9 +457,9 @@ export default function Buscar() {
                   aria-expanded={isOpen}
                   className="w-full flex items-center gap-2 p-3 text-left hover:bg-canvas transition"
                 >
-                  <span aria-hidden="true">{c.icon}</span>
+                  <span aria-hidden="true" className="inline-flex text-muted"><c.icon /></span>
                   <b className="text-ink">{c.label}</b>
-                  <span className="badge badge-brand" aria-label={`${count} encontrados`}>{r.locked ? "🔒" : `${count}`}</span>
+                  <span className="badge badge-brand" aria-label={`${count} encontrados`}>{r.locked ? <IconLock size={12} /> : `${count}`}</span>
                   {r.error && !r.locked && <span className="text-xs text-danger truncate">· error parcial</span>}
                   <span className="ml-auto text-muted text-sm" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
                 </button>
@@ -476,7 +477,7 @@ export default function Buscar() {
                                 <td><span className="inline-flex items-center gap-1.5 whitespace-nowrap"><TypeIcon type={a._type} /><b>{a._type}</b></span></td>
                                 <td className="max-w-[220px]"><span className="block truncate font-medium" title={disp(a.name)}>{disp(a.name)}</span><span className="text-xs text-muted tabular-nums">S. {disp(a.serial)}</span></td>
                                 <td className="tabular-nums font-semibold">{disp(a.otherserial)}</td>
-                                <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} /><span className="text-xs text-muted block truncate" title={disp(a._userName)}>👤 {disp(a._userName)}</span></td>
+                                <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} /><span className="text-xs text-muted block truncate" title={disp(a._userName)}><span className="inline-flex items-center gap-1"><IconUser size={11} /> {disp(a._userName)}</span></span></td>
                                 <td><button className="btn btn-secondary text-xs !min-h-[30px] !py-1" onClick={() => setDetailAsset(a)}>Ver detalle →</button></td>
                               </tr>
                             ))}
@@ -521,10 +522,10 @@ export default function Buscar() {
                               <tr key={m.id} className="cursor-pointer" title={`Ver detalle de ${m.nombre}`} tabIndex={0}
                                 onClick={() => openMailDetail(m)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMailDetail(m); } }}>
-                                <td className="min-w-0"><b className="block truncate">{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area} · {m.personas} 👤 ({m.envian} ✉️/{m.reciben} 👁️)</span></td>
+                                <td className="min-w-0"><b className="block truncate">{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area} · {m.personas} pers. ({m.envian} env./{m.reciben} rec.)</span></td>
                                 <td className="tabular-nums text-sm hidden md:table-cell">{m.direccion}</td>
                                 <td className="text-sm hidden md:table-cell">{m.area}</td>
-                                <td className="tabular-nums text-xs hidden md:table-cell">{m.personas} <span className="text-muted">({m.envian} ✉️/{m.reciben} 👁️)</span></td>
+                                <td className="tabular-nums text-xs hidden md:table-cell">{m.personas} <span className="text-muted">({m.envian} env./{m.reciben} rec.)</span></td>
                                 <td className="text-muted" aria-hidden="true">›</td>
                               </tr>
                             ))}
@@ -541,7 +542,7 @@ export default function Buscar() {
                               <tr key={s.id} className="cursor-pointer" title={`Ver detalle de ${s.nombre}`} tabIndex={0}
                                 onClick={() => openShareDetail(s)}
                                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShareDetail(s); } }}>
-                                <td className="min-w-0"><b className="block truncate">{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area} · {s.personas} 👤</span></td>
+                                <td className="min-w-0"><b className="block truncate">{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[38vw]" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area} · {s.personas} pers.</span></td>
                                 <td className="tabular-nums text-sm max-w-[280px] hidden md:table-cell"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
                                 <td className="text-sm hidden md:table-cell">{s.area}</td>
                                 <td className="tabular-nums hidden md:table-cell">{s.personas}</td>
@@ -597,7 +598,7 @@ export default function Buscar() {
         <Modal title={`Correo: ${detailMail.mail.nombre || detailMail.mail.direccion}`} onClose={() => setDetailMail(null)}>
           <div className="grid gap-2 text-sm">
             <p className="tabular-nums text-muted">{detailMail.mail.direccion} · Área {detailMail.mail.area || "—"}</p>
-            {!canOperate && <p className="text-sm text-muted">🔒 Iniciá sesión con perfil operador para ver las personas.</p>}
+            {!canOperate && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador para ver las personas.</span></p>}
             {canOperate && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canOperate && detailMail.personas.length > 0 && (
               <div className="overflow-x-auto">
@@ -607,15 +608,15 @@ export default function Buscar() {
                     {detailMail.personas.map((g: any) => (
                       <tr key={g.userId}>
                         <td>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></td>
-                        <td className="text-center">{g.canSend ? "✉️" : "—"}</td>
-                        <td className="text-center">{g.canRead ? "👁️" : "—"}</td>
+                        <td className="text-center text-muted">{g.canSend ? <IconMail size={14} /> : "—"}</td>
+                        <td className="text-center text-muted">{g.canRead ? <IconEye size={14} /> : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
-            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : "Excel ↓"}</button></span>}
+            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
           </div>
         </Modal>
       )}
@@ -624,7 +625,7 @@ export default function Buscar() {
         <Modal title={`Carpeta: ${detailShare.share.nombre}`} onClose={() => setDetailShare(null)}>
           <div className="grid gap-2 text-sm">
             <p className="tabular-nums text-muted" title={detailShare.share.ruta}>{detailShare.share.ruta} · Área {detailShare.share.area || "—"}</p>
-            {!canOperate && <p className="text-sm text-muted">🔒 Iniciá sesión con perfil operador para ver las personas.</p>}
+            {!canOperate && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador para ver las personas.</span></p>}
             {canOperate && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canOperate && detailShare.personas.length > 0 && (
               <div className="overflow-x-auto">
@@ -641,7 +642,7 @@ export default function Buscar() {
                 </table>
               </div>
             )}
-            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : "Excel ↓"}</button></span>}
+            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
           </div>
         </Modal>
       )}
@@ -650,13 +651,13 @@ export default function Buscar() {
         <Modal title={`Área: ${detailArea.area.nombre}`} onClose={() => setDetailArea(null)}>
           <div className="grid gap-2 text-sm">
             <p className="text-muted">Responsable: <b className="text-ink">{detailArea.area.responsableNombre || "—"}</b> <span className="text-xs">#{detailArea.area.responsableUserId}</span></p>
-            <b className="text-sm">✉️ Correos ({detailArea.mails.length})</b>
+            <b className="text-sm inline-flex items-center gap-1"><IconMail size={13} /> Correos ({detailArea.mails.length})</b>
             {detailArea.mails.map((m: any) => <div key={m.id} className="text-sm text-muted"><b className="text-ink">{m.nombre}</b> <span className="tabular-nums text-xs">{m.direccion}</span> <span className="text-xs">· {m.personas} persona(s)</span></div>)}
             {!detailArea.mails.length && <p className="text-sm text-muted">Sin correos.</p>}
-            <b className="text-sm">📁 Carpetas ({detailArea.shares.length})</b>
+            <b className="text-sm inline-flex items-center gap-1"><IconFolder size={13} /> Carpetas ({detailArea.shares.length})</b>
             {detailArea.shares.map((s: any) => <div key={s.id} className="text-sm text-muted" title={s.ruta}><b className="text-ink">{s.nombre}</b> <span className="tabular-nums text-xs">{s.ruta}</span> <span className="text-xs">· {s.personas} persona(s)</span></div>)}
             {!detailArea.shares.length && <p className="text-sm text-muted">Sin carpetas.</p>}
-            <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>{canOperate && <button className="btn btn-secondary text-xs w-fit" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : "Excel ↓"}</button>}</span>
+            <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>{canOperate && <button className="btn btn-secondary text-xs w-fit" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}</span>
           </div>
         </Modal>
       )}

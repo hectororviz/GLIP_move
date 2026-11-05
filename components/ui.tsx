@@ -1,4 +1,5 @@
 "use client";
+import { IconBox, IconDrive, IconGlobe, IconKeyboard, IconMonitor, IconPhone, IconPrinter } from "./icons";
 
 export function Spinner({ label = "Cargando…" }: { label?: string }) {
   return (
@@ -29,19 +30,20 @@ export function SegmentedBar({ parts }: { parts: { value: number; color: string;
   );
 }
 
-const TYPE_ICON: Record<string, string> = {
-  Computer: "🖥️",
-  Monitor: "🖵",
-  Phone: "☎️",
-  Printer: "🖨️",
-  Peripheral: "⌨️",
-  NetworkEquipment: "🌐",
+const TYPE_ICON: Record<string, (p: { size?: number }) => React.ReactNode> = {
+  Computer: (p) => <IconDrive {...p} />,
+  Monitor: (p) => <IconMonitor {...p} />,
+  Phone: (p) => <IconPhone {...p} />,
+  Printer: (p) => <IconPrinter {...p} />,
+  Peripheral: (p) => <IconKeyboard {...p} />,
+  NetworkEquipment: (p) => <IconGlobe {...p} />,
 };
 
 export function TypeIcon({ type }: { type: string }) {
+  const Cmp = TYPE_ICON[type] || ((p: { size?: number }) => <IconBox {...p} />);
   return (
-    <span aria-hidden="true" title={type}>
-      {TYPE_ICON[type] || "📦"}
+    <span aria-hidden="true" title={type} className="inline-flex text-muted">
+      <Cmp size={14} />
     </span>
   );
 }

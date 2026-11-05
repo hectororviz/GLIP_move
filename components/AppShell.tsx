@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AuthButton from "./AuthButton";
+import { IconLock } from "./icons";
 
 type PubConfig = { appName?: string; accentColor?: string; brandIcon?: string | null };
 
@@ -131,7 +132,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     title={title}
                     className="px-3 py-2 rounded-lg text-sm font-medium text-muted/50 cursor-not-allowed select-none"
                   >
-                    {n.label} 🔒
+                    {n.label} <span className="inline-flex" aria-hidden="true"><IconLock size={12} /></span>
                   </span>
                 );
               }
@@ -184,7 +185,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                       title={title}
                       className="px-3 py-2 rounded-lg text-sm font-medium text-muted/50 cursor-not-allowed select-none"
                     >
-                      {n.label} 🔒
+                      {n.label} <span className="inline-flex" aria-hidden="true"><IconLock size={12} /></span>
                     </span>
                   );
                 }
