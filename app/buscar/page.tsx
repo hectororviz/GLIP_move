@@ -514,16 +514,18 @@ export default function Buscar() {
                     )}
                     {!r.locked && c.id === "correos" && (r.items as any[]).length > 0 && (
                       <div className="overflow-x-auto">
-                        <table className="table-dense min-w-[680px]">
-                          <thead><tr><th>Nombre</th><th>Dirección</th><th>Área</th><th>Personas</th><th>Detalle</th></tr></thead>
+                        <table className="table-dense min-w-[560px]">
+                          <thead><tr><th>Nombre</th><th>Dirección</th><th className="hidden md:table-cell">Área</th><th>Personas</th><th><span className="sr-only">Abrir</span></th></tr></thead>
                           <tbody>
                             {(r.items as any[]).map((m) => (
-                              <tr key={m.id}>
-                                <td><b>{m.nombre}</b></td>
+                              <tr key={m.id} className="cursor-pointer" title={`Ver detalle de ${m.nombre}`} tabIndex={0}
+                                onClick={() => openMailDetail(m)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMailDetail(m); } }}>
+                                <td><b>{m.nombre}</b><span className="block text-xs text-muted font-normal md:hidden">{m.area}</span></td>
                                 <td className="tabular-nums text-sm">{m.direccion}</td>
-                                <td className="text-sm">{m.area}</td>
+                                <td className="text-sm hidden md:table-cell">{m.area}</td>
                                 <td className="tabular-nums text-xs">{m.personas} <span className="text-muted">({m.envian} ✉️/{m.reciben} 👁️)</span></td>
-                                <td><button className="btn btn-secondary text-xs" onClick={() => openMailDetail(m)}>Ver detalle →</button></td>
+                                <td className="text-muted" aria-hidden="true">›</td>
                               </tr>
                             ))}
                           </tbody>
@@ -532,16 +534,18 @@ export default function Buscar() {
                     )}
                     {!r.locked && c.id === "carpetas" && (r.items as any[]).length > 0 && (
                       <div className="overflow-x-auto">
-                        <table className="table-dense min-w-[680px]">
-                          <thead><tr><th>Nombre</th><th>Ruta</th><th>Área</th><th>Personas</th><th>Detalle</th></tr></thead>
+                        <table className="table-dense min-w-[560px]">
+                          <thead><tr><th>Nombre</th><th>Ruta</th><th className="hidden md:table-cell">Área</th><th>Personas</th><th><span className="sr-only">Abrir</span></th></tr></thead>
                           <tbody>
                             {(r.items as any[]).map((s) => (
-                              <tr key={s.id}>
-                                <td><b>{s.nombre}</b></td>
+                              <tr key={s.id} className="cursor-pointer" title={`Ver detalle de ${s.nombre}`} tabIndex={0}
+                                onClick={() => openShareDetail(s)}
+                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShareDetail(s); } }}>
+                                <td><b>{s.nombre}</b><span className="block text-xs text-muted font-normal md:hidden">{s.area}</span></td>
                                 <td className="tabular-nums text-sm max-w-[280px]"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
-                                <td className="text-sm">{s.area}</td>
+                                <td className="text-sm hidden md:table-cell">{s.area}</td>
                                 <td className="tabular-nums">{s.personas}</td>
-                                <td><button className="btn btn-secondary text-xs" onClick={() => openShareDetail(s)}>Ver detalle →</button></td>
+                                <td className="text-muted" aria-hidden="true">›</td>
                               </tr>
                             ))}
                           </tbody>

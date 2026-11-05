@@ -31,6 +31,26 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
   );
 }
 
+function SubModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-ink/50" onClick={onClose} aria-hidden="true" />
+      <div className="relative bg-white w-full sm:max-w-md max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-lift overflow-hidden">
+        <div className="p-4 pb-3 border-b border-line flex items-start justify-between gap-2">
+          <h2 className="font-bold text-ink">{title}</h2>
+          <button className="btn btn-secondary icon-btn-sm" onClick={onClose} aria-label="Cerrar">✕</button>
+        </div>
+        <div className="p-4 grid gap-3 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 function UserSearch({ value, onPick }: { value: GlpiUser | null; onPick: (u: GlpiUser | null) => void }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState<GlpiUser[]>([]);
@@ -107,6 +127,7 @@ export default function Accesos() {
   const [grantUser, setGrantUser] = useState<GlpiUser | null>(null);
   const [grantSend, setGrantSend] = useState(true);
   const [grantRead, setGrantRead] = useState(true);
+  const [grantAdd, setGrantAdd] = useState<null | "mail" | "share">(null);
   const [exporting, setExporting] = useState<string | null>(null);
 
   async function downloadExport(scope: "area" | "mail" | "share", id: string) {
@@ -275,6 +296,7 @@ export default function Accesos() {
     if (!r.ok) { setMsg(j.error || "Error"); return; }
     setMailDetail({ mail: m, personas: j.personas || [] });
     setGrantUser(null);
+    setGrantAdd(null);
     setGrantSend(true);
     setGrantRead(true);
   }
@@ -285,6 +307,7 @@ export default function Accesos() {
     if (!r.ok) { setMsg(j.error || "Error"); return; }
     setShareDetail({ share: s, personas: j.personas || [] });
     setGrantUser(null);
+    setGrantAdd(null);
   }
 
   async function addMailGrant() {
@@ -447,18 +470,19 @@ export default function Accesos() {
       {tab === "mails" && !loading && (
         <div className="card overflow-x-auto p-0">
           <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setMailModal({ nombre: "", direccion: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nuevo correo</button></div>
-          <table className="table-dense min-w-[820px]">
-            <thead><tr><th>Nombre</th><th>Dirección</th><th>Área</th><th>Personas</th><th>Envían/Reciben</th><th>Acciones</th></tr></thead>
+          <table className="table-dense min-w-[640px]">
+            <thead><tr><th>Nombre</th><th>Dirección</th><th className="hidden md:table-cell">Área</th><th>Personas</th><th>Envían/Reciben</th><th>Acciones</th></tr></thead>
             <tbody>
               {mails.map((m) => (
-                <tr key={m.id}>
-                  <td><b>{m.nombre}</b></td>
+                <tr key={m.id} className="cursor-pointer" title={`Ver personas de ${m.nombre}`} tabIndex={0}
+                  onClick={() => openMail(m)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMail(m); } }}>
+                  <td><b>{m.nombre}</b><span className="block text-xs text-muted font-normal md:hidden">{m.area}</span></td>
                   <td className="tabular-nums text-sm">{m.direccion}</td>
-                  <td className="text-sm">{m.area}</td>
-                  <td className="tabular-nums">{m.personas}</td>
+                  <td className="text-sm hidden md:table-cell">{m.area}</td>
+                  <td className="tabular-nums">{m.personas} <span className="text-muted" aria-hidden="true">›</span></td>
                   <td className="text-xs text-muted tabular-nums">{m.envian} ✉️ / {m.reciben} 👁️</td>
-                  <td><span className="inline-flex gap-1 flex-wrap">
-                    <button className="btn btn-secondary text-xs" onClick={() => openMail(m)}>Personas</button>
+                  <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1 flex-wrap">
                     <button className="btn btn-secondary text-xs" disabled={exporting === `mail:${m.id}`} onClick={() => downloadExport("mail", m.id)}>{exporting === `mail:${m.id}` ? "Exportando…" : "Excel ↓"}</button>
                     <button className="btn btn-secondary text-xs" onClick={() => { setFormErr(""); setMailModal({ id: m.id, nombre: m.nombre, direccion: m.direccion, areaId: m.areaId }); }}>Editar</button>
                     <button className="btn btn-danger text-xs" onClick={() => deleteMail(m)}>Borrar</button>
@@ -474,17 +498,18 @@ export default function Accesos() {
       {tab === "shares" && !loading && (
         <div className="card overflow-x-auto p-0">
           <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setShareModal({ nombre: "", ruta: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nueva carpeta</button></div>
-          <table className="table-dense min-w-[820px]">
-            <thead><tr><th>Nombre</th><th>Ruta</th><th>Área</th><th>Personas</th><th>Acciones</th></tr></thead>
+          <table className="table-dense min-w-[640px]">
+            <thead><tr><th>Nombre</th><th>Ruta</th><th className="hidden md:table-cell">Área</th><th>Personas</th><th>Acciones</th></tr></thead>
             <tbody>
               {shares.map((s) => (
-                <tr key={s.id}>
-                  <td><b>{s.nombre}</b></td>
+                <tr key={s.id} className="cursor-pointer" title={`Ver personas de ${s.nombre}`} tabIndex={0}
+                  onClick={() => openShare(s)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShare(s); } }}>
+                  <td><b>{s.nombre}</b><span className="block text-xs text-muted font-normal md:hidden">{s.area}</span></td>
                   <td className="tabular-nums text-sm max-w-[280px]"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
-                  <td className="text-sm">{s.area}</td>
-                  <td className="tabular-nums">{s.personas}</td>
-                  <td><span className="inline-flex gap-1 flex-wrap">
-                    <button className="btn btn-secondary text-xs" onClick={() => openShare(s)}>Personas</button>
+                  <td className="text-sm hidden md:table-cell">{s.area}</td>
+                  <td className="tabular-nums">{s.personas} <span className="text-muted" aria-hidden="true">›</span></td>
+                  <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1 flex-wrap">
                     <button className="btn btn-secondary text-xs" disabled={exporting === `share:${s.id}`} onClick={() => downloadExport("share", s.id)}>{exporting === `share:${s.id}` ? "Exportando…" : "Excel ↓"}</button>
                     <button className="btn btn-secondary text-xs" onClick={() => { setFormErr(""); setShareModal({ id: s.id, nombre: s.nombre, ruta: s.ruta, areaId: s.areaId }); }}>Editar</button>
                     <button className="btn btn-danger text-xs" onClick={() => deleteShare(s)}>Borrar</button>
@@ -603,26 +628,18 @@ export default function Accesos() {
         <Modal wide title={`Personas con acceso a ${mailDetail.mail.nombre}`} onClose={() => setMailDetail(null)}>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs text-muted">{mailDetail.mail.direccion} · Área {mailDetail.mail.area}</p>
-            <button className="btn btn-secondary text-xs" disabled={exporting === `mail:${mailDetail.mail.id}`} onClick={() => downloadExport("mail", mailDetail.mail.id)}>{exporting === `mail:${mailDetail.mail.id}` ? "Exportando…" : "Exportar Excel ↓"}</button>
+            <div className="flex gap-1 flex-wrap">
+              <button className="btn btn-primary text-xs" onClick={() => { setGrantUser(null); setGrantSend(true); setGrantRead(true); setGrantAdd("mail"); }} aria-label="Agregar persona">+ Agregar</button>
+              <button className="btn btn-secondary text-xs" disabled={exporting === `mail:${mailDetail.mail.id}`} onClick={() => downloadExport("mail", mailDetail.mail.id)}>{exporting === `mail:${mailDetail.mail.id}` ? "Exportando…" : "Excel ↓"}</button>
+            </div>
           </div>
-          <div className="card p-3 grid gap-2">
-            <b className="text-sm">Agregar persona</b>
-            <UserSearch value={grantUser} onPick={setGrantUser} />
-            {grantUser && (
-              <div className="flex items-center gap-3 flex-wrap text-sm">
-                <label className="inline-flex items-center gap-1"><input type="checkbox" checked={grantSend} onChange={(e) => setGrantSend(e.target.checked)} /> Envía ✉️</label>
-                <label className="inline-flex items-center gap-1"><input type="checkbox" checked={grantRead} onChange={(e) => setGrantRead(e.target.checked)} /> Recibe 👁️</label>
-                <button className="btn btn-primary text-xs" onClick={addMailGrant}>Otorgar</button>
-              </div>
-            )}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="table-dense min-w-[560px]">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="table-dense min-w-[440px]">
               <thead><tr><th>Persona</th><th>Envía</th><th>Recibe</th><th></th></tr></thead>
               <tbody>
                 {mailDetail.personas.map((g) => (
                   <tr key={g.userId}>
-                    <td>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></td>
+                    <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
                     <td><input type="checkbox" aria-label="Envía" checked={g.canSend} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /></td>
                     <td><input type="checkbox" aria-label="Recibe" checked={g.canRead} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /></td>
                     <td><button className="btn btn-danger text-xs" onClick={() => removeMailGrant(g)}>Quitar</button></td>
@@ -630,7 +647,7 @@ export default function Accesos() {
                 ))}
               </tbody>
             </table>
-            {!mailDetail.personas.length && <p className="text-sm text-muted p-2">Nadie tiene acceso aún.</p>}
+            {!mailDetail.personas.length && <p className="text-sm text-muted p-2">Nadie tiene acceso aún. Tocá <b>+ Agregar</b> para otorgar.</p>}
           </div>
         </Modal>
       )}
@@ -639,29 +656,59 @@ export default function Accesos() {
         <Modal wide title={`Personas con acceso a ${shareDetail.share.nombre}`} onClose={() => setShareDetail(null)}>
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs text-muted tabular-nums">{shareDetail.share.ruta} · Área {shareDetail.share.area}</p>
-            <button className="btn btn-secondary text-xs" disabled={exporting === `share:${shareDetail.share.id}`} onClick={() => downloadExport("share", shareDetail.share.id)}>{exporting === `share:${shareDetail.share.id}` ? "Exportando…" : "Exportar Excel ↓"}</button>
+            <div className="flex gap-1 flex-wrap">
+              <button className="btn btn-primary text-xs" onClick={() => { setGrantUser(null); setGrantAdd("share"); }} aria-label="Agregar persona">+ Agregar</button>
+              <button className="btn btn-secondary text-xs" disabled={exporting === `share:${shareDetail.share.id}`} onClick={() => downloadExport("share", shareDetail.share.id)}>{exporting === `share:${shareDetail.share.id}` ? "Exportando…" : "Excel ↓"}</button>
+            </div>
           </div>
-          <div className="card p-3 grid gap-2">
-            <b className="text-sm">Agregar persona (acceso sí/no)</b>
-            <UserSearch value={grantUser} onPick={setGrantUser} />
-            {grantUser && <div><button className="btn btn-primary text-xs" onClick={addShareGrant}>Otorgar acceso</button></div>}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="table-dense min-w-[480px]">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="table-dense min-w-[400px]">
               <thead><tr><th>Persona</th><th>Acceso</th><th></th></tr></thead>
               <tbody>
                 {shareDetail.personas.map((g) => (
                   <tr key={g.userId}>
-                    <td>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></td>
+                    <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
                     <td><span className="badge badge-success">Sí ✓</span></td>
                     <td><button className="btn btn-danger text-xs" onClick={() => removeShareGrant(g)}>Quitar</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!shareDetail.personas.length && <p className="text-sm text-muted p-2">Nadie tiene acceso aún.</p>}
+            {!shareDetail.personas.length && <p className="text-sm text-muted p-2">Nadie tiene acceso aún. Tocá <b>+ Agregar</b> para otorgar.</p>}
           </div>
         </Modal>
+      )}
+
+      {grantAdd === "mail" && mailDetail && (
+        <SubModal title={`Agregar a ${mailDetail.mail.nombre}`} onClose={() => { setGrantAdd(null); setGrantUser(null); }}>
+          <UserSearch value={grantUser} onPick={setGrantUser} />
+          {grantUser && (
+            <div className="grid gap-2 text-sm">
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="inline-flex items-center gap-1"><input type="checkbox" checked={grantSend} onChange={(e) => setGrantSend(e.target.checked)} /> Envía ✉️</label>
+                <label className="inline-flex items-center gap-1"><input type="checkbox" checked={grantRead} onChange={(e) => setGrantRead(e.target.checked)} /> Recibe 👁️</label>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button className="btn btn-secondary text-xs" onClick={() => { setGrantAdd(null); setGrantUser(null); }}>Listo</button>
+                <button className="btn btn-primary text-xs" onClick={addMailGrant}>Otorgar</button>
+              </div>
+            </div>
+          )}
+          {!grantUser && <div className="flex justify-end"><button className="btn btn-secondary text-xs" onClick={() => setGrantAdd(null)}>Cerrar</button></div>}
+        </SubModal>
+      )}
+
+      {grantAdd === "share" && shareDetail && (
+        <SubModal title={`Agregar a ${shareDetail.share.nombre}`} onClose={() => { setGrantAdd(null); setGrantUser(null); }}>
+          <UserSearch value={grantUser} onPick={setGrantUser} />
+          {grantUser && (
+            <div className="flex gap-2 justify-end">
+              <button className="btn btn-secondary text-xs" onClick={() => { setGrantAdd(null); setGrantUser(null); }}>Listo</button>
+              <button className="btn btn-primary text-xs" onClick={addShareGrant}>Otorgar acceso</button>
+            </div>
+          )}
+          {!grantUser && <div className="flex justify-end"><button className="btn btn-secondary text-xs" onClick={() => setGrantAdd(null)}>Cerrar</button></div>}
+        </SubModal>
       )}
 
       {authOpen && (
