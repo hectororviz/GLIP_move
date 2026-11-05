@@ -44,6 +44,6 @@ borra nada).
   app nunca borra `users_id` al mover, así que el usuario se conserva por
   defecto).
 - **Respaldo (Import/Export ZIP)**: Exportar descarga
-  `glpi-move-backup-*.zip` con `floors.json` + imágenes (sin secretos).
-  Importar **reemplaza todos** los pisos/puestos/planos (doble confirmación),
+  `glpi-move-backup-*.zip` con `floors.json` + `access.json` + imágenes (sin secretos).
+  Importar **reemplaza todos** los pisos/puestos/planos y los accesos (doble confirmación),
   valida el esquema y limpia imágenes huérfanas.

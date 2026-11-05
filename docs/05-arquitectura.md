@@ -12,7 +12,7 @@ estado local React + `@zxing/browser@0.1.5` (cámara) +
                      │                    │ Session-Token (servicio o usuario)
    JPG + hotspots %  │                    │ re-login ante 401 (servicio)
    Scanner ZXing     │                    └─ App-Token + user_token (server)
-   Árbol lugares     └─ ./data (config.json, floors.json, maps/, brand/)
+   Árbol lugares     └─ ./data (config.json, floors.json, access.json, activity.json, maps/, brand/)
 ```
 
 ## Auth y roles (`lib/auth.ts`, `app/api/auth/`)
@@ -23,7 +23,9 @@ estado local React + `@zxing/browser@0.1.5` (cámara) +
   `GET /api/auth/me`. `GET /api/admin/check` dice si hay admin (local o GLPI).
 - `isOperator(req)`: admin local **o** sesión GLPI con perfil en
   `GLPI_OPERATOR_PROFILES` (default `Super-Admin,Admin`). Protege
-  `PATCH /api/glpi` (401 sin login, 403 sin permiso).
+  `PATCH /api/glpi` (401 sin login, 403 sin permiso), **todo `/api/access/*`** y
+  la parte de accesos de **`GET /api/search`** (equipos/personas son lectura
+  libre; áreas/correos/carpetas salen `{locked:true}` sin operador).
 - `isAdmin(req)`: clave local **o** sesión GLPI con perfil en
   `GLPI_ADMIN_PROFILES`. Centralizado: lo usan maps, upload, backup, brand,
   config y admin/check (antes cada ruta duplicaba su `adminOk`).
@@ -43,10 +45,15 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 | `GET /api/glpi?type=&id=` | `GET /{Type}/{id}?expand_dropdowns=true` + `_locationId`/`_userId` del `links` hateoas |
 | `GET /api/glpi/users?q=\|?id=` | `GET /User/?searchText[name\|firstname\|realname]=…` (solo campos seguros) o `/User/{id}` |
 | `GET /api/glpi/user-assets?user_id=` | `GET /{Type}/?searchText[users_id]=…` × 6 tipos, agrupado por ubicación |
+| `GET /api/search?q=` | Agregador: equipos + personas (público) y áreas/correos/carpetas (solo `isOperator()`, si no `{locked:true}`); equipos/personas con la misma lógica de arriba; accesos filtrados en memoria con `lib/search.ts:norm()`; tope 20/categoría |
+| `GET /api/access/{areas,mails,shares}[?area=&q=]` | Lectura de DB propia (`access.json`) con conteos; `q` contiene-insensible en nombre/dirección/ruta/área/responsable |
+| `POST/PUT/DELETE /api/access/{areas,mails,shares}` | ABM catálogo (operador); borrado de área bloquea con 409 si tiene recursos; correo/carpeta con 409 si tiene personas salvo `?force=1` |
+| `GET/POST/DELETE /api/access/grants` | Otorgar/quitar: `?user_id=` (ficha) \| `?accountId=` \| `?shareId=`; mail upsert con `canSend/canRead` (≥1 true) |
+| `GET /api/access/overview?area=` | Correos+carpetas de cada área (o de una) |
 | `PATCH /api/glpi` (protegido) | `PUT /{Type}/{id} {"input":{"locations_id":X\|0[, "users_id":Y]}}` (+`session_write=true`); `users_id` no se toca salvo pedido explícito |
 | `GET /api/glpi/locations[?parent=]` | `GET /Location/?range=…` paginado, cache 5 min; `locations_id` numérico = padre |
 | `GET /api/config/test` (admin) | `initSession` + `getMyProfiles` |
-| `GET/POST /api/backup` (admin) | ZIP `floors.json` + `maps/` (sin secretos); import valida y reemplaza |
+| `GET/POST /api/backup` (admin) | ZIP `floors.json` + `access.json` + `maps/` (sin secretos); import valida y reemplaza (ignora backups viejos sin `access.json`) |
 | `GET/POST/DELETE /api/brand/icon` (admin) | logo en `data/brand/`, máx 2 MB |
 | `GET /manifest.webmanifest` | manifest dinámico (nombre, acento, icono) |
 
@@ -64,11 +71,19 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
   directo (ignora el host; tipos desconocidos caen al flujo normal).
 - Al asignar se prefiere coincidencia exacta de `otherserial`.
 
-## Modelo de datos (`lib/maps.ts`, `./data/floors.json`)
+## Modelo de datos (`lib/maps.ts`, `./data/floors.json`, `lib/access.ts`, `./data/access.json`)
 
 ```json [{ "id":"4-piso", "name":"4º Piso", "image":"4-piso-abc.png",
   "glpiLocationId": 4,
   "puestos": [{ "glpi_id":277, "x":30, "y":40, "w":8, "h":10 }] }]
+```
+
+```json { "version": 1,
+  "areas": [{ "id":"...", "nombre":"...", "responsableUserId":42, "responsableNombre":"..." }],
+  "mails": [{ "id":"...", "nombre":"...", "direccion":"...@...", "areaId":"..." }],
+  "shares": [{ "id":"...", "nombre":"...", "ruta":"\\\\srv\\...", "areaId":"..." }],
+  "mailGrants": [{ "accountId":"...", "userId":42, "canSend":true, "canRead":true }],
+  "shareGrants": [{ "shareId":"...", "userId":42 }] }
 ```
 
 - Piso ↔ **una ubicación GLPI padre**; hotspot ↔ **hijo directo** (`%` sobre la imagen).
@@ -76,6 +91,14 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 - Imágenes en `./data/maps/`, servidas por `GET /api/maps/[id]/image`.
 - `config.json`: conexión + `keepUserOnMove` + `appName`/`accentColor`/`brandIcon`
   (logo en `data/brand/`).
+- `access.json` (`lib/access.ts`): Áreas (nombre único + responsable `User.id`
+  validado en GLPI), Correos (dirección única + área, grants con `canSend/canRead`
+  independientes), Carpetas (ruta UNC normalizada única + área, grant = acceso
+  sí/no). Borrado de área bloquea (409) con recursos; correo/carpeta con personas
+  salvo `?force=1`. Escritura atómica `tmp+rename`.
+- Búsqueda (`lib/search.ts`, `app/api/search/route.ts`, `app/buscar/page.tsx`):
+  `norm()` sin tildes/mayúsculas, match contiene-insensible, 5 acordeones
+  colapsados con conteo + detalle en modal; `/accesos` queda solo para ABM.
 
 ## Decisiones (por qué así)
 
@@ -109,3 +132,13 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
     tapaban botones en puestos con muchos equipos.
 14. **Centrado con reintentos + fallback `setTransform`**: `zoomToElement` no
     siempre aplica (renders/cambio de piso); se verifica y se recalcula.
+15. **Accesos en DB propia, no en Grupos GLPI**: al sumar carpetas compartidas
+    además de correos, el registro es muchos-a-muchos Persona↔Recurso con nivel
+    propio; Grupos GLPI habrían exigido 2 grupos por buzón + N por carpeta más
+    convenciones frágiles. GLPI queda como identidad (`User.id`).
+16. **Buscador único agregador**: un `GET /api/search?q=` en servidor (no 5
+    fetches del cliente) para un solo gateo de auth, `Promise.allSettled` por
+    categoría y tope 20; el cliente solo colapsa/expande y abre modales.
+17. **Acordeones colapsados + modal de detalle**: el conteo orienta (ej. `CTIC`),
+    el expandidor evita tablas gigantes y el modal reutiliza las fichas
+    existentes sin duplicar lógica de edición.

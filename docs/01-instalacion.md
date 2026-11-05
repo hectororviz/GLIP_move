@@ -81,12 +81,14 @@ Contenido de `./data` (no commitear nada de aquí):
 data/
   config.json   # credenciales y ajustes (App-Token plano, User token cifrado)
   floors.json   # pisos, vínculo a ubicación GLPI, puestos calibrados
+  access.json   # áreas, correos/carpetas y grants (DB propia)
+  activity.json # últimas 100 acciones (auditoría liviana)
   maps/         # JPG/PNG/WebP de los planos subidos desde /config
   brand/        # logo PNG subido desde Apariencia
 ```
 
 Respaldo portable: `/config` → Avanzada → Exportar ZIP (`floors.json` +
-imágenes; sin secretos).
+`access.json` + imágenes; sin secretos).
 
 ## Comandos útiles
 
