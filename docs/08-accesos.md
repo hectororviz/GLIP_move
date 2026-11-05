@@ -48,7 +48,9 @@ Todas responden `401` sin login y `403` sin perfil operador.
 ## UI (`app/accesos/page.tsx`)
 
 * Ruta `/accesos` en nav con candado 🔒 si no hay `canOperate` (`components/AppShell.tsx`), igual que `/masivo`. Página con wall + `AuthModal` si no autorizado.
-* Tabs **Áreas / Correos / Carpetas / Personas**, todo con **tablas densas intercaladas** (`table-dense` + zebra) y **modales**. En Correos y Carpetas **no hay botón Personas: tocar la fila abre el modal** (también con Enter/Espacio, con `›` como indicador).
+* Tabs **Áreas / Correos / Carpetas / Personas**, todo con **tablas densas intercaladas** (`table-dense` + zebra) y **modales**. En Correos y Carpetas **no hay botón Personas: tocar la fila abre el modal** (también con Enter/Espacio, con `›` como indicador). En Carpetas no hay columna de conteo (el modal lista las personas).
+* Acciones con **iconos monocromos** (`components/icons.tsx`, SVG con `currentColor`: oscuros sobre botones claros, blancos sobre danger/primary) en lugar de emojis: editar, exportar, borrar, correo, carpeta, ojo, persona. Columna Envían/Recibe **apilada en dos líneas** (n + icono arriba/abajo) sin título de encabezado para no forzar scroll horizontal.
+* En móvil las columnas secundarias se ocultan y pasan como sublínea bajo el nombre (dirección/ruta truncada + área) con corte libre (`break-all`) para que Nombre + conteos + acciones entren sin scroll en 360px.
 * Acciones con iconos (✏️ editar, 📥 exportar, 🗑️ borrar, con `title`/`aria-label`). En móvil las columnas secundarias se ocultan y pasan como sublínea bajo el nombre (dirección/ruta truncada + área), para que Nombre + conteos + acciones entren sin scroll.
 * Alta de personas: el modal de detalle del recurso trae botón **+ Agregar** que abre un **submodal** con `UserSearch` (+ checks Envía/Recibe en correos) y Otorgar; queda abierto para cargar varias seguidas.
 * Ficha persona: `/buscar` muestra bloque **Accesos** si sos operador; `/accesos → Personas` permite buscar GLPI, ver ficha con checkboxes editables inline y quitar (🗑️).

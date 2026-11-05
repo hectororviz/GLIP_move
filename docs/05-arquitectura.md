@@ -143,3 +143,11 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 17. **Acordeones colapsados + modal de detalle**: el conteo orienta (ej. `CTIC`),
     el expandidor evita tablas gigantes y el modal reutiliza las fichas
     existentes sin duplicar lógica de edición.
+18. **Iconos monocromos propios** (`components/icons.tsx`, SVG `currentColor`,
+    sin emojis ni dependencias): heredan el color del contexto (oscuros sobre
+    claro, blancos sobre danger/primary) para un look serio y predecible.
+19. **Tablas mobile-first sin scroll**: columnas secundarias como sublínea bajo
+    el nombre, `break-all` en vez de `nowrap` (el `truncate` solo no alcanza:
+    en `auto-layout` la columna se dimensiona al contenido irrompible),
+    `max-width` en `vw` y `min-width: 0` en celdas flex; verificado con
+    Playwright a 360×800 (overflow 0).
