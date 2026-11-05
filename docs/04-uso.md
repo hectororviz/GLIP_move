@@ -38,7 +38,7 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
 ## Búsqueda (`/buscar`)
 
 Buscador único con 5 acordeones colapsables: **🖥️ Equipos, 👤 Personas, 🏢 Áreas, ✉️ Correos, 📁 Carpetas**.
-Una sola caja (ej. `CTIC`, `0000012865`, `ventas@`, `\\srv`): muestra el conteo por categoría y al expandir lista todo (tope 20/categoría). Cada fila tiene **Ver detalle →** que abre un **modal** (equipo = ficha+edición, persona = ficha con puestos+accesos, correo/carpeta/área = datos + personas/recursos + link a `/accesos`).
+Una sola caja (ej. `CTIC`, `0000012865`, `ventas@`, `\\srv`): muestra el conteo por categoría y al expandir lista todo (tope 20/categoría). En **Correos y Carpetas la fila se toca y abre el modal** (sin botón detalle, con `›` como indicador); el resto abre con **Ver detalle →**. Modal = equipo (ficha+edición), persona (ficha con puestos+accesos), correo/carpeta/área (datos + personas/recursos + link a `/accesos` + botón Excel).
 
 - Equipos y Personas: lectura libre (editar exige login, como antes). Orden equipos: URL GLPI directa → inventario (con/sin ceros, letra-serie) → nombre → serie. 📷 escanea y busca directo. `?q=` linkeable.
 - Áreas/Correos/Carpetas: **🔒 solo operador** (sin login muestran candado + botón Iniciar sesión; el backend `GET /api/search` solo los incluye con `isOperator()`). Match contiene-insensible (tildes, mayúsculas) en nombre/dirección/ruta/área/responsable.

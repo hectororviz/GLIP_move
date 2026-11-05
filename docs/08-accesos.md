@@ -48,9 +48,11 @@ Todas responden `401` sin login y `403` sin perfil operador.
 ## UI (`app/accesos/page.tsx`)
 
 * Ruta `/accesos` en nav con candado 🔒 si no hay `canOperate` (`components/AppShell.tsx`), igual que `/masivo`. Página con wall + `AuthModal` si no autorizado.
-* Tabs **Áreas / Correos / Carpetas / Personas**, todo con **tablas** (`table-dense`) y **modales** (crear/editar, ver personas, agregar con `UserSearch` + checks).
-* Ficha persona: `/buscar` (modo Personas) muestra bloque **Accesos** si sos operador; `/accesos → Personas` permite buscar GLPI, ver ficha con checkboxes editables inline y quitar.
-* Detalle correo: tabla `Persona | Envía ☑ | Recibe ☑ | Quitar` (checks editables). Detalle carpeta: `Persona | Acceso Sí ✓ | Quitar`.
+* Tabs **Áreas / Correos / Carpetas / Personas**, todo con **tablas densas intercaladas** (`table-dense` + zebra) y **modales**. En Correos y Carpetas **no hay botón Personas: tocar la fila abre el modal** (también con Enter/Espacio, con `›` como indicador).
+* Acciones con iconos (✏️ editar, 📥 exportar, 🗑️ borrar, con `title`/`aria-label`). En móvil las columnas secundarias se ocultan y pasan como sublínea bajo el nombre (dirección/ruta truncada + área), para que Nombre + conteos + acciones entren sin scroll.
+* Alta de personas: el modal de detalle del recurso trae botón **+ Agregar** que abre un **submodal** con `UserSearch` (+ checks Envía/Recibe en correos) y Otorgar; queda abierto para cargar varias seguidas.
+* Ficha persona: `/buscar` muestra bloque **Accesos** si sos operador; `/accesos → Personas` permite buscar GLPI, ver ficha con checkboxes editables inline y quitar (🗑️).
+* Detalle correo: tabla `Persona | ✉️ | 👁️ | 🗑️` (checks editables). Detalle carpeta: tabla `Persona | 🗑️` (sin columna Acceso: si está en la lista, tiene acceso).
 * **Exportar Excel ↓** (XLSX real con `xlsx`, header bold + freeze + autofilter): botones contextuales por fila de área (área completa, 2 hojas), por fila/detalle de correo (ese correo) y por fila/detalle de carpeta (esa carpeta). También en los modales de detalle de `/buscar`. Nombre `accesos-{scope}-{slug}-{YYYYMMDD-HHmm}.xlsx`; saneo anti-fórmulas (`=,+,-,@` iniciales).
 
 ## Respaldo
