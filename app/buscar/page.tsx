@@ -497,13 +497,13 @@ export default function Buscar() {
                     )}
                     {!r.locked && c.id === "areas" && (r.items as any[]).length > 0 && (
                       <div className="overflow-x-auto">
-                        <table className="table-dense min-w-[640px]">
-                          <thead><tr><th>Área</th><th>Responsable</th><th>Correos</th><th>Carpetas</th><th>Detalle</th></tr></thead>
+                        <table className="table-dense min-w-[420px] md:min-w-[640px]">
+                          <thead><tr><th>Área</th><th className="hidden md:table-cell">Responsable</th><th>Correos</th><th>Carpetas</th><th>Detalle</th></tr></thead>
                           <tbody>
                             {(r.items as any[]).map((a) => (
                               <tr key={a.id}>
-                                <td><b>{a.nombre}</b></td>
-                                <td className="text-sm">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
+                                <td className="min-w-0"><b className="block truncate">{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{a.responsableNombre || "—"}</span></td>
+                                <td className="text-sm hidden md:table-cell">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
                                 <td className="tabular-nums">{a.mails}</td>
                                 <td className="tabular-nums">{a.shares}</td>
                                 <td><button className="btn btn-secondary text-xs" onClick={() => openAreaDetail(a)}>Ver detalle →</button></td>
@@ -602,12 +602,12 @@ export default function Buscar() {
             {canOperate && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canOperate && detailMail.personas.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="table-dense min-w-[480px]">
+                <table className="table-dense">
                   <thead><tr><th>Persona</th><th>Envía</th><th>Recibe</th></tr></thead>
                   <tbody>
                     {detailMail.personas.map((g: any) => (
                       <tr key={g.userId}>
-                        <td>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></td>
+                        <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
                         <td className="text-center text-muted">{g.canSend ? <IconMail size={14} /> : "—"}</td>
                         <td className="text-center text-muted">{g.canRead ? <IconEye size={14} /> : "—"}</td>
                       </tr>
@@ -629,13 +629,12 @@ export default function Buscar() {
             {canOperate && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canOperate && detailShare.personas.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="table-dense min-w-[420px]">
-                  <thead><tr><th>Persona</th><th>Acceso</th></tr></thead>
+                <table className="table-dense">
+                  <thead><tr><th>Persona</th></tr></thead>
                   <tbody>
                     {detailShare.personas.map((g: any) => (
                       <tr key={g.userId}>
-                        <td>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></td>
-                        <td><span className="badge badge-success">Sí ✓</span></td>
+                        <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
                       </tr>
                     ))}
                   </tbody>
@@ -652,10 +651,10 @@ export default function Buscar() {
           <div className="grid gap-2 text-sm">
             <p className="text-muted">Responsable: <b className="text-ink">{detailArea.area.responsableNombre || "—"}</b> <span className="text-xs">#{detailArea.area.responsableUserId}</span></p>
             <b className="text-sm inline-flex items-center gap-1"><IconMail size={13} /> Correos ({detailArea.mails.length})</b>
-            {detailArea.mails.map((m: any) => <div key={m.id} className="text-sm text-muted"><b className="text-ink">{m.nombre}</b> <span className="tabular-nums text-xs">{m.direccion}</span> <span className="text-xs">· {m.personas} persona(s)</span></div>)}
+            {detailArea.mails.map((m: any) => <div key={m.id} className="text-sm text-muted"><b className="text-ink">{m.nombre}</b> <span className="tabular-nums text-xs break-all">{m.direccion}</span> <span className="text-xs">· {m.personas} persona(s)</span></div>)}
             {!detailArea.mails.length && <p className="text-sm text-muted">Sin correos.</p>}
             <b className="text-sm inline-flex items-center gap-1"><IconFolder size={13} /> Carpetas ({detailArea.shares.length})</b>
-            {detailArea.shares.map((s: any) => <div key={s.id} className="text-sm text-muted" title={s.ruta}><b className="text-ink">{s.nombre}</b> <span className="tabular-nums text-xs">{s.ruta}</span> <span className="text-xs">· {s.personas} persona(s)</span></div>)}
+            {detailArea.shares.map((s: any) => <div key={s.id} className="text-sm text-muted" title={s.ruta}><b className="text-ink">{s.nombre}</b> <span className="tabular-nums text-xs break-all">{s.ruta}</span> <span className="text-xs">· {s.personas} persona(s)</span></div>)}
             {!detailArea.shares.length && <p className="text-sm text-muted">Sin carpetas.</p>}
             <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>{canOperate && <button className="btn btn-secondary text-xs w-fit" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}</span>
           </div>
