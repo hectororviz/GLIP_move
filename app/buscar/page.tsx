@@ -602,7 +602,7 @@ export default function Buscar() {
             {canOperate && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canOperate && detailMail.personas.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="table-dense">
+                <table className="table-dense table-modal-fluid">
                   <thead><tr><th>Persona</th><th>Envía</th><th>Recibe</th></tr></thead>
                   <tbody>
                     {detailMail.personas.map((g: any) => (
@@ -629,7 +629,7 @@ export default function Buscar() {
             {canOperate && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canOperate && detailShare.personas.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="table-dense">
+                <table className="table-dense table-modal-fluid">
                   <thead><tr><th>Persona</th></tr></thead>
                   <tbody>
                     {detailShare.personas.map((g: any) => (

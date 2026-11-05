@@ -634,7 +634,7 @@ export default function Accesos() {
             </div>
           </div>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="table-dense">
+            <table className="table-dense table-modal-fluid">
               <thead><tr><th>Persona</th><th title="Puede enviar"><span className="inline-flex" aria-hidden="true"><IconMail size={13} /></span><span className="sr-only">Envía</span></th><th title="Puede recibir"><span className="inline-flex" aria-hidden="true"><IconEye size={13} /></span><span className="sr-only">Recibe</span></th><th><span className="sr-only">Quitar</span></th></tr></thead>
               <tbody>
                 {mailDetail.personas.map((g) => (
@@ -662,7 +662,7 @@ export default function Accesos() {
             </div>
           </div>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="table-dense">
+            <table className="table-dense table-modal-fluid">
               <thead><tr><th>Persona</th><th><span className="sr-only">Quitar</span></th></tr></thead>
               <tbody>
                 {shareDetail.personas.map((g) => (

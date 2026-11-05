@@ -134,6 +134,13 @@ body {
 .table-dense tbody tr:nth-child(even) { background: #f5f8fd; }
 .table-dense tbody tr:hover { background: var(--accent-soft); }
 .table-dense th[aria-sort] { cursor: pointer; }
+
+/* Modales con tablas de personas: en móvil, layout fijo para que el
+   truncate de la columna Persona realmente recorte (en auto-layout la
+   columna se dimensiona al contenido nowrap por más min-w-0 que haya). */
+@media (max-width: 767px) {
+  .table-modal-fluid { table-layout: fixed; width: 100%; }
+}
 /* Acciones dentro de tablas: botones más bajos para no inflar la fila */
 .table-dense .btn { min-height: 28px; padding: 0.2rem 0.6rem; font-size: 0.72rem; }
 
