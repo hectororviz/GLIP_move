@@ -63,3 +63,14 @@ Todas responden `401` sin login y `403` sin perfil operador.
 2. Crear correos/carpetas con su área.
 3. En cada recurso → `Personas` → `Agregar` (buscar + tildar Envía/Recibe u otorgar acceso).
 4. Verificar en `Personas` (ficha) y en `overview` por área.
+
+## Import masivo (`scripts/import-mail-permisos.mjs`)
+
+Importa `Permisos correos inst.xlsx` (Hoja1 = grants `Usuario|Correo|Area`, Hoja2 = catálogo `Correo|Área`):
+
+```sh
+node scripts/import-mail-permisos.mjs --dry-run   # solo reporte, no escribe
+node scripts/import-mail-permisos.mjs --apply      # backup + escribe + reporte JSON en data/
+```
+
+Reglas: match GLPI multi-estrategia por apellido (exacto → token → prefijo de 5, más mapa manual), **apellido-exacto-primero** y desempate por mayor id (los `-OLD` son cuentas de prueba; así `Leone`→#51 Yanina y no #137 REY); overrides fijos (`Dall Armelina`→180 por el apóstrofe, `Alvarez`→#77 Sergio, `Diaz`→#122 Mariano). Mapeo sin-punto→con-punto (DNDyEIP). Grants: `canSend=true` preservando `canRead`. Sin borrar nada: áreas nuevas con responsable pendiente (`— #0`), recursos sin grants se crean igual, filas sin resolución van al reporte (`Constanzo` descartado, `becasymaestriasdgfeyl@` pendiente por diferir de Hoja2).
