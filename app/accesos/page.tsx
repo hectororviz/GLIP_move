@@ -478,7 +478,7 @@ export default function Accesos() {
                 <tr key={m.id} className="cursor-pointer" title={`Ver personas de ${m.nombre}`} tabIndex={0}
                   onClick={() => openMail(m)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMail(m); } }}>
-                  <td className="min-w-0"><span className="flex items-center gap-1"><b className="block truncate">{m.nombre}</b><span className="text-muted shrink-0" aria-hidden="true">›</span></span><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[30vw]" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{m.area}</span></td>
+                  <td className="min-w-0"><span className="flex items-center gap-1"><b className="block break-all md:truncate">{m.nombre}</b><span className="text-muted shrink-0" aria-hidden="true">›</span></span><span className="block text-xs text-muted font-normal tabular-nums md:hidden break-all max-w-[30vw] leading-tight" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{m.area}</span></td>
                   <td className="tabular-nums text-sm hidden md:table-cell">{m.direccion}</td>
                   <td className="text-sm hidden md:table-cell">{m.area}</td>
                   <td className="tabular-nums hidden md:table-cell">{m.personas} <span className="text-muted" aria-hidden="true">›</span></td>
@@ -506,7 +506,7 @@ export default function Accesos() {
                 <tr key={s.id} className="cursor-pointer" title={`Ver personas de ${s.nombre}`} tabIndex={0}
                   onClick={() => openShare(s)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShare(s); } }}>
-                  <td className="min-w-0"><span className="flex items-center gap-1"><b className="block truncate">{s.nombre}</b><span className="text-muted shrink-0" aria-hidden="true">›</span></span><span className="block text-xs text-muted font-normal tabular-nums md:hidden truncate max-w-[30vw]" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{s.area}</span></td>
+                  <td className="min-w-0"><span className="flex items-center gap-1"><b className="block break-all md:truncate">{s.nombre}</b><span className="text-muted shrink-0" aria-hidden="true">›</span></span><span className="block text-xs text-muted font-normal tabular-nums md:hidden break-all max-w-[30vw] leading-tight" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden truncate max-w-[38vw]">{s.area}</span></td>
                   <td className="tabular-nums text-sm max-w-[280px] hidden md:table-cell"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
                   <td className="text-sm hidden md:table-cell">{s.area}</td>
                   <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1">
