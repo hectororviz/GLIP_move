@@ -107,6 +107,31 @@ export default function Accesos() {
   const [grantUser, setGrantUser] = useState<GlpiUser | null>(null);
   const [grantSend, setGrantSend] = useState(true);
   const [grantRead, setGrantRead] = useState(true);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  async function downloadExport(scope: "area" | "mail" | "share", id: string) {
+    const key = `${scope}:${id}`;
+    setExporting(key);
+    try {
+      const r = await fetch(`/api/access/export?scope=${scope}&id=${encodeURIComponent(id)}`);
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert(j.error || `Error ${r.status}`);
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (r.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || `accesos-${scope}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(null);
+    }
+  }
 
   // ficha persona
   const [pq, setPq] = useState("");
@@ -408,6 +433,7 @@ export default function Accesos() {
                   <td className="tabular-nums">{a.shares}</td>
                   <td><span className="inline-flex gap-1 flex-wrap">
                     <button className="btn btn-secondary text-xs" onClick={() => setAreaModal({ id: a.id, nombre: a.nombre, resp: { id: a.responsableUserId, login: null, display: a.responsableNombre || `#${a.responsableUserId}` } })}>Editar</button>
+                    <button className="btn btn-secondary text-xs" disabled={exporting === `area:${a.id}`} onClick={() => downloadExport("area", a.id)}>{exporting === `area:${a.id}` ? "Exportando…" : "Excel ↓"}</button>
                     <button className="btn btn-danger text-xs" onClick={() => deleteArea(a)}>Borrar</button>
                   </span></td>
                 </tr>
@@ -433,6 +459,7 @@ export default function Accesos() {
                   <td className="text-xs text-muted tabular-nums">{m.envian} ✉️ / {m.reciben} 👁️</td>
                   <td><span className="inline-flex gap-1 flex-wrap">
                     <button className="btn btn-secondary text-xs" onClick={() => openMail(m)}>Personas</button>
+                    <button className="btn btn-secondary text-xs" disabled={exporting === `mail:${m.id}`} onClick={() => downloadExport("mail", m.id)}>{exporting === `mail:${m.id}` ? "Exportando…" : "Excel ↓"}</button>
                     <button className="btn btn-secondary text-xs" onClick={() => { setFormErr(""); setMailModal({ id: m.id, nombre: m.nombre, direccion: m.direccion, areaId: m.areaId }); }}>Editar</button>
                     <button className="btn btn-danger text-xs" onClick={() => deleteMail(m)}>Borrar</button>
                   </span></td>
@@ -458,6 +485,7 @@ export default function Accesos() {
                   <td className="tabular-nums">{s.personas}</td>
                   <td><span className="inline-flex gap-1 flex-wrap">
                     <button className="btn btn-secondary text-xs" onClick={() => openShare(s)}>Personas</button>
+                    <button className="btn btn-secondary text-xs" disabled={exporting === `share:${s.id}`} onClick={() => downloadExport("share", s.id)}>{exporting === `share:${s.id}` ? "Exportando…" : "Excel ↓"}</button>
                     <button className="btn btn-secondary text-xs" onClick={() => { setFormErr(""); setShareModal({ id: s.id, nombre: s.nombre, ruta: s.ruta, areaId: s.areaId }); }}>Editar</button>
                     <button className="btn btn-danger text-xs" onClick={() => deleteShare(s)}>Borrar</button>
                   </span></td>
@@ -573,7 +601,10 @@ export default function Accesos() {
 
       {mailDetail && (
         <Modal wide title={`Personas con acceso a ${mailDetail.mail.nombre}`} onClose={() => setMailDetail(null)}>
-          <p className="text-xs text-muted">{mailDetail.mail.direccion} · Área {mailDetail.mail.area}</p>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs text-muted">{mailDetail.mail.direccion} · Área {mailDetail.mail.area}</p>
+            <button className="btn btn-secondary text-xs" disabled={exporting === `mail:${mailDetail.mail.id}`} onClick={() => downloadExport("mail", mailDetail.mail.id)}>{exporting === `mail:${mailDetail.mail.id}` ? "Exportando…" : "Exportar Excel ↓"}</button>
+          </div>
           <div className="card p-3 grid gap-2">
             <b className="text-sm">Agregar persona</b>
             <UserSearch value={grantUser} onPick={setGrantUser} />
@@ -606,7 +637,10 @@ export default function Accesos() {
 
       {shareDetail && (
         <Modal wide title={`Personas con acceso a ${shareDetail.share.nombre}`} onClose={() => setShareDetail(null)}>
-          <p className="text-xs text-muted tabular-nums">{shareDetail.share.ruta} · Área {shareDetail.share.area}</p>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs text-muted tabular-nums">{shareDetail.share.ruta} · Área {shareDetail.share.area}</p>
+            <button className="btn btn-secondary text-xs" disabled={exporting === `share:${shareDetail.share.id}`} onClick={() => downloadExport("share", shareDetail.share.id)}>{exporting === `share:${shareDetail.share.id}` ? "Exportando…" : "Exportar Excel ↓"}</button>
+          </div>
           <div className="card p-3 grid gap-2">
             <b className="text-sm">Agregar persona (acceso sí/no)</b>
             <UserSearch value={grantUser} onPick={setGrantUser} />

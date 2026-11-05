@@ -41,6 +41,7 @@ Agregador server-side: en paralelo busca equipos (misma lógica inventario→nom
 | `GET /api/access/grants?shareId=` | Personas de una carpeta |
 | `POST/DELETE /api/access/grants` | Otorgar/quitar (`scope:'mail'\|'share'`) |
 | `GET /api/access/overview?area=` | Correos+carpetas de cada área |
+| `GET /api/access/export?scope=area\|mail\|share&id=` | **XLSX real** (solo operador): área = 2 hojas (Correos+Carpetas); correo/carpeta = 1 hoja. Columnas correo: `Área|Correo|Dirección|Persona|UserID|Envía|Recibe`; carpeta: `Área|Carpeta|Ruta|Persona|UserID|Acceso`. Recursos sin grants salen con fila vacía |
 
 Todas responden `401` sin login y `403` sin perfil operador.
 
@@ -50,6 +51,7 @@ Todas responden `401` sin login y `403` sin perfil operador.
 * Tabs **Áreas / Correos / Carpetas / Personas**, todo con **tablas** (`table-dense`) y **modales** (crear/editar, ver personas, agregar con `UserSearch` + checks).
 * Ficha persona: `/buscar` (modo Personas) muestra bloque **Accesos** si sos operador; `/accesos → Personas` permite buscar GLPI, ver ficha con checkboxes editables inline y quitar.
 * Detalle correo: tabla `Persona | Envía ☑ | Recibe ☑ | Quitar` (checks editables). Detalle carpeta: `Persona | Acceso Sí ✓ | Quitar`.
+* **Exportar Excel ↓** (XLSX real con `xlsx`, header bold + freeze + autofilter): botones contextuales por fila de área (área completa, 2 hojas), por fila/detalle de correo (ese correo) y por fila/detalle de carpeta (esa carpeta). También en los modales de detalle de `/buscar`. Nombre `accesos-{scope}-{slug}-{YYYYMMDD-HHmm}.xlsx`; saneo anti-fórmulas (`=,+,-,@` iniciales).
 
 ## Respaldo
 

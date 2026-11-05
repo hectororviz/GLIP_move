@@ -242,6 +242,31 @@ export default function Buscar() {
   const [detailMail, setDetailMail] = useState<null | { mail: any; personas: any[] }>(null);
   const [detailShare, setDetailShare] = useState<null | { share: any; personas: any[] }>(null);
   const [detailArea, setDetailArea] = useState<null | { area: any; mails: any[]; shares: any[] }>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  async function downloadExport(scope: "area" | "mail" | "share", id: string) {
+    const key = `${scope}:${id}`;
+    setExporting(key);
+    try {
+      const r = await fetch(`/api/access/export?scope=${scope}&id=${encodeURIComponent(id)}`);
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        alert(j.error || `Error ${r.status}`);
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (r.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || `accesos-${scope}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(null);
+    }
+  }
 
   const syncAuth = useCallback(() => {
     fetch("/api/auth/me")
@@ -586,7 +611,7 @@ export default function Buscar() {
                 </table>
               </div>
             )}
-            {canOperate && <a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>}
+            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : "Excel ↓"}</button></span>}
           </div>
         </Modal>
       )}
@@ -612,7 +637,7 @@ export default function Buscar() {
                 </table>
               </div>
             )}
-            {canOperate && <a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>}
+            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : "Excel ↓"}</button></span>}
           </div>
         </Modal>
       )}
@@ -627,7 +652,7 @@ export default function Buscar() {
             <b className="text-sm">📁 Carpetas ({detailArea.shares.length})</b>
             {detailArea.shares.map((s: any) => <div key={s.id} className="text-sm text-muted" title={s.ruta}><b className="text-ink">{s.nombre}</b> <span className="tabular-nums text-xs">{s.ruta}</span> <span className="text-xs">· {s.personas} persona(s)</span></div>)}
             {!detailArea.shares.length && <p className="text-sm text-muted">Sin carpetas.</p>}
-            <a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>
+            <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>{canOperate && <button className="btn btn-secondary text-xs w-fit" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : "Excel ↓"}</button>}</span>
           </div>
         </Modal>
       )}
