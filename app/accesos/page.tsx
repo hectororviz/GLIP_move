@@ -445,19 +445,19 @@ export default function Accesos() {
       {tab === "areas" && !loading && (
         <div className="card overflow-x-auto p-0">
           <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setAreaModal({ nombre: "", resp: null }); }}>+ Nueva área</button></div>
-          <table className="table-dense min-w-[720px]">
-            <thead><tr><th>Área</th><th>Responsable (GLPI)</th><th>Correos</th><th>Carpetas</th><th>Acciones</th></tr></thead>
+          <table className="table-dense min-w-[420px]">
+            <thead><tr><th>Área</th><th className="hidden md:table-cell">Responsable (GLPI)</th><th title="Correos"><span aria-hidden="true">✉️</span><span className="sr-only">Correos</span></th><th title="Carpetas"><span aria-hidden="true">📁</span><span className="sr-only">Carpetas</span></th><th>Acciones</th></tr></thead>
             <tbody>
               {areas.map((a) => (
                 <tr key={a.id}>
-                  <td><b>{a.nombre}</b></td>
-                  <td className="text-sm">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
+                  <td><b>{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden">{a.responsableNombre || "—"}</span></td>
+                  <td className="text-sm hidden md:table-cell">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
                   <td className="tabular-nums">{a.mails}</td>
                   <td className="tabular-nums">{a.shares}</td>
-                  <td><span className="inline-flex gap-1 flex-wrap">
-                    <button className="btn btn-secondary text-xs" onClick={() => setAreaModal({ id: a.id, nombre: a.nombre, resp: { id: a.responsableUserId, login: null, display: a.responsableNombre || `#${a.responsableUserId}` } })}>Editar</button>
-                    <button className="btn btn-secondary text-xs" disabled={exporting === `area:${a.id}`} onClick={() => downloadExport("area", a.id)}>{exporting === `area:${a.id}` ? "Exportando…" : "Excel ↓"}</button>
-                    <button className="btn btn-danger text-xs" onClick={() => deleteArea(a)}>Borrar</button>
+                  <td><span className="inline-flex gap-1">
+                    <button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar área ${a.nombre}`} onClick={() => setAreaModal({ id: a.id, nombre: a.nombre, resp: { id: a.responsableUserId, login: null, display: a.responsableNombre || `#${a.responsableUserId}` } })}>✏️</button>
+                    <button className="btn btn-secondary icon-btn-sm" title="Exportar Excel" aria-label={`Exportar Excel del área ${a.nombre}`} disabled={exporting === `area:${a.id}`} onClick={() => downloadExport("area", a.id)}>{exporting === `area:${a.id}` ? "⏳" : "📥"}</button>
+                    <button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar área ${a.nombre}`} onClick={() => deleteArea(a)}>🗑️</button>
                   </span></td>
                 </tr>
               ))}
@@ -470,22 +470,22 @@ export default function Accesos() {
       {tab === "mails" && !loading && (
         <div className="card overflow-x-auto p-0">
           <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setMailModal({ nombre: "", direccion: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nuevo correo</button></div>
-          <table className="table-dense min-w-[640px]">
-            <thead><tr><th>Nombre</th><th>Dirección</th><th className="hidden md:table-cell">Área</th><th>Personas</th><th>Envían/Reciben</th><th>Acciones</th></tr></thead>
+          <table className="table-dense min-w-[420px]">
+            <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Dirección</th><th className="hidden md:table-cell">Área</th><th className="hidden md:table-cell">Personas</th><th>Envían/Reciben</th><th>Acciones</th></tr></thead>
             <tbody>
               {mails.map((m) => (
                 <tr key={m.id} className="cursor-pointer" title={`Ver personas de ${m.nombre}`} tabIndex={0}
                   onClick={() => openMail(m)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMail(m); } }}>
-                  <td><b>{m.nombre}</b><span className="block text-xs text-muted font-normal md:hidden">{m.area}</span></td>
-                  <td className="tabular-nums text-sm">{m.direccion}</td>
+                  <td><b>{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden">{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area}</span></td>
+                  <td className="tabular-nums text-sm hidden md:table-cell">{m.direccion}</td>
                   <td className="text-sm hidden md:table-cell">{m.area}</td>
-                  <td className="tabular-nums">{m.personas} <span className="text-muted" aria-hidden="true">›</span></td>
+                  <td className="tabular-nums hidden md:table-cell">{m.personas} <span className="text-muted" aria-hidden="true">›</span></td>
                   <td className="text-xs text-muted tabular-nums">{m.envian} ✉️ / {m.reciben} 👁️</td>
-                  <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1 flex-wrap">
-                    <button className="btn btn-secondary text-xs" disabled={exporting === `mail:${m.id}`} onClick={() => downloadExport("mail", m.id)}>{exporting === `mail:${m.id}` ? "Exportando…" : "Excel ↓"}</button>
-                    <button className="btn btn-secondary text-xs" onClick={() => { setFormErr(""); setMailModal({ id: m.id, nombre: m.nombre, direccion: m.direccion, areaId: m.areaId }); }}>Editar</button>
-                    <button className="btn btn-danger text-xs" onClick={() => deleteMail(m)}>Borrar</button>
+                  <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1">
+                    <button className="btn btn-secondary icon-btn-sm" title="Exportar Excel" aria-label={`Exportar Excel de ${m.nombre}`} disabled={exporting === `mail:${m.id}`} onClick={() => downloadExport("mail", m.id)}>{exporting === `mail:${m.id}` ? "⏳" : "📥"}</button>
+                    <button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar correo ${m.nombre}`} onClick={() => { setFormErr(""); setMailModal({ id: m.id, nombre: m.nombre, direccion: m.direccion, areaId: m.areaId }); }}>✏️</button>
+                    <button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar correo ${m.nombre}`} onClick={() => deleteMail(m)}>🗑️</button>
                   </span></td>
                 </tr>
               ))}
@@ -509,10 +509,10 @@ export default function Accesos() {
                   <td className="tabular-nums text-sm max-w-[280px]"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
                   <td className="text-sm hidden md:table-cell">{s.area}</td>
                   <td className="tabular-nums">{s.personas} <span className="text-muted" aria-hidden="true">›</span></td>
-                  <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1 flex-wrap">
-                    <button className="btn btn-secondary text-xs" disabled={exporting === `share:${s.id}`} onClick={() => downloadExport("share", s.id)}>{exporting === `share:${s.id}` ? "Exportando…" : "Excel ↓"}</button>
-                    <button className="btn btn-secondary text-xs" onClick={() => { setFormErr(""); setShareModal({ id: s.id, nombre: s.nombre, ruta: s.ruta, areaId: s.areaId }); }}>Editar</button>
-                    <button className="btn btn-danger text-xs" onClick={() => deleteShare(s)}>Borrar</button>
+                  <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1">
+                    <button className="btn btn-secondary icon-btn-sm" title="Exportar Excel" aria-label={`Exportar Excel de ${s.nombre}`} disabled={exporting === `share:${s.id}`} onClick={() => downloadExport("share", s.id)}>{exporting === `share:${s.id}` ? "⏳" : "📥"}</button>
+                    <button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar carpeta ${s.nombre}`} onClick={() => { setFormErr(""); setShareModal({ id: s.id, nombre: s.nombre, ruta: s.ruta, areaId: s.areaId }); }}>✏️</button>
+                    <button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar carpeta ${s.nombre}`} onClick={() => deleteShare(s)}>🗑️</button>
                   </span></td>
                 </tr>
               ))}
@@ -554,7 +554,7 @@ export default function Accesos() {
                       <span className="inline-flex gap-1 shrink-0">
                         <label className="badge cursor-pointer" title="Puede enviar"><input type="checkbox" checked={g.canSend} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /> ✉️</label>
                         <label className="badge cursor-pointer" title="Puede recibir/leer"><input type="checkbox" checked={g.canRead} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /> 👁️</label>
-                        <button className="btn btn-danger text-xs" onClick={() => removeMailGrant(g)}>Quitar</button>
+                        <button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeMailGrant(g)}>🗑️</button>
                       </span>
                     </div>
                   ))}
@@ -565,7 +565,7 @@ export default function Accesos() {
                   {pShares.map((g) => (
                     <div key={g.shareId} className="flex items-center justify-between gap-2 text-sm border-t pt-2">
                       <span className="min-w-0"><span className="block truncate font-medium">{g.nombre}</span><span className="block truncate text-xs text-muted" title={g.ruta}>{g.ruta} · {g.area}</span></span>
-                      <button className="btn btn-danger text-xs shrink-0" onClick={() => removeShareGrant(g)}>Quitar</button>
+                      <button className="btn btn-danger icon-btn-sm shrink-0" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeShareGrant(g)}>🗑️</button>
                     </div>
                   ))}
                   {!pShares.length && <p className="text-sm text-muted">Sin carpetas asignadas.</p>}
@@ -634,15 +634,15 @@ export default function Accesos() {
             </div>
           </div>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="table-dense min-w-[440px]">
-              <thead><tr><th>Persona</th><th>Envía</th><th>Recibe</th><th></th></tr></thead>
+            <table className="table-dense min-w-[380px]">
+              <thead><tr><th>Persona</th><th title="Puede enviar"><span aria-hidden="true">✉️</span><span className="sr-only">Envía</span></th><th title="Puede recibir"><span aria-hidden="true">👁️</span><span className="sr-only">Recibe</span></th><th><span className="sr-only">Quitar</span></th></tr></thead>
               <tbody>
                 {mailDetail.personas.map((g) => (
                   <tr key={g.userId}>
                     <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
                     <td><input type="checkbox" aria-label="Envía" checked={g.canSend} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /></td>
                     <td><input type="checkbox" aria-label="Recibe" checked={g.canRead} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /></td>
-                    <td><button className="btn btn-danger text-xs" onClick={() => removeMailGrant(g)}>Quitar</button></td>
+                    <td><button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar acceso de ${g.userDisplay || g.userId}`} onClick={() => removeMailGrant(g)}>🗑️</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -662,14 +662,13 @@ export default function Accesos() {
             </div>
           </div>
           <div className="overflow-x-auto -mx-1 px-1">
-            <table className="table-dense min-w-[400px]">
-              <thead><tr><th>Persona</th><th>Acceso</th><th></th></tr></thead>
+            <table className="table-dense min-w-[320px]">
+              <thead><tr><th>Persona</th><th><span className="sr-only">Quitar</span></th></tr></thead>
               <tbody>
                 {shareDetail.personas.map((g) => (
                   <tr key={g.userId}>
                     <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
-                    <td><span className="badge badge-success">Sí ✓</span></td>
-                    <td><button className="btn btn-danger text-xs" onClick={() => removeShareGrant(g)}>Quitar</button></td>
+                    <td><button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar acceso de ${g.userDisplay || g.userId}`} onClick={() => removeShareGrant(g)}>🗑️</button></td>
                   </tr>
                 ))}
               </tbody>
