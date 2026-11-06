@@ -2,7 +2,7 @@
 //   node scripts/import-mail-permisos.mjs --dry-run   (solo reporte, no escribe)
 //   node scripts/import-mail-permisos.mjs --apply      (backup + escribe + reporte JSON)
 // Reglas: match GLPI multi-estrategia (apellido-exacto-primero, overrides),
-// mapeo sin-punto->con-punto, canSend=true preservando canRead, sin borrar nada.
+// mapeo sin-punto->con-punto, canRead=true preservando canSend (solo-lectura), sin borrar nada.
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
@@ -29,6 +29,18 @@ const OVERRIDES = {
   leone: 51,            // Yanina LEONE (#137 es Lucas Leonel REY, otra persona)
   alvarez: 77,          // Sergio ALVAREZ para rendicionesfoncyt@
   diaz: 122,            // Mariano DIAZ para meys@
+  // Envio 2026-11-06 (verificado con usuario):
+  "pera reanual": 176,       // typo origen, es PERA RENAULD Enrique Juan
+  "albarracin frnazone": 133, // typo origen, es ALBARRACIN FRANZONE
+  "eran salamendi": 186,     // unificar a ERRAN SALAMENDI (doble r)
+  magenetto: 116,            // origen dice Magenetto, GLPI MAGNETTO Maia
+  magnetto: 116,             // grafía correcta GLPI
+  jcompagnoni: 151,          // username, es Jesica COMPAGNONI
+  mabravetti: 220,           // username, es Maximiliano BRAVETTI
+  leguizamon: 61,            // Valeria (no #87 Pablo) - desempate mayor-id falla
+  sala: 107,                 // Mariana Eva SALA (no #186 SALAMENDI que contiene "sala")
+  ramos: 110,                // Maria Eugenia RAMOS (no #123 DELGADO RAMOS)
+  rodriguez: 58,             // Valeria Silvia RODRIGUEZ (solo apellido genérico)
 };
 const DOTMAP = {
   "convocatoriaconsorcios@agencia.gob.ar": "convocatoria.consorcios@agencia.gob.ar",
@@ -140,7 +152,7 @@ async function main() {
   for (const g of grantOps) {
     const m = mailByDir.get(g.direccion);
     const id = m ? m.id : mailIdFor(g.direccion, g.area);
-    if (grantKey.has(`${id}|${g.userId}`)) { updates++; g.accion = "update-canSend"; }
+    if (grantKey.has(`${id}|${g.userId}`)) { updates++; g.accion = "update-canRead"; }
     else { creates++; g.accion = "create"; }
     g.accountId = id;
   }
@@ -199,9 +211,10 @@ async function main() {
   const gmap = new Map((db.mailGrants || []).map((g) => [`${g.accountId}|${g.userId}`, g]));
   for (const g of grantOps) {
     const ex = gmap.get(`${g.accountId}|${g.userId}`);
-    if (ex) { ex.canSend = true; ex.userDisplay = g.display; ex.by = "import-xlsx"; ex.at = now; }
+    // Solo-lectura: no tocar canSend (decidido con usuario 2026-11-06)
+    if (ex) { ex.canRead = true; ex.userDisplay = g.display; ex.by = "import-xlsx"; ex.at = now; }
     else {
-      const ng = { accountId: g.accountId, userId: g.userId, userDisplay: g.display, canSend: true, canRead: false, by: "import-xlsx", at: now };
+      const ng = { accountId: g.accountId, userId: g.userId, userDisplay: g.display, canSend: false, canRead: true, by: "import-xlsx", at: now };
       db.mailGrants.push(ng);
       gmap.set(`${g.accountId}|${g.userId}`, ng);
     }

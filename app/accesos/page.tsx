@@ -131,7 +131,7 @@ export default function Accesos() {
   const [grantAdd, setGrantAdd] = useState<null | "mail" | "share">(null);
   const [exporting, setExporting] = useState<string | null>(null);
 
-  async function downloadExport(scope: "area" | "mail" | "share", id: string) {
+  async function downloadExport(scope: "area" | "mail" | "share" | "mails" | "shares", id: string) {
     const key = `${scope}:${id}`;
     setExporting(key);
     try {
@@ -470,7 +470,7 @@ export default function Accesos() {
 
       {tab === "mails" && !loading && (
         <div className="card overflow-x-auto p-0">
-          <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setMailModal({ nombre: "", direccion: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nuevo correo</button></div>
+          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "mails:all"} onClick={() => downloadExport("mails", "all")} title="Descargar todos los correos en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "mails:all" ? "Descargando…" : "Descargar todo"}</span></button><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setMailModal({ nombre: "", direccion: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nuevo correo</button></div>
           <table className="table-dense">
             <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Dirección</th><th className="hidden md:table-cell">Área</th><th className="hidden md:table-cell">Personas</th><th><span className="sr-only">Envía / Recibe</span></th><th>Acciones</th></tr></thead>
             <tbody>
@@ -498,7 +498,7 @@ export default function Accesos() {
 
       {tab === "shares" && !loading && (
         <div className="card overflow-x-auto p-0">
-          <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setShareModal({ nombre: "", ruta: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nueva carpeta</button></div>
+          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "shares:all"} onClick={() => downloadExport("shares", "all")} title="Descargar todas las carpetas en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "shares:all" ? "Descargando…" : "Descargar todo"}</span></button><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setShareModal({ nombre: "", ruta: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nueva carpeta</button></div>
           <table className="table-dense">
             <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Ruta</th><th className="hidden md:table-cell">Área</th><th>Acciones</th></tr></thead>
             <tbody>

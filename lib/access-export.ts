@@ -105,6 +105,50 @@ export async function buildShareWorkbook(shareId: string) {
   return { wb, filename: `accesos-carpeta-${slug(s.nombre)}-${stamp()}.xlsx` };
 }
 
+export async function buildAllMailsWorkbook() {
+  const db = await loadAccess();
+  const areaById = new Map(db.areas.map((a) => [a.id, a.nombre]));
+  const mails = [...db.mails].sort((a, b) =>
+    (areaById.get(a.areaId) || "").localeCompare(areaById.get(b.areaId) || "") || a.nombre.localeCompare(b.nombre)
+  );
+  const rows: (string | number)[][] = [];
+  for (const m of mails) {
+    const area = areaById.get(m.areaId) || "—";
+    const grants = db.mailGrants
+      .filter((g) => g.accountId === m.id)
+      .sort((a, b) => (a.userDisplay || "").localeCompare(b.userDisplay || ""));
+    if (!grants.length) rows.push([area, m.nombre, m.direccion, "", "", "", ""].map(safe));
+    for (const g of grants) {
+      rows.push([area, m.nombre, m.direccion, g.userDisplay || "", g.userId, SI_NO(g.canSend), SI_NO(g.canRead)].map(safe));
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheetFrom(MAIL_HEADER, rows, [22, 22, 30, 28, 10, 10, 10]), "Correos");
+  return { wb, filename: `accesos-correos-todo-${stamp()}.xlsx` };
+}
+
+export async function buildAllSharesWorkbook() {
+  const db = await loadAccess();
+  const areaById = new Map(db.areas.map((a) => [a.id, a.nombre]));
+  const shares = [...db.shares].sort((a, b) =>
+    (areaById.get(a.areaId) || "").localeCompare(areaById.get(b.areaId) || "") || a.nombre.localeCompare(b.nombre)
+  );
+  const rows: (string | number)[][] = [];
+  for (const s of shares) {
+    const area = areaById.get(s.areaId) || "—";
+    const grants = db.shareGrants
+      .filter((g) => g.shareId === s.id)
+      .sort((a, b) => (a.userDisplay || "").localeCompare(b.userDisplay || ""));
+    if (!grants.length) rows.push([area, s.nombre, s.ruta, "", "", ""].map(safe));
+    for (const g of grants) {
+      rows.push([area, s.nombre, s.ruta, g.userDisplay || "", g.userId, "Sí"].map(safe));
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheetFrom(SHARE_HEADER, rows, [22, 22, 34, 28, 10, 10]), "Carpetas");
+  return { wb, filename: `accesos-carpetas-todo-${stamp()}.xlsx` };
+}
+
 export function workbookToBuffer(wb: XLSX.WorkBook): Buffer {
   return XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer;
 }
