@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isOperator, getAuth } from "@/lib/auth";
+import { canReadAccess, getAuth } from "@/lib/auth";
 import { buildAllAreasWorkbook, buildAllMailsWorkbook, buildAllSharesWorkbook, buildAreaWorkbook, buildMailWorkbook, buildShareWorkbook, workbookToBuffer } from "@/lib/access-export";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const a = getAuth(req as any);
   if (a.kind === "none") return NextResponse.json({ error: "Inicia sesión para ver accesos." }, { status: 401 });
-  if (!isOperator(req as any)) return NextResponse.json({ error: "Tu perfil no tiene permiso." }, { status: 403 });
+  if (!canReadAccess(req as any)) return NextResponse.json({ error: "Tu perfil no tiene permiso." }, { status: 403 });
   const sp = new URL(req.url).searchParams;
   const scope = sp.get("scope") || "";
   const id = sp.get("id") || "";

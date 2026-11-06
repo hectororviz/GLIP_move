@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isOperator } from "@/lib/auth";
+import { canReadAccess, isOperator } from "@/lib/auth";
 import { ASSET_TYPES, clean, enrich, glpiFetch } from "@/lib/glpi";
 import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
 import { loadAccess } from "@/lib/access";
@@ -107,21 +107,22 @@ async function searchPersonas(q: string): Promise<{ items: any[]; error?: string
   return { items: users };
 }
 
-// GET /api/search?q= -> agregador: equipos + personas (público) y áreas/correos/carpetas (solo operador).
+// GET /api/search?q= -> agregador: equipos + personas (público) y áreas/correos/carpetas (operador o viewer).
 export async function GET(req: NextRequest) {
   const q = (new URL(req.url).searchParams.get("q") || "").trim();
   if (!q) return NextResponse.json({ error: "Parámetro: ?q=" }, { status: 400 });
   const canOperate = isOperator(req as any);
+  const canSeeAccess = canOperate || canReadAccess(req as any);
   const nq = norm(q);
 
   const [eq, per] = await Promise.all([searchEquipos(q), searchPersonas(q)]);
 
-  // Accesos: solo operador; si no, acordeones bloqueados sin filtrar nada.
+  // Accesos: operador o viewer; si no, acordeones bloqueados sin filtrar nada.
   let areas: any[] = [];
   let correos: any[] = [];
   let carpetas: any[] = [];
   let accessError: string | undefined;
-  if (canOperate) {
+  if (canSeeAccess) {
     try {
       const db = await loadAccess();
       const areaById = new Map(db.areas.map((a) => [a.id, a]));
@@ -168,12 +169,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     q,
     canOperate,
+    canSeeAccess,
     results: {
       equipos: { total: eq.items.length, items: eq.items, error: eq.error },
       personas: { total: per.items.length, items: per.items, error: per.error },
-      areas: canOperate ? { total: areas.length, items: areas, error: accessError } : { locked: true as const, total: 0, items: [] },
-      correos: canOperate ? { total: correos.length, items: correos, error: accessError } : { locked: true as const, total: 0, items: [] },
-      carpetas: canOperate ? { total: carpetas.length, items: carpetas, error: accessError } : { locked: true as const, total: 0, items: [] },
+      areas: canSeeAccess ? { total: areas.length, items: areas, error: accessError } : { locked: true as const, total: 0, items: [] },
+      correos: canSeeAccess ? { total: correos.length, items: correos, error: accessError } : { locked: true as const, total: 0, items: [] },
+      carpetas: canSeeAccess ? { total: carpetas.length, items: carpetas, error: accessError } : { locked: true as const, total: 0, items: [] },
     },
   });
 }

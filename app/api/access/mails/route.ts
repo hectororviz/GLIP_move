@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isOperator, getAuth } from "@/lib/auth";
+import { canReadAccess, isOperator, getAuth } from "@/lib/auth";
 import { createMail, loadAccess, saveAccess, validateMailInput } from "@/lib/access";
 import { norm } from "@/lib/search";
 
@@ -12,9 +12,17 @@ function deny(req: NextRequest) {
   return null;
 }
 
+// Lectura (GET): operador o viewer. Escrituras (POST/PUT/DELETE): solo operador.
+function denyRead(req: NextRequest) {
+  const a = getAuth(req as any);
+  if (a.kind === "none") return NextResponse.json({ error: "Inicia sesión para ver accesos." }, { status: 401 });
+  if (!canReadAccess(req as any)) return NextResponse.json({ error: "Tu perfil no tiene permiso." }, { status: 403 });
+  return null;
+}
+
 // GET /api/access/mails?area=&q= -> correos (con área y conteo de personas)
 export async function GET(req: NextRequest) {
-  const d = deny(req);
+  const d = denyRead(req);
   if (d) return d;
   const sp = new URL(req.url).searchParams;
   const area = sp.get("area") || "";

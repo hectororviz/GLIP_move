@@ -226,6 +226,8 @@ export default function Buscar() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Results | null>(null);
   const [canOperate, setCanOperate] = useState(false);
+  const [canSeeAccess, setCanSeeAccess] = useState(false);
+  const canSee = canOperate || canSeeAccess;
   const [searched, setSearched] = useState(false);
   const [msg, setMsg] = useState("");
   const [scan, setScan] = useState(false);
@@ -276,9 +278,11 @@ export default function Buscar() {
         if (j.authenticated) {
           setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate });
           setCanOperate(!!j.canOperate);
+          setCanSeeAccess(j.access ? j.access !== "none" : !!j.canOperate);
         } else {
           setAuthUser(null);
           setCanOperate(false);
+          setCanSeeAccess(false);
         }
       })
       .catch(() => {});
@@ -328,6 +332,7 @@ export default function Buscar() {
       if (!r.ok) { setMsg("Error: " + (j.error || r.status)); setResults(null); return; }
       setResults(j.results);
       setCanOperate(!!j.canOperate);
+      setCanSeeAccess(!!(j.canSeeAccess ?? j.canOperate));
       const totals = [j.results.equipos.total, j.results.personas.total, j.results.areas.total, j.results.correos.total, j.results.carpetas.total];
       const sum = totals.reduce((a: number, b: number) => a + b, 0);
       setMsg(sum ? `${sum} resultado(s) en ${totals.filter((t: number) => t > 0).length} categoría(s).` : "Sin resultados en ninguna categoría. Probá con/sin ceros, por serie, nombre o sigla de área (ej. CTIC).");
@@ -347,7 +352,7 @@ export default function Buscar() {
     try {
       const [ra, rg] = await Promise.all([
         fetch(`/api/glpi/user-assets?user_id=${p.id}`).then((r) => r.json()),
-        canOperate || authUser?.canOperate
+        canOperate || canSeeAccess || authUser?.canOperate
           ? fetch(`/api/access/grants?user_id=${p.id}`).then((r) => (r.ok ? r.json() : { mails: [], shares: [] })).catch(() => ({ mails: [], shares: [] }))
           : Promise.resolve({ mails: [], shares: [] }),
       ]);
@@ -357,7 +362,7 @@ export default function Buscar() {
 
   async function openMailDetail(m: any) {
     setDetailMail({ mail: m, personas: [] });
-    if (!canOperate) return;
+    if (!canSee) return;
     try {
       const r = await fetch(`/api/access/grants?accountId=${encodeURIComponent(m.id)}`);
       const j = await r.json();
@@ -367,7 +372,7 @@ export default function Buscar() {
 
   async function openShareDetail(s: any) {
     setDetailShare({ share: s, personas: [] });
-    if (!canOperate) return;
+    if (!canSee) return;
     try {
       const r = await fetch(`/api/access/grants?shareId=${encodeURIComponent(s.id)}`);
       const j = await r.json();
@@ -377,7 +382,7 @@ export default function Buscar() {
 
   async function openAreaDetail(a: any) {
     setDetailArea({ area: a, mails: [], shares: [] });
-    if (!canOperate) return;
+    if (!canSee) return;
     try {
       const r = await fetch(`/api/access/overview?area=${encodeURIComponent(a.id)}`);
       const j = await r.json();
@@ -592,7 +597,7 @@ export default function Buscar() {
             onRefresh={() => openPersonDetail(detailPerson.p)}
             accessMails={detailPerson.mails}
             accessShares={detailPerson.shares}
-            canSeeAccess={canOperate}
+            canSeeAccess={canSee}
           />
         </Modal>
       )}
@@ -601,9 +606,9 @@ export default function Buscar() {
         <Modal title={`Correo: ${detailMail.mail.nombre || detailMail.mail.direccion}`} onClose={() => setDetailMail(null)}>
           <div className="grid gap-2 text-sm">
             <p className="tabular-nums text-muted">{detailMail.mail.direccion} · Área {detailMail.mail.area || "—"}</p>
-            {!canOperate && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador para ver las personas.</span></p>}
-            {canOperate && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
-            {canOperate && detailMail.personas.length > 0 && (
+            {!canSee && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador o de lectura para ver las personas.</span></p>}
+            {canSee && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
+            {canSee && detailMail.personas.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="table-dense table-modal-fluid">
                   <thead><tr><th>Persona</th><th>Envía</th><th>Recibe</th></tr></thead>
@@ -619,7 +624,7 @@ export default function Buscar() {
                 </table>
               </div>
             )}
-            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
+            {canSee && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
           </div>
         </Modal>
       )}
@@ -628,9 +633,9 @@ export default function Buscar() {
         <Modal title={`Carpeta: ${detailShare.share.nombre}`} onClose={() => setDetailShare(null)}>
           <div className="grid gap-2 text-sm">
             <p className="tabular-nums text-muted" title={detailShare.share.ruta}>{detailShare.share.ruta} · Área {detailShare.share.area || "—"}</p>
-            {!canOperate && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador para ver las personas.</span></p>}
-            {canOperate && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
-            {canOperate && detailShare.personas.length > 0 && (
+            {!canSee && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador o de lectura para ver las personas.</span></p>}
+            {canSee && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
+            {canSee && detailShare.personas.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="table-dense table-modal-fluid">
                   <thead><tr><th>Persona</th></tr></thead>
@@ -644,7 +649,7 @@ export default function Buscar() {
                 </table>
               </div>
             )}
-            {canOperate && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
+            {canSee && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
           </div>
         </Modal>
       )}
@@ -659,7 +664,7 @@ export default function Buscar() {
             <b className="text-sm inline-flex items-center gap-1"><IconFolder size={13} /> Carpetas ({detailArea.shares.length})</b>
             {detailArea.shares.map((s: any) => <div key={s.id} className="text-sm text-muted" title={s.ruta}><b className="text-ink">{s.nombre}</b> <span className="tabular-nums text-xs break-all">{s.ruta}</span> <span className="text-xs">· {s.personas} persona(s)</span></div>)}
             {!detailArea.shares.length && <p className="text-sm text-muted">Sin carpetas.</p>}
-            <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>{canOperate && <button className="btn btn-secondary text-xs w-fit" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}</span>
+            <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>{canSee && <button className="btn btn-secondary text-xs w-fit" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}</span>
           </div>
         </Modal>
       )}

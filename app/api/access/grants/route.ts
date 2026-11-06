@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isOperator, getAuth } from "@/lib/auth";
+import { canReadAccess, isOperator, getAuth } from "@/lib/auth";
 import { loadAccess, saveAccess } from "@/lib/access";
 import { clean, glpiFetch } from "@/lib/glpi";
 
@@ -9,6 +9,14 @@ function deny(req: NextRequest) {
   const a = getAuth(req as any);
   if (a.kind === "none") return NextResponse.json({ error: "Inicia sesión para ver accesos." }, { status: 401 });
   if (!isOperator(req as any)) return NextResponse.json({ error: "Tu perfil no tiene permiso." }, { status: 403 });
+  return null;
+}
+
+// Lectura (GET): operador o viewer. Escrituras (POST/DELETE): solo operador.
+function denyRead(req: NextRequest) {
+  const a = getAuth(req as any);
+  if (a.kind === "none") return NextResponse.json({ error: "Inicia sesión para ver accesos." }, { status: 401 });
+  if (!canReadAccess(req as any)) return NextResponse.json({ error: "Tu perfil no tiene permiso." }, { status: 403 });
   return null;
 }
 
@@ -27,7 +35,7 @@ async function glpiPerson(userId: number): Promise<{ display: string | null; fir
 // user_id -> ficha persona: correos+carpetas asignadas (con nombres de recurso y área)
 // accountId -> personas del correo + checks; shareId -> personas de la carpeta
 export async function GET(req: NextRequest) {
-  const d = deny(req);
+  const d = denyRead(req);
   if (d) return d;
   const sp = new URL(req.url).searchParams;
   const userId = Number(sp.get("user_id"));

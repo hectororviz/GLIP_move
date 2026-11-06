@@ -13,6 +13,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canOperate, setCanOperate] = useState(false);
+  const [canView, setCanView] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -39,8 +40,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     const checkOperate = () => {
       fetch("/api/auth/me", { cache: "no-store" })
         .then((r) => r.json())
-        .then((j) => setCanOperate(!!j.canOperate))
-        .catch(() => setCanOperate(false));
+        .then((j) => {
+          setCanOperate(!!j.canOperate);
+          setCanView(j.access ? j.access !== "none" : !!j.canOperate);
+        })
+        .catch(() => { setCanOperate(false); setCanView(false); });
     };
     checkAdmin();
     checkOperate();
@@ -85,7 +89,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const isLocked = (href: string) => {
     if (href === "/config") return !isAdmin;
-    if (href === "/masivo" || href === "/accesos") return !canOperate;
+    if (href === "/masivo") return !canOperate;
+    if (href === "/accesos") return !canView;
     return false;
   };
   const lockTitle = (href: string) =>

@@ -105,6 +105,7 @@ export default function Accesos() {
   const [tab, setTab] = useState<"areas" | "mails" | "shares" | "personas">("areas");
   const [authChecked, setAuthChecked] = useState(false);
   const [canOperate, setCanOperate] = useState(false);
+  const [access, setAccess] = useState<"full" | "read" | "none">("none");
   const [login, setLogin] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
 
@@ -166,6 +167,7 @@ export default function Accesos() {
   const refreshAuth = useCallback(() => {
     fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).then((j) => {
       setCanOperate(!!j.canOperate);
+      setAccess(j.access ? j.access : (j.canOperate ? "full" : "none"));
       setLogin(j.authenticated ? (j.user?.login || "") : "");
       setAuthChecked(true);
     }).catch(() => setAuthChecked(true));
@@ -198,7 +200,7 @@ export default function Accesos() {
     }
   }, [areaFilter]);
 
-  useEffect(() => { if (canOperate) loadAll(); }, [canOperate, loadAll]);
+  useEffect(() => { if (access !== "none") loadAll(); }, [access, loadAll]);
 
   async function saveArea() {
     if (!areaModal) return;
@@ -395,10 +397,12 @@ export default function Accesos() {
     );
   }
 
-  if (!canOperate) {
+  const readOnly = access === "read";
+
+  if (access === "none") {
     return (
       <div className="grid gap-4">
-        <div className="page-header"><h1 className="inline-flex items-center gap-2">Accesos <IconLock size={20} /></h1><p>Acceso restringido a usuarios con permiso de edición.</p></div>
+        <div className="page-header"><h1 className="inline-flex items-center gap-2">Accesos <IconLock size={20} /></h1><p>Acceso restringido a usuarios con permiso (lectura o edición).</p></div>
         <div className="card p-6 grid gap-3 text-center max-w-[480px] mx-auto w-full">
           <span className="inline-flex text-muted" aria-hidden="true"><IconLock size={40} /></span>
           <b className="text-ink">{login ? `Sesión como ${login} sin permiso` : "Iniciá sesión para continuar"}</b>
@@ -416,7 +420,7 @@ export default function Accesos() {
     <div className="grid gap-4">
       <div className="page-header">
         <h1>Accesos</h1>
-        <p>Áreas, correos institucionales y carpetas compartidas. Todo requiere sesión con permiso (sin lectura anónima).</p>
+        <p>Áreas, correos institucionales y carpetas compartidas. {readOnly ? "Vista de solo lectura (tu perfil no puede editar)." : "Todo requiere sesión con permiso (sin lectura anónima)."}</p>
       </div>
 
       <div className="card p-3 grid gap-2">
@@ -445,7 +449,7 @@ export default function Accesos() {
 
       {tab === "areas" && !loading && (
         <div className="card overflow-x-auto p-0">
-          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "areas:all"} onClick={() => downloadExport("areas", "all")} title="Descargar todas las áreas en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "areas:all" ? "Descargando…" : "Descargar todo"}</span></button><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setAreaModal({ nombre: "", resp: null }); }}>+ Nueva área</button></div>
+          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "areas:all"} onClick={() => downloadExport("areas", "all")} title="Descargar todas las áreas en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "areas:all" ? "Descargando…" : "Descargar todo"}</span></button>{!readOnly && (<button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setAreaModal({ nombre: "", resp: null }); }}>+ Nueva área</button>)}</div>
           <table className="table-dense">
             <thead><tr><th>Área</th><th className="hidden md:table-cell">Responsable (GLPI)</th><th title="Correos"><span className="inline-flex" aria-hidden="true"><IconMail size={13} /></span><span className="sr-only">Correos</span></th><th title="Carpetas"><span className="inline-flex" aria-hidden="true"><IconFolder size={13} /></span><span className="sr-only">Carpetas</span></th><th>Acciones</th></tr></thead>
             <tbody>
@@ -456,9 +460,9 @@ export default function Accesos() {
                   <td className="tabular-nums">{a.mails}</td>
                   <td className="tabular-nums">{a.shares}</td>
                   <td><span className="inline-flex gap-1">
-                    <button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar área ${a.nombre}`} onClick={() => setAreaModal({ id: a.id, nombre: a.nombre, resp: { id: a.responsableUserId, login: null, display: a.responsableNombre || `#${a.responsableUserId}` } })}><IconEdit /></button>
+                    {!readOnly && (<button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar área ${a.nombre}`} onClick={() => setAreaModal({ id: a.id, nombre: a.nombre, resp: { id: a.responsableUserId, login: null, display: a.responsableNombre || `#${a.responsableUserId}` } })}><IconEdit /></button>)}
                     <button className="btn btn-secondary icon-btn-sm" title="Exportar Excel" aria-label={`Exportar Excel del área ${a.nombre}`} disabled={exporting === `area:${a.id}`} onClick={() => downloadExport("area", a.id)}>{exporting === `area:${a.id}` ? <span className="animate-pulse inline-flex"><IconDownload /></span> : <IconDownload />}</button>
-                    <button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar área ${a.nombre}`} onClick={() => deleteArea(a)}><IconTrash /></button>
+                    {!readOnly && (<button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar área ${a.nombre}`} onClick={() => deleteArea(a)}><IconTrash /></button>)}
                   </span></td>
                 </tr>
               ))}
@@ -470,7 +474,7 @@ export default function Accesos() {
 
       {tab === "mails" && !loading && (
         <div className="card overflow-x-auto p-0">
-          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "mails:all"} onClick={() => downloadExport("mails", "all")} title="Descargar todos los correos en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "mails:all" ? "Descargando…" : "Descargar todo"}</span></button><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setMailModal({ nombre: "", direccion: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nuevo correo</button></div>
+          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "mails:all"} onClick={() => downloadExport("mails", "all")} title="Descargar todos los correos en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "mails:all" ? "Descargando…" : "Descargar todo"}</span></button>{!readOnly && (<button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setMailModal({ nombre: "", direccion: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nuevo correo</button>)}</div>
           <table className="table-dense">
             <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Dirección</th><th className="hidden md:table-cell">Área</th><th className="hidden md:table-cell">Personas</th><th><span className="sr-only">Envía / Recibe</span></th><th>Acciones</th></tr></thead>
             <tbody>
@@ -485,8 +489,8 @@ export default function Accesos() {
                   <td className="tabular-nums text-xs text-muted leading-tight"><span className="flex items-center gap-1">{m.envian} <IconMail size={11} /></span><span className="flex items-center gap-1">{m.reciben} <IconEye size={11} /></span></td>
                   <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1">
                     <button className="btn btn-secondary icon-btn-sm" title="Exportar Excel" aria-label={`Exportar Excel de ${m.nombre}`} disabled={exporting === `mail:${m.id}`} onClick={() => downloadExport("mail", m.id)}>{exporting === `mail:${m.id}` ? <span className="animate-pulse inline-flex"><IconDownload /></span> : <IconDownload />}</button>
-                    <button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar correo ${m.nombre}`} onClick={() => { setFormErr(""); setMailModal({ id: m.id, nombre: m.nombre, direccion: m.direccion, areaId: m.areaId }); }}><IconEdit /></button>
-                    <button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar correo ${m.nombre}`} onClick={() => deleteMail(m)}><IconTrash /></button>
+                    {!readOnly && (<button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar correo ${m.nombre}`} onClick={() => { setFormErr(""); setMailModal({ id: m.id, nombre: m.nombre, direccion: m.direccion, areaId: m.areaId }); }}><IconEdit /></button>)}
+                    {!readOnly && (<button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar correo ${m.nombre}`} onClick={() => deleteMail(m)}><IconTrash /></button>)}
                   </span></td>
                 </tr>
               ))}
@@ -498,7 +502,7 @@ export default function Accesos() {
 
       {tab === "shares" && !loading && (
         <div className="card overflow-x-auto p-0">
-          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "shares:all"} onClick={() => downloadExport("shares", "all")} title="Descargar todas las carpetas en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "shares:all" ? "Descargando…" : "Descargar todo"}</span></button><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setShareModal({ nombre: "", ruta: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nueva carpeta</button></div>
+          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "shares:all"} onClick={() => downloadExport("shares", "all")} title="Descargar todas las carpetas en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "shares:all" ? "Descargando…" : "Descargar todo"}</span></button>{!readOnly && (<button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setShareModal({ nombre: "", ruta: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nueva carpeta</button>)}</div>
           <table className="table-dense">
             <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Ruta</th><th className="hidden md:table-cell">Área</th><th>Acciones</th></tr></thead>
             <tbody>
@@ -511,8 +515,8 @@ export default function Accesos() {
                   <td className="text-sm hidden md:table-cell">{s.area}</td>
                   <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><span className="inline-flex gap-1">
                     <button className="btn btn-secondary icon-btn-sm" title="Exportar Excel" aria-label={`Exportar Excel de ${s.nombre}`} disabled={exporting === `share:${s.id}`} onClick={() => downloadExport("share", s.id)}>{exporting === `share:${s.id}` ? <span className="animate-pulse inline-flex"><IconDownload /></span> : <IconDownload />}</button>
-                    <button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar carpeta ${s.nombre}`} onClick={() => { setFormErr(""); setShareModal({ id: s.id, nombre: s.nombre, ruta: s.ruta, areaId: s.areaId }); }}><IconEdit /></button>
-                    <button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar carpeta ${s.nombre}`} onClick={() => deleteShare(s)}><IconTrash /></button>
+                    {!readOnly && (<button className="btn btn-secondary icon-btn-sm" title="Editar" aria-label={`Editar carpeta ${s.nombre}`} onClick={() => { setFormErr(""); setShareModal({ id: s.id, nombre: s.nombre, ruta: s.ruta, areaId: s.areaId }); }}><IconEdit /></button>)}
+                    {!readOnly && (<button className="btn btn-danger icon-btn-sm" title="Borrar" aria-label={`Borrar carpeta ${s.nombre}`} onClick={() => deleteShare(s)}><IconTrash /></button>)}
                   </span></td>
                 </tr>
               ))}
@@ -552,9 +556,9 @@ export default function Accesos() {
                     <div key={g.accountId} className="flex items-center justify-between gap-2 flex-wrap text-sm border-t pt-2">
                       <span className="min-w-0 flex-1 basis-40"><span className="block truncate font-medium">{g.nombre}</span><span className="block truncate text-xs text-muted">{g.direccion} · {g.area}</span></span>
                       <span className="inline-flex gap-1 shrink-0 flex-wrap justify-end">
-                        <label className="badge cursor-pointer" title="Puede enviar"><input type="checkbox" checked={g.canSend} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /> <IconMail size={12} /></label>
-                        <label className="badge cursor-pointer" title="Puede recibir/leer"><input type="checkbox" checked={g.canRead} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /> <IconEye size={12} /></label>
-                        <button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeMailGrant(g)}><IconTrash /></button>
+                        <label className="badge cursor-pointer" title="Puede enviar"><input type="checkbox" checked={g.canSend} disabled={readOnly} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /> <IconMail size={12} /></label>
+                        <label className="badge cursor-pointer" title="Puede recibir/leer"><input type="checkbox" checked={g.canRead} disabled={readOnly} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /> <IconEye size={12} /></label>
+                        {!readOnly && (<button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeMailGrant(g)}><IconTrash /></button>)}
                       </span>
                     </div>
                   ))}
@@ -565,7 +569,7 @@ export default function Accesos() {
                   {pShares.map((g) => (
                     <div key={g.shareId} className="flex items-center justify-between gap-2 flex-wrap text-sm border-t pt-2">
                       <span className="min-w-0 flex-1 basis-40"><span className="block truncate font-medium">{g.nombre}</span><span className="block truncate text-xs text-muted" title={g.ruta}>{g.ruta} · {g.area}</span></span>
-                      <button className="btn btn-danger icon-btn-sm shrink-0" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeShareGrant(g)}><IconTrash /></button>
+                      {!readOnly && (<button className="btn btn-danger icon-btn-sm shrink-0" title="Quitar acceso" aria-label={`Quitar ${g.nombre || ""}`} onClick={() => removeShareGrant(g)}><IconTrash /></button>)}
                     </div>
                   ))}
                   {!pShares.length && <p className="text-sm text-muted">Sin carpetas asignadas.</p>}
@@ -629,7 +633,7 @@ export default function Accesos() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs text-muted">{mailDetail.mail.direccion} · Área {mailDetail.mail.area}</p>
             <div className="flex gap-1 flex-wrap">
-              <button className="btn btn-primary text-xs" onClick={() => { setGrantUser(null); setGrantSend(true); setGrantRead(true); setGrantAdd("mail"); }} aria-label="Agregar persona"><span className="inline-flex items-center gap-1"><IconPlus size={13} /> Agregar</span></button>
+              {!readOnly && (<button className="btn btn-primary text-xs" onClick={() => { setGrantUser(null); setGrantSend(true); setGrantRead(true); setGrantAdd("mail"); }} aria-label="Agregar persona"><span className="inline-flex items-center gap-1"><IconPlus size={13} /> Agregar</span></button>)}
               <button className="btn btn-secondary text-xs" disabled={exporting === `mail:${mailDetail.mail.id}`} onClick={() => downloadExport("mail", mailDetail.mail.id)}><span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span></button>
             </div>
           </div>
@@ -640,9 +644,9 @@ export default function Accesos() {
                 {mailDetail.personas.map((g) => (
                   <tr key={g.userId}>
                     <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
-                    <td><input type="checkbox" aria-label="Envía" checked={g.canSend} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /></td>
-                    <td><input type="checkbox" aria-label="Recibe" checked={g.canRead} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /></td>
-                    <td><button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar acceso de ${g.userDisplay || g.userId}`} onClick={() => removeMailGrant(g)}><IconTrash /></button></td>
+                    <td><input type="checkbox" aria-label="Envía" checked={g.canSend} disabled={readOnly} onChange={(e) => updateMailGrant(g, { canSend: e.target.checked })} /></td>
+                    <td><input type="checkbox" aria-label="Recibe" checked={g.canRead} disabled={readOnly} onChange={(e) => updateMailGrant(g, { canRead: e.target.checked })} /></td>
+                    <td>{!readOnly && (<button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar acceso de ${g.userDisplay || g.userId}`} onClick={() => removeMailGrant(g)}><IconTrash /></button>)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -657,7 +661,7 @@ export default function Accesos() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs text-muted tabular-nums">{shareDetail.share.ruta} · Área {shareDetail.share.area}</p>
             <div className="flex gap-1 flex-wrap">
-              <button className="btn btn-primary text-xs" onClick={() => { setGrantUser(null); setGrantAdd("share"); }} aria-label="Agregar persona"><span className="inline-flex items-center gap-1"><IconPlus size={13} /> Agregar</span></button>
+              {!readOnly && (<button className="btn btn-primary text-xs" onClick={() => { setGrantUser(null); setGrantAdd("share"); }} aria-label="Agregar persona"><span className="inline-flex items-center gap-1"><IconPlus size={13} /> Agregar</span></button>)}
               <button className="btn btn-secondary text-xs" disabled={exporting === `share:${shareDetail.share.id}`} onClick={() => downloadExport("share", shareDetail.share.id)}><span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span></button>
             </div>
           </div>
@@ -668,7 +672,7 @@ export default function Accesos() {
                 {shareDetail.personas.map((g) => (
                   <tr key={g.userId}>
                     <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
-                    <td><button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar acceso de ${g.userDisplay || g.userId}`} onClick={() => removeShareGrant(g)}><IconTrash /></button></td>
+                    <td>{!readOnly && (<button className="btn btn-danger icon-btn-sm" title="Quitar acceso" aria-label={`Quitar acceso de ${g.userDisplay || g.userId}`} onClick={() => removeShareGrant(g)}><IconTrash /></button>)}</td>
                   </tr>
                 ))}
               </tbody>

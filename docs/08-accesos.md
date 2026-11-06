@@ -1,7 +1,11 @@
 # 08 — Accesos: áreas, correos institucionales y carpetas compartidas
 
 Módulo de **DB propia** (`data/access.json`), GLPI solo aporta identidad (Personas = `User.id`).
-**Todo el módulo exige sesión con permiso operador** (`Super-Admin,Admin` por defecto): sin lectura anónima, a diferencia de mapa/búsqueda. Patrón auth igual que `PATCH /api/glpi` (`isOperator()` + `Session-Token` propio).
+**Tres niveles por perfil GLPI** (nombres exactos de `getMyProfiles`, configurables por env):
+`full` = operador (`GLPI_OPERATOR_PROFILES`: `Super-Admin,Admin,Infra-CTIC`) → lectura + ABM + grants + export;
+`read` = solo lectura (`GLPI_VIEWER_PROFILES`: `Control Patrimonio`) → ve control/búsqueda/accesos y exporta, sin editar nada;
+`none` = resto/sin login → solo lo público (sin lectura de accesos, a diferencia de mapa/búsqueda).
+Lectura = `canReadAccess()` (`401` sin login, `403` logueado sin perfil); escritura sigue con `isOperator()` + `Session-Token` propio, igual que `PATCH /api/glpi`.
 
 ## Modelo (`lib/access.ts`)
 
@@ -45,11 +49,11 @@ Agregador server-side: en paralelo busca equipos (misma lógica inventario→nom
 | `GET /api/access/export?scope=mails\|shares` | **Descargar todo** (solo operador): `mails` = 1 hoja `Correos` con todos los correos; `shares` = 1 hoja `Carpetas` con todas las carpetas. Mismo formato de columnas. Nombres `accesos-correos-todo-*.xlsx` / `accesos-carpetas-todo-*.xlsx` |
 | `GET /api/access/export?scope=areas` | **Descargar todo de áreas** (solo operador): 2 hojas (`Correos`+`Carpetas`) con todas las áreas ordenadas por área+nombre. Nombre `accesos-areas-todo-*.xlsx` |
 
-Todas responden `401` sin login y `403` sin perfil operador.
+Lectura (`GET` áreas/correos/carpetas/overview/grants/export + secciones de `/api/search`): `401` sin login, `403` logueado sin perfil con acceso. Escritura (`POST/PUT/DELETE`): solo operador (`403` para viewers).
 
 ## UI (`app/accesos/page.tsx`)
 
-* Ruta `/accesos` en nav con candado 🔒 si no hay `canOperate` (`components/AppShell.tsx`), igual que `/masivo`. Página con wall + `AuthModal` si no autorizado.
+* Ruta `/accesos` en nav con candado 🔒 si no hay acceso de lectura (`components/AppShell.tsx`); `/masivo` sigue con candado si no hay `canOperate`. Página con wall + `AuthModal` si `access === "none"`; viewers ven todo en modo lectura (sin `+ Nuevo`, sin lápiz/cesto, checks deshabilitados, exports visibles).
 * Tabs **Áreas / Correos / Carpetas / Personas**, todo con **tablas densas intercaladas** (`table-dense` + zebra) y **modales**. En Correos y Carpetas **no hay botón Personas: tocar la fila abre el modal** (también con Enter/Espacio, con `›` como indicador). En Carpetas no hay columna de conteo (el modal lista las personas).
 * Acciones con **iconos monocromos** (`components/icons.tsx`, SVG con `currentColor`: oscuros sobre botones claros, blancos sobre danger/primary) en lugar de emojis: editar, exportar, borrar, correo, carpeta, ojo, persona. Columna Envían/Recibe **apilada en dos líneas** (n + icono arriba/abajo) sin título de encabezado para no forzar scroll horizontal.
 * En móvil las columnas secundarias se ocultan y pasan como sublínea bajo el nombre (dirección/ruta truncada + área) con corte libre (`break-all`) para que Nombre + conteos + acciones entren sin scroll en 360px. Modales de personas con `table-layout: fixed` en móvil (`table-modal-fluid`) para que el `truncate` recorte de verdad.

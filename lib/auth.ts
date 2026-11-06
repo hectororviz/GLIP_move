@@ -28,6 +28,29 @@ export function canOperate(s: AuthSession | null): boolean {
   return s.profiles.some((p) => operatorProfiles().includes(p));
 }
 
+// Perfiles con acceso de solo lectura al módulo Accesos (ven control/búsqueda/accesos,
+// sin editar nada). Por defecto: Control Patrimonio.
+export function viewerProfiles(): string[] {
+  return (process.env.GLPI_VIEWER_PROFILES || "Control Patrimonio")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function canViewAccess(s: AuthSession | null): boolean {
+  if (!s) return false;
+  if (s.profiles.some((p) => operatorProfiles().includes(p))) return true;
+  return s.profiles.some((p) => viewerProfiles().includes(p));
+}
+
+export type AccessLevel = "full" | "read" | "none";
+
+export function accessLevel(s: AuthSession | null): AccessLevel {
+  if (canOperate(s)) return "full";
+  if (canViewAccess(s)) return "read";
+  return "none";
+}
+
 export function getSession(req: { cookies: { get: (n: string) => { value: string } | undefined } }): AuthSession | null {
   const id = req.cookies.get("gm_user")?.value;
   if (!id) return null;
@@ -95,6 +118,13 @@ export function isOperator(req: any): boolean {
   return canOperate(a.session);
 }
 
+// Lectura de accesos: operador, viewer o clave maestra. Escrituras siguen con isOperator.
+export function canReadAccess(req: any): boolean {
+  const a = getAuth(req);
+  if (a.kind === "admin") return true;
+  return canViewAccess(a.session);
+}
+
 export function adminProfiles(): string[] {
   return (process.env.GLPI_ADMIN_PROFILES || "Super-Admin,Admin")
     .split(",")
@@ -111,11 +141,11 @@ export function isAdmin(req: any): boolean {
   return false;
 }
 
-export function authStatus(req: any): { authenticated: boolean; kind: "admin" | "user" | "none"; user: AuthUser | null; canOperate: boolean } {
+export function authStatus(req: any): { authenticated: boolean; kind: "admin" | "user" | "none"; user: AuthUser | null; canOperate: boolean; access: AccessLevel } {
   const a = getAuth(req);
-  if (a.kind === "admin") return { authenticated: true, kind: "admin", user: { login: "admin", name: "Administrador", profiles: ["admin"] }, canOperate: true };
+  if (a.kind === "admin") return { authenticated: true, kind: "admin", user: { login: "admin", name: "Administrador", profiles: ["admin"] }, canOperate: true, access: "full" };
   if (a.kind === "user" && a.session) {
-    return { authenticated: true, kind: "user", user: { login: a.session.login, name: a.session.name, profiles: a.session.profiles }, canOperate: canOperate(a.session) };
+    return { authenticated: true, kind: "user", user: { login: a.session.login, name: a.session.name, profiles: a.session.profiles }, canOperate: canOperate(a.session), access: accessLevel(a.session) };
   }
-  return { authenticated: false, kind: "none", user: null, canOperate: false };
+  return { authenticated: false, kind: "none", user: null, canOperate: false, access: "none" };
 }
