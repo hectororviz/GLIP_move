@@ -28,6 +28,14 @@ El usuario técnico necesita perfil con permisos de **lectura y escritura en Ass
 (Computer, Monitor, Phone, etc.) y lectura en Locations/Users para que la app
 pueda buscar, ver y mover equipos.
 
+**Cuenta de servicio en uso: `horviz` (GLPI User #154). No borrarla ni
+regenerar su clave sin avisar**: el `userTokenEnc` guardado en
+`data/config.json` moriría y la app fallaría con `initSession 401
+ERROR_GLPI_LOGIN_USER_TOKEN` en el próximo login/reinicio. Si se rota la
+clave, pegar la nueva en `/config` → Guardar → Probar conexión. (El viejo
+`horviz-OLD` #8 ya fue eliminado de GLPI y no debe usarse; ningún grant lo
+referencia.)
+
 ## 4. Perfiles para operadores y administradores de la app
 
 La app autentica a cada persona con **su propio usuario y clave de GLPI**
@@ -36,8 +44,9 @@ La app autentica a cada persona con **su propio usuario y clave de GLPI**
 | Rol en la app | Requisito en GLPI |
 |---|---|
 | Lectura (ver mapa, buscar) | Cualquier usuario válido |
-| Editar (mover/quitar/reemplazar bienes, asignar ocupantes) | Perfil con **UPDATE** en inventario (Computer, Monitor, Phone, Printer, Peripheral, NetworkEquipment) + READ en Location/User. Por defecto: **Super-Admin, Admin** (configurable: `GLPI_OPERATOR_PROFILES`) |
+| Editar (mover/quitar/reemplazar bienes, asignar ocupantes) | Perfil con **UPDATE** en inventario (Computer, Monitor, Phone, Printer, Peripheral, NetworkEquipment) + READ en Location/User. En uso: **Super-Admin, Admin, Infra-CTIC** (configurable: `GLPI_OPERATOR_PROFILES`) |
 | Acceso total = admin local (config, calibración, backup, logo) | Perfil **Super-Admin/Admin** (configurable: `GLPI_ADMIN_PROFILES`) |
+| Módulo Accesos solo lectura | **Control Patrimonio** (configurable: `GLPI_VIEWER_PROFILES`; ver `08-accesos.md`) |
 
 Perfiles Technician, Hotliner, Supervisor u Observer son solo-lectura en
 inventario por defecto → recibirán `403`. Sirve un perfil clonado con esos

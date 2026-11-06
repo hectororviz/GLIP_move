@@ -9,7 +9,7 @@ Pestañas: **Conexión · Pisos y planos · Apariencia · Avanzada**.
 
 ## Conexión GLPI
 
-Campos: GLPI Base URL, App-Token, User token (ver `02-glpi.md`).
+Campos: GLPI Base URL, App-Token, User token (ver `02-glpi.md`; cuenta de servicio en uso: `horviz` #154, no borrar).
 **Probar conexión** ejecuta `initSession` + `getMyProfiles` y muestra tus
 perfiles y entidades. Si falla, ver `06-troubleshooting.md`.
 
