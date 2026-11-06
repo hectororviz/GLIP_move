@@ -159,7 +159,7 @@ async function main() {
     const dir = normMail(r[0]);
     const res = umap[persona];
     if (!res || !res.user) { skipped.push({ fila: [r[0], persona, r[2]], motivo: `usuario sin match (${res ? res.strategy : "?"})` }); continue; }
-    grantOps.push({ direccion: dir, userId: res.user.id, display: res.user.display, canRead: si(r[3]), canSend: si(r[4]) });
+    grantOps.push({ direccion: dir, userId: res.user.id, display: res.user.display, firstname: res.user.firstname || null, realname: res.user.realname || null, canRead: si(r[3]), canSend: si(r[4]) });
   }
   const keyOf = (accountId, userId) => `${accountId}|${userId}`;
   const mailIdFor = (dir) => {
@@ -232,9 +232,9 @@ async function main() {
   const gmap = new Map((db.mailGrants || []).map((g) => [keyOf(g.accountId, g.userId), g]));
   for (const [k, g] of objetivo) {
     const ex = gmap.get(k);
-    if (ex) { ex.canRead = g.canRead; ex.canSend = g.canSend; ex.userDisplay = g.display; ex.by = "import-definitivo"; ex.at = now; }
+    if (ex) { ex.canRead = g.canRead; ex.canSend = g.canSend; ex.userDisplay = g.display; ex.userFirstname = g.firstname ?? ex.userFirstname ?? null; ex.userRealname = g.realname ?? ex.userRealname ?? null; ex.by = "import-definitivo"; ex.at = now; }
     else {
-      const ng = { accountId: g.accountId, userId: g.userId, userDisplay: g.display, canSend: g.canSend, canRead: g.canRead, by: "import-definitivo", at: now };
+      const ng = { accountId: g.accountId, userId: g.userId, userDisplay: g.display, userFirstname: g.firstname ?? null, userRealname: g.realname ?? null, canSend: g.canSend, canRead: g.canRead, by: "import-definitivo", at: now };
       db.mailGrants.push(ng);
       gmap.set(k, ng);
     }

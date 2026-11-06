@@ -33,6 +33,8 @@ export type MailGrant = {
   accountId: string;
   userId: number;
   userDisplay: string | null;
+  userFirstname: string | null;
+  userRealname: string | null;
   canSend: boolean;
   canRead: boolean;
   by: string | null;
@@ -43,6 +45,8 @@ export type ShareGrant = {
   shareId: string;
   userId: number;
   userDisplay: string | null;
+  userFirstname: string | null;
+  userRealname: string | null;
   by: string | null;
   at: number;
 };

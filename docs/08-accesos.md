@@ -41,7 +41,7 @@ Agregador server-side: en paralelo busca equipos (misma lógica inventario→nom
 | `GET /api/access/grants?shareId=` | Personas de una carpeta |
 | `POST/DELETE /api/access/grants` | Otorgar/quitar (`scope:'mail'\|'share'`) |
 | `GET /api/access/overview?area=` | Correos+carpetas de cada área |
-| `GET /api/access/export?scope=area\|mail\|share&id=` | **XLSX real** (solo operador): área = 2 hojas (Correos+Carpetas); correo/carpeta = 1 hoja. Columnas correo: `Área|Correo|Dirección|Persona|UserID|Envía|Recibe`; carpeta: `Área|Carpeta|Ruta|Persona|UserID|Acceso`. Recursos sin grants salen con fila vacía |
+| `GET /api/access/export?scope=area\|mail\|share&id=` | **XLSX real** (solo operador): área = 2 hojas (Correos+Carpetas); correo/carpeta = 1 hoja. Columnas correo: `Área|Correo|Dirección|Apellido|Nombre|UserID|Envía|Recibe`; carpeta: `Área|Carpeta|Ruta|Apellido|Nombre|UserID|Acceso`. `Apellido`/`Nombre` salen de GLPI (`realname`/`firstname` guardados en cada grant; fallback heurístico sobre el display si faltan). Recursos sin grants salen con fila vacía |
 | `GET /api/access/export?scope=mails\|shares` | **Descargar todo** (solo operador): `mails` = 1 hoja `Correos` con todos los correos; `shares` = 1 hoja `Carpetas` con todas las carpetas. Mismo formato de columnas. Nombres `accesos-correos-todo-*.xlsx` / `accesos-carpetas-todo-*.xlsx` |
 | `GET /api/access/export?scope=areas` | **Descargar todo de áreas** (solo operador): 2 hojas (`Correos`+`Carpetas`) con todas las áreas ordenadas por área+nombre. Nombre `accesos-areas-todo-*.xlsx` |
 
@@ -56,7 +56,7 @@ Todas responden `401` sin login y `403` sin perfil operador.
 * Alta de personas: el modal de detalle del recurso trae botón **+ Agregar** que abre un **submodal** con `UserSearch` (+ checks Envía/Recibe en correos) y Otorgar; queda abierto para cargar varias seguidas.
 * Ficha persona: `/buscar` muestra bloque **Accesos** si sos operador; `/accesos → Personas` permite buscar GLPI, ver ficha con checkboxes editables inline y quitar (icono cesto).
 * Detalle correo: tabla `Persona | ✉️ | 👁️ | 🗑️` → iconos monocromos SVG (checks editables). Detalle carpeta: tabla `Persona | 🗑️` (sin columna Acceso: si está en la lista, tiene acceso).
-* **Exportar Excel ↓** (XLSX real con `xlsx`, header bold + freeze + autofilter): botones contextuales por fila de área (área completa, 2 hojas), por fila/detalle de correo (ese correo) y por fila/detalle de carpeta (esa carpeta). También en los modales de detalle de `/buscar`. Nombre `accesos-{scope}-{slug}-{YYYYMMDD-HHmm}.xlsx`; saneo anti-fórmulas (`=,+,-,@` iniciales).
+* **Exportar Excel ↓** (XLSX real con `xlsx`, header bold + freeze + autofilter): botones contextuales por fila de área (área completa, 2 hojas), por fila/detalle de correo (ese correo) y por fila/detalle de carpeta (esa carpeta). También en los modales de detalle de `/buscar`. Columnas de persona separadas `Apellido|Nombre` (desde GLPI). Nombre `accesos-{scope}-{slug}-{YYYYMMDD-HHmm}.xlsx`; saneo anti-fórmulas (`=,+,-,@` iniciales).
 * **Descargar todo**: en tabs Correos y Carpetas, a la izquierda de `+ Nuevo correo` / `+ Nueva carpeta`, botón secundario `Descargar todo` (icono ↓) que exporta todo el inventario (`?scope=mails` / `?scope=shares`, 1 hoja, ordenado por área+nombre). En tab Áreas, mismo botón a la izquierda de `+ Nueva área` que exporta todo (`?scope=areas`, 2 hojas Correos+Carpetas). Respeta `401/403` de operador igual que el resto.
 
 ## Respaldo

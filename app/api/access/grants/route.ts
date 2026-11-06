@@ -12,14 +12,14 @@ function deny(req: NextRequest) {
   return null;
 }
 
-async function glpiDisplay(userId: number): Promise<string | null> {
+async function glpiPerson(userId: number): Promise<{ display: string | null; firstname: string | null; realname: string | null }> {
   try {
     const u: any = await glpiFetch(`/User/${userId}`);
     const fn = clean(u?.firstname);
     const rn = clean(u?.realname);
-    return [fn, rn].filter(Boolean).join(" ") || clean(u?.name);
+    return { display: [fn, rn].filter(Boolean).join(" ") || clean(u?.name), firstname: fn, realname: rn };
   } catch {
-    return null;
+    return { display: null, firstname: null, realname: null };
   }
 }
 
@@ -87,7 +87,8 @@ export async function POST(req: NextRequest) {
     const scope = String(b?.scope || "");
     const userId = Number(b?.userId);
     if (!Number.isFinite(userId) || userId <= 0) return NextResponse.json({ error: "userId inválido" }, { status: 400 });
-    const display = (await glpiDisplay(userId)) || String(b?.userDisplay || "").trim() || null;
+    const person = await glpiPerson(userId);
+    const display = person.display || String(b?.userDisplay || "").trim() || null;
     if (!display) return NextResponse.json({ error: "La persona no existe en GLPI" }, { status: 400 });
 
     const db = await loadAccess();
@@ -104,10 +105,12 @@ export async function POST(req: NextRequest) {
         ex.canSend = canSend;
         ex.canRead = canRead;
         ex.userDisplay = display;
+        ex.userFirstname = person.firstname;
+        ex.userRealname = person.realname;
         ex.by = actor;
         ex.at = Date.now();
       } else {
-        db.mailGrants.push({ accountId, userId, userDisplay: display, canSend, canRead, by: actor, at: Date.now() });
+        db.mailGrants.push({ accountId, userId, userDisplay: display, userFirstname: person.firstname, userRealname: person.realname, canSend, canRead, by: actor, at: Date.now() });
       }
       await saveAccess(db);
       return NextResponse.json({ ok: true });
@@ -118,9 +121,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Carpeta no existe" }, { status: 404 });
       }
       const ex = db.shareGrants.find((g) => g.shareId === shareId && g.userId === userId);
-      if (!ex) db.shareGrants.push({ shareId, userId, userDisplay: display, by: actor, at: Date.now() });
+      if (!ex) db.shareGrants.push({ shareId, userId, userDisplay: display, userFirstname: person.firstname, userRealname: person.realname, by: actor, at: Date.now() });
       else {
         ex.userDisplay = display;
+        ex.userFirstname = person.firstname;
+        ex.userRealname = person.realname;
         ex.by = actor;
         ex.at = Date.now();
       }
