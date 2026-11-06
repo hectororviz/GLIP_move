@@ -131,7 +131,7 @@ export default function Accesos() {
   const [grantAdd, setGrantAdd] = useState<null | "mail" | "share">(null);
   const [exporting, setExporting] = useState<string | null>(null);
 
-  async function downloadExport(scope: "area" | "mail" | "share" | "mails" | "shares", id: string) {
+  async function downloadExport(scope: "area" | "mail" | "share" | "mails" | "shares" | "areas", id: string) {
     const key = `${scope}:${id}`;
     setExporting(key);
     try {
@@ -445,7 +445,7 @@ export default function Accesos() {
 
       {tab === "areas" && !loading && (
         <div className="card overflow-x-auto p-0">
-          <div className="p-3 flex justify-end"><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setAreaModal({ nombre: "", resp: null }); }}>+ Nueva área</button></div>
+          <div className="p-3 flex justify-between items-center gap-2 flex-wrap"><button className="btn btn-secondary text-xs" disabled={exporting === "areas:all"} onClick={() => downloadExport("areas", "all")} title="Descargar todas las áreas en Excel"><span className="inline-flex items-center gap-1"><IconDownload size={13} />{exporting === "areas:all" ? "Descargando…" : "Descargar todo"}</span></button><button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setAreaModal({ nombre: "", resp: null }); }}>+ Nueva área</button></div>
           <table className="table-dense">
             <thead><tr><th>Área</th><th className="hidden md:table-cell">Responsable (GLPI)</th><th title="Correos"><span className="inline-flex" aria-hidden="true"><IconMail size={13} /></span><span className="sr-only">Correos</span></th><th title="Carpetas"><span className="inline-flex" aria-hidden="true"><IconFolder size={13} /></span><span className="sr-only">Carpetas</span></th><th>Acciones</th></tr></thead>
             <tbody>

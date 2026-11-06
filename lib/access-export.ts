@@ -149,6 +149,41 @@ export async function buildAllSharesWorkbook() {
   return { wb, filename: `accesos-carpetas-todo-${stamp()}.xlsx` };
 }
 
+export async function buildAllAreasWorkbook() {
+  const db = await loadAccess();
+  const sortedAreas = [...db.areas].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const mailRows: (string | number)[][] = [];
+  for (const area of sortedAreas) {
+    const mails = db.mails.filter((m) => m.areaId === area.id).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    for (const m of mails) {
+      const grants = db.mailGrants
+        .filter((g) => g.accountId === m.id)
+        .sort((a, b) => (a.userDisplay || "").localeCompare(b.userDisplay || ""));
+      if (!grants.length) mailRows.push([area.nombre, m.nombre, m.direccion, "", "", "", ""].map(safe));
+      for (const g of grants) {
+        mailRows.push([area.nombre, m.nombre, m.direccion, g.userDisplay || "", g.userId, SI_NO(g.canSend), SI_NO(g.canRead)].map(safe));
+      }
+    }
+  }
+  const shareRows: (string | number)[][] = [];
+  for (const area of sortedAreas) {
+    const shares = db.shares.filter((s) => s.areaId === area.id).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    for (const s of shares) {
+      const grants = db.shareGrants
+        .filter((g) => g.shareId === s.id)
+        .sort((a, b) => (a.userDisplay || "").localeCompare(b.userDisplay || ""));
+      if (!grants.length) shareRows.push([area.nombre, s.nombre, s.ruta, "", "", ""].map(safe));
+      for (const g of grants) {
+        shareRows.push([area.nombre, s.nombre, s.ruta, g.userDisplay || "", g.userId, "Sí"].map(safe));
+      }
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheetFrom(MAIL_HEADER, mailRows, [22, 22, 30, 28, 10, 10, 10]), "Correos");
+  XLSX.utils.book_append_sheet(wb, sheetFrom(SHARE_HEADER, shareRows, [22, 22, 34, 28, 10, 10]), "Carpetas");
+  return { wb, filename: `accesos-areas-todo-${stamp()}.xlsx` };
+}
+
 export function workbookToBuffer(wb: XLSX.WorkBook): Buffer {
   return XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer;
 }

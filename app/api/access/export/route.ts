@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isOperator, getAuth } from "@/lib/auth";
-import { buildAllMailsWorkbook, buildAllSharesWorkbook, buildAreaWorkbook, buildMailWorkbook, buildShareWorkbook, workbookToBuffer } from "@/lib/access-export";
+import { buildAllAreasWorkbook, buildAllMailsWorkbook, buildAllSharesWorkbook, buildAreaWorkbook, buildMailWorkbook, buildShareWorkbook, workbookToBuffer } from "@/lib/access-export";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/access/export?scope=area|mail|share&id= | scope=mails|shares -> XLSX real (solo operador)
+// GET /api/access/export?scope=area|mail|share&id= | scope=mails|shares|areas -> XLSX real (solo operador)
 export async function GET(req: NextRequest) {
   const a = getAuth(req as any);
   if (a.kind === "none") return NextResponse.json({ error: "Inicia sesión para ver accesos." }, { status: 401 });
@@ -12,9 +12,9 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const scope = sp.get("scope") || "";
   const id = sp.get("id") || "";
-  if ((scope === "mails" || scope === "shares") && !id) {
+  if ((scope === "mails" || scope === "shares" || scope === "areas") && !id) {
     try {
-      const built = scope === "mails" ? await buildAllMailsWorkbook() : await buildAllSharesWorkbook();
+      const built = scope === "mails" ? await buildAllMailsWorkbook() : scope === "shares" ? await buildAllSharesWorkbook() : await buildAllAreasWorkbook();
       const buf = workbookToBuffer(built.wb);
       return new NextResponse(new Uint8Array(buf), {
         headers: {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: String(e.message || e).slice(0, 200) }, { status });
     }
   }
-  if (!id) return NextResponse.json({ error: "Parámetros: ?scope=area|mail|share&id= o ?scope=mails|shares" }, { status: 400 });
+  if (!id) return NextResponse.json({ error: "Parámetros: ?scope=area|mail|share&id= o ?scope=mails|shares|areas" }, { status: 400 });
   try {
     const built =
       scope === "area" ? await buildAreaWorkbook(id)
@@ -36,8 +36,9 @@ export async function GET(req: NextRequest) {
       : scope === "share" ? await buildShareWorkbook(id)
       : scope === "mails" ? await buildAllMailsWorkbook()
       : scope === "shares" ? await buildAllSharesWorkbook()
+      : scope === "areas" ? await buildAllAreasWorkbook()
       : null;
-    if (!built) return NextResponse.json({ error: "scope debe ser 'area' | 'mail' | 'share' | 'mails' | 'shares'" }, { status: 400 });
+    if (!built) return NextResponse.json({ error: "scope debe ser 'area' | 'mail' | 'share' | 'mails' | 'shares' | 'areas'" }, { status: 400 });
     const buf = workbookToBuffer(built.wb);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
