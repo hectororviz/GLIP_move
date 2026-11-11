@@ -21,8 +21,10 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
    Ficha compacta: `Tipo: Nombre / Mod.: … / Inv.: …`. (La asignación a
    persona se hace desde Búsqueda: ficha del bien o ficha de la persona.)
 5. **Ocupante**: asignar/cambiar con buscador de usuarios GLPI (confirma
-   cantidad de equipos afectados) o quitar (solo limpia sus equipos). La
-   ocupación se deriva de `users_id` en GLPI: sin directorio local duplicado.
+   cantidad de equipos afectados) o quitar (solo limpia `users_id`, conserva
+   el puesto). La ocupación se deriva de `users_id` en GLPI: sin directorio
+   local duplicado. Regla general: asignar/quitar usuario nunca mueve ni saca
+   del puesto; mover/sacar del puesto nunca toca el usuario.
    Debajo de cada ocupante aparecen sus **bienes personales** (asignados a
    ella, sin puesto) con icono lápiz que abre su edición en GLPI.
 6. **Agregar por inventario**: tipear `0000012865`, `12865`, `A 0001-0537` o

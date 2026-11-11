@@ -51,7 +51,7 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 | `GET/POST/DELETE /api/access/grants` | Otorgar/quitar: `?user_id=` (ficha) \| `?accountId=` \| `?shareId=`; mail upsert con `canSend/canRead` (≥1 true) |
 | `GET /api/access/overview?area=` | Correos+carpetas de cada área (o de una) |
 | `GET /api/access/export?scope=area\|mail\|share&id=` | XLSX real (`lib/access-export.ts` + dep `xlsx`, JS puro): área = 2 hojas, correo/carpeta = 1 hoja; `401/403` sin operador |
-| `PATCH /api/glpi` (protegido) | `PUT /{Type}/{id} {"input":{"locations_id":X\|0[, "users_id":Y]}}` (+`session_write=true`); `users_id` no se toca salvo pedido explícito |
+| `PATCH /api/glpi` (protegido) | `PUT /{Type}/{id} {"input":{...}}` parcial (+`session_write=true` + `GET` verificación): solo el campo definido (`locations_id` si `location_id!==undefined`, `users_id` si `user_id!==undefined`; `null`→`0`). Asignar/quitar usuario conserva puesto; mover/sacar conserva usuario |
 | `GET /api/glpi/locations[?parent=]` | `GET /Location/?range=…` paginado, cache 5 min; `locations_id` numérico = padre |
 | `GET /api/config/test` (admin) | `initSession` + `getMyProfiles` |
 | `GET/POST /api/backup` (admin) | ZIP `floors.json` + `access.json` + `maps/` (sin secretos); import valida y reemplaza (ignora backups viejos sin `access.json`) |

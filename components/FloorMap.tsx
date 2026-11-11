@@ -472,13 +472,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   async function assignOccupant(u: { id: number; display: string }) {
     if (!sel || !items.length) return;
-    if (!confirm(`Asignar a ${u.display} como ocupante de ${nameOf(sel.glpi_id)}? Se actualizará el usuario en ${items.length} equipo(s).`)) return;
+    if (!confirm(`Asignar a ${u.display} como ocupante de ${nameOf(sel.glpi_id)}? Se actualizará el usuario en ${items.length} equipo(s) (conservan el puesto).`)) return;
     setMsg("Asignando ocupante...");
     for (const a of items) {
       const r = await fetch("/api/glpi", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: a._type, id: a.id, location_id: sel.glpi_id, user_id: u.id }),
+        body: JSON.stringify({ type: a._type, id: a.id, user_id: u.id }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
@@ -491,13 +491,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (!sel) return;
     const mine = items.filter((a) => a._userId === id);
     if (!mine.length) return;
-    if (!confirm(`Quitar a ${name} del puesto? Se quitará como usuario de ${mine.length} equipo(s).`)) return;
+    if (!confirm(`Quitar a ${name} del puesto? Se quitará como usuario de ${mine.length} equipo(s) (conservan el puesto).`)) return;
     setMsg("Quitando ocupante...");
     for (const a of mine) {
       const r = await fetch("/api/glpi", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: a._type, id: a.id, location_id: sel.glpi_id, user_id: null }),
+        body: JSON.stringify({ type: a._type, id: a.id, user_id: null }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }

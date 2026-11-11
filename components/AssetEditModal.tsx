@@ -196,15 +196,15 @@ export default function AssetEditModal({
 
   async function doAssignUser(u: Person) {
     const curLoc = locName;
-    if (!confirm(`Reasignar ${asset._type} ${asset.otherserial || asset.name} a ${u.display}? ${curLoc ? `Saldrá del puesto ${curLoc}.` : "Quedará sin puesto."}`)) return;
-    const ok = await apiPatch({ location_id: null, user_id: u.id });
+    if (!confirm(`Asignar ${asset._type} ${asset.otherserial || asset.name} a ${u.display}? ${curLoc ? `Conservará el puesto ${curLoc}.` : "Quedará sin puesto (conserva ubicación actual)."}`)) return;
+    const ok = await apiPatch({ user_id: u.id });
     if (ok) { setPq(""); setPresults([]); setPmsg(""); onSaved(); }
   }
 
   async function doUnlinkUser() {
     if (!hasUser) return;
     if (!confirm(`Quitar a ${userDisplay || `usuario #${asset._userId}`} como usuario de ${asset._type} ${asset.otherserial || asset.name}? El equipo conservará su puesto.`)) return;
-    const ok = await apiPatch({ location_id: asset._locationId, user_id: null });
+    const ok = await apiPatch({ user_id: null });
     if (ok) onSaved();
   }
 

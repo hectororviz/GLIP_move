@@ -102,9 +102,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/glpi  { type, id, location_id|null, user_id? } -> traslado
-// GLPI legacy: PUT /{Type}/{id} {"input": {"locations_id": X}}
-// Sin ubicación => locations_id: 0. users_id no se toca salvo user_id explícito.
+// PATCH /api/glpi  { type, id, location_id?, user_id? } -> update parcial.
+// Regla: solo se envía a GLPI el campo que viene definido.
+//   location_id === undefined => no toca ubicación. null => locations_id: 0 (sin puesto).
+//   user_id === undefined => no toca usuario. null => users_id: 0 (sin asignar).
+// Asignar/quitar usuario conserva el puesto (no manda locations_id).
+// Mover/sacar del puesto conserva el usuario (no manda users_id).
 export async function PATCH(req: NextRequest) {
   const auth = getAuth(req);
   if (auth.kind === "none") return NextResponse.json({ error: "Inicia sesión para editar." }, { status: 401 });
@@ -114,23 +117,56 @@ export async function PATCH(req: NextRequest) {
     const b = await req.json();
     const { type, id, location_id, user_id } = b;
     if (!type || !id) return NextResponse.json({ error: "type + id requeridos" }, { status: 400 });
-    const input: Record<string, any> = {
-      locations_id: location_id == null ? 0 : Number(location_id),
-    };
-    if (user_id !== undefined) input.users_id = user_id == null ? 0 : Number(user_id);
+    if (location_id === undefined && user_id === undefined)
+      return NextResponse.json({ error: "nada para actualizar (location_id/user_id ausentes)" }, { status: 400 });
+    const input: Record<string, any> = {};
+    if (location_id !== undefined) {
+      const n = location_id == null ? 0 : Number(location_id);
+      if (location_id != null && !Number.isFinite(n)) return NextResponse.json({ error: "location_id inválido" }, { status: 400 });
+      input.locations_id = n;
+    }
+    if (user_id !== undefined) {
+      const n = user_id == null ? 0 : Number(user_id);
+      if (user_id != null && !Number.isFinite(n)) return NextResponse.json({ error: "user_id inválido" }, { status: 400 });
+      input.users_id = n;
+    }
     const r = await glpiFetch(`/${type}/${id}?session_write=true`, {
       method: "PUT",
       body: JSON.stringify({ input }),
     }, true, sessionToken);
+    // Verificación: releer en GLPI para no devolver ok ciego (caso A-001-0031:
+    // el PUT combinado locations+users retornaba true sin aplicar users_id).
+    const fresh = await glpiFetch(`/${type}/${id}?expand_dropdowns=true`, {}, true, sessionToken);
+    const item = enrich(fresh, String(type));
+    if (location_id !== undefined) {
+      const expected = location_id == null ? null : Number(location_id);
+      if (item._locationId !== expected) {
+        return NextResponse.json({
+          error: `GLPI no aplicó la ubicación (pedido ${expected ?? "sin puesto"}, quedó ${item._locationId ?? "sin puesto"})`,
+          item,
+          result: r,
+        }, { status: 502 });
+      }
+    }
+    if (user_id !== undefined) {
+      const expected = user_id == null ? null : Number(user_id);
+      if (item._userId !== expected) {
+        return NextResponse.json({
+          error: `GLPI no aplicó el usuario (pedido ${expected == null ? "sin asignar" : `#${expected}`}, quedó ${item._userName || (item._userId == null ? "sin asignar" : `#${item._userId}`)})`,
+          item,
+          result: r,
+        }, { status: 502 });
+      }
+    }
     const actor = auth.kind === "admin" ? "admin" : auth.session?.login || "?";
     const action =
       user_id !== undefined && location_id !== undefined
-        ? (user_id == null ? "reasignó usuario (sale del puesto)" : "asignó usuario (sale del puesto)")
+        ? (user_id == null ? "quitó usuario + movió de puesto" : "asignó usuario + movió de puesto")
         : user_id !== undefined
-          ? (user_id == null ? "quitó usuario" : "asignó usuario")
+          ? (user_id == null ? "quitó usuario (conserva puesto)" : "asignó usuario (conserva puesto)")
           : location_id == null
-            ? "sacó del puesto"
-            : "movió de puesto";
+            ? "sacó del puesto (conserva usuario)"
+            : "movió de puesto (conserva usuario)";
     await appendActivity({
       ts: Date.now(),
       actor,
@@ -140,7 +176,7 @@ export async function PATCH(req: NextRequest) {
       location_id: location_id === undefined ? undefined : (location_id == null ? null : Number(location_id)),
       user_id: user_id === undefined ? undefined : (user_id == null ? null : Number(user_id)),
     });
-    return NextResponse.json({ ok: true, result: r });
+    return NextResponse.json({ ok: true, result: r, item });
   } catch (e: any) {
     const msg = String(e.message || "");
     const status = /no right|RIGHT/i.test(msg) ? 403 : 502;

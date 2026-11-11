@@ -59,7 +59,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
       const curUser = found._userName && found._userName !== "—" ? found._userName : null;
       const curLoc = found._locationName && found._locationName !== "—" ? found._locationName : null;
       const extra = [
-        curLoc ? `saldrá del puesto ${curLoc}` : "quedará sin puesto",
+        curLoc ? `conservará el puesto ${curLoc}` : "quedará sin puesto",
         curUser ? `usuario actual: ${curUser}` : null,
       ].filter(Boolean).join(" · ");
       if (!confirm(`Asignar ${found._type} ${found.otherserial || found.name} a ${p.display}? ${extra}.`)) return;
@@ -67,7 +67,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
       const r = await fetch("/api/glpi", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: found._type, id: found.id, location_id: null, user_id: p.id }),
+        body: JSON.stringify({ type: found._type, id: found.id, user_id: p.id }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setAssignMsg("Error: " + (j.error || r.status)); return; }
@@ -394,12 +394,12 @@ export default function Buscar() {
   async function quitarDelPuesto(g: PersonGroup) {
     const p = detailPerson?.p;
     if (!p) return;
-    if (!confirm(`Quitar a ${p.display} de este puesto? Se quitará como usuario de ${g.items.length} equipo(s).`)) return;
+    if (!confirm(`Quitar a ${p.display} de este puesto? Se quitará como usuario de ${g.items.length} equipo(s) (conservan el puesto).`)) return;
     for (const a of g.items) {
       await fetch("/api/glpi", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: a._type, id: a.id, location_id: a._locationId, user_id: null }),
+        body: JSON.stringify({ type: a._type, id: a.id, user_id: null }),
       });
     }
     openPersonDetail(p);

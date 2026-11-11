@@ -18,6 +18,8 @@
 | Acordeones de Áreas/Correos/Carpetas con 🔒 | Sin sesión operadora | Entrar con usuario GLPI operador (`GLPI_OPERATOR_PROFILES`) o clave local vía el modal; equipos/personas siguen visibles sin login |
 | Excel exporta 401/403 | Sin sesión operadora | Mismo gate que accesos: iniciar sesión con perfil operador y reintentar |
 | Ubicación muestra solo el piso | Bien directamente en el piso (sin puesto) | Es esperado: sale badge `Sin puesto`. Si debería tener puesto, moverlo desde Editar → Piso → Puesto |
+| `Quitar usuario` dice ok pero sigue asignado (ej. A-001-0031) | `PUT` combinado `locations_id+users_id` retornaba `true` sin aplicar `users_id` en GLPI | Corregido: `PATCH /api/glpi` es parcial (usuario solo toca `users_id`, ubicación solo `locations_id`) y re-lee el bien; si GLPI no aplica, devuelve `502` con el estado real en vez de `ok` ciego. Asignar/quitar usuario conserva el puesto |
+| `GLPI no aplicó el usuario/ubicación` (502) | GLPI rechazó o ignoró el cambio (derechos, bloqueo, dato) | Revisar el `item` devuelto + ficha en GLPI nativo; reintentar. Si persiste, anotar `type/id` y mensaje exacto |
 | Editar no lista un puesto | Se mira otro piso o filtro activo | Cambiar el desplegable Piso (solo pisos con mapa) y limpiar el filtro por nombre/interno/id; si falta PB, crearlo en /config → Pisos y planos |
 | `A 0001-XXXX` no encuentra | GLPI lo guarda como `A-001-XXXX` | La app ya mapea ambas formas; si falla, buscar `A-001-XXXX` directo para confirmar que existe |
 | Cámara no abre | Permisos / no-HTTPS | Solo `localhost` o HTTPS (ver `01-instalacion.md`); alternativa: lector BT/USB (modo teclado) |
