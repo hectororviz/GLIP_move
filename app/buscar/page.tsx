@@ -482,7 +482,7 @@ export default function Buscar() {
                                 <td><span className="inline-flex items-center gap-1.5 whitespace-nowrap"><TypeIcon type={a._type} /><b>{a._type}</b></span></td>
                                 <td className="max-w-[220px]"><span className="block truncate font-medium" title={disp(a.name)}>{disp(a.name)}</span><span className="text-xs text-muted tabular-nums">S. {disp(a.serial)}</span></td>
                                 <td className="tabular-nums font-semibold">{disp(a.otherserial)}</td>
-                                <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} /><span className="text-xs text-muted block truncate" title={disp(a._userName)}><span className="inline-flex items-center gap-1"><IconUser size={11} /> {disp(a._userName)}</span></span></td>
+                                <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} />{(a._userName && a._userName !== "—") || a._userId != null ? <span className="badge badge-success mt-1 w-fit max-w-full truncate" title={a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}><span className="inline-flex items-center gap-1 truncate"><IconUser size={11} /> {a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}</span></span> : <span className="badge mt-1 w-fit">Sin asignar</span>}</td>
                                 <td><button className="btn btn-secondary text-xs !min-h-[30px] !py-1" onClick={() => setDetailAsset(a)}>Ver detalle →</button></td>
                               </tr>
                             ))}
