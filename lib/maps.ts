@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { dataDir } from "./config";
+import { prisma, usePostgres, withWriteLock } from "./db";
 
 export type Puesto = {
   glpi_id: number;
@@ -43,37 +44,97 @@ function slug(s: string): string {
 
 type LegacyFloor = Floor & { rootLocationId?: number | null; puestos: any[] };
 
+function normalizeFloors(j: any): Floor[] {
+  if (!Array.isArray(j)) return [];
+  // Migra formato anterior (rootLocationId, puestos con nombre propio)
+  return (j as LegacyFloor[]).map((f) => ({
+    id: String(f.id),
+    name: String(f.name || f.id),
+    image: f.image || null,
+    glpiLocationId:
+      f.glpiLocationId ?? (f.rootLocationId == null ? null : Number(f.rootLocationId)),
+    puestos: Array.isArray(f.puestos)
+      ? f.puestos
+          .filter((x) => x && x.glpi_id != null)
+          .map((x) => ({
+            glpi_id: Number(x.glpi_id),
+            x: Number(x.x) || 0,
+            y: Number(x.y) || 0,
+            w: Number(x.w) || 5,
+            h: Number(x.h) || 5,
+          }))
+      : [],
+  }));
+}
+
 export async function loadFloors(): Promise<Floor[]> {
+  if (usePostgres()) {
+    try {
+      const rows = await prisma().floor.findMany({
+        orderBy: [{ sort: "asc" }, { id: "asc" }],
+        include: { puestos: true },
+      });
+      return rows.map((f) => ({
+        id: f.id,
+        name: f.name,
+        image: f.image,
+        glpiLocationId: f.glpiLocationId,
+        puestos: f.puestos
+          .slice()
+          .sort((a, b) => a.glpiId - b.glpiId)
+          .map((p) => ({ glpi_id: p.glpiId, x: p.x, y: p.y, w: p.w, h: p.h })),
+      }));
+    } catch {
+      return [];
+    }
+  }
   const p = await floorsPath();
   try {
     const j = JSON.parse(await fs.readFile(p, "utf8"));
-    if (!Array.isArray(j)) return [];
-    // Migra formato anterior (rootLocationId, puestos con nombre propio)
-    return (j as LegacyFloor[]).map((f) => ({
-      id: String(f.id),
-      name: String(f.name || f.id),
-      image: f.image || null,
-      glpiLocationId:
-        f.glpiLocationId ?? (f.rootLocationId == null ? null : Number(f.rootLocationId)),
-      puestos: Array.isArray(f.puestos)
-        ? f.puestos
-            .filter((x) => x && x.glpi_id != null)
-            .map((x) => ({
-              glpi_id: Number(x.glpi_id),
-              x: Number(x.x) || 0,
-              y: Number(x.y) || 0,
-              w: Number(x.w) || 5,
-              h: Number(x.h) || 5,
-            }))
-        : [],
-    }));
+    return normalizeFloors(j);
   } catch {
     return [];
   }
 }
 
 export async function saveFloors(f: Floor[]): Promise<void> {
-  await fs.writeFile(await floorsPath(), JSON.stringify(f, null, 2), "utf8");
+  if (usePostgres()) {
+    // Reemplazo atómico en transacción (antes: writeFile directo, truncable).
+    // Serializado en proceso con withWriteLock; constraints PG como 2da capa.
+    await withWriteLock(() =>
+      prisma().$transaction(async (tx) => {
+        await tx.puesto.deleteMany();
+        await tx.floor.deleteMany();
+        for (let i = 0; i < f.length; i++) {
+          const fl = f[i];
+          await tx.floor.create({
+            data: {
+              id: fl.id,
+              name: fl.name,
+              image: fl.image,
+              glpiLocationId: fl.glpiLocationId,
+              sort: i,
+              puestos: {
+                create: fl.puestos.map((p) => ({
+                  glpiId: p.glpi_id,
+                  x: p.x,
+                  y: p.y,
+                  w: p.w,
+                  h: p.h,
+                })),
+              },
+            },
+          });
+        }
+      }),
+    );
+    return;
+  }
+  // JSON: tmp+rename (antes writeFile directo) para evitar truncado.
+  const p = await floorsPath();
+  const tmp = `${p}.${process.pid}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(f, null, 2), "utf8");
+  await fs.rename(tmp, p);
 }
 
 export async function createFloor(name: string): Promise<Floor> {

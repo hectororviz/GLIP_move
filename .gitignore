@@ -7,6 +7,7 @@ data/activity.json
 data/access.json
 data/access.json.bak-*
 data/import-report-*.json
+data/import-pg-report-*.json
 .playwright-mcp/
 data/maps/
 .env

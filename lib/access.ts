@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { dataDir } from "./config";
+import { prisma, usePostgres, withWriteLock } from "./db";
 
 export type Area = {
   id: string;
@@ -116,6 +117,67 @@ function asDb(j: any): AccessDB {
 }
 
 export async function loadAccess(): Promise<AccessDB> {
+  if (usePostgres()) {
+    try {
+      const db = prisma();
+      const [areas, mails, shares, mailGrants, shareGrants] = await Promise.all([
+        db.area.findMany({ orderBy: { id: "asc" } }),
+        db.mail.findMany({ orderBy: { id: "asc" } }),
+        db.share.findMany({ orderBy: { id: "asc" } }),
+        db.mailGrant.findMany({ orderBy: [{ accountId: "asc" }, { userId: "asc" }] }),
+        db.shareGrant.findMany({ orderBy: [{ shareId: "asc" }, { userId: "asc" }] }),
+      ]);
+      return {
+        version: 1,
+        areas: areas.map((a) => ({
+          id: a.id,
+          nombre: a.nombre,
+          responsableUserId: a.responsableUserId,
+          responsableNombre: a.responsableNombre,
+          createdAt: Number(a.createdAt),
+          updatedAt: Number(a.updatedAt),
+        })),
+        mails: mails.map((m) => ({
+          id: m.id,
+          nombre: m.nombre,
+          direccion: m.direccion,
+          areaId: m.areaId,
+          createdAt: Number(m.createdAt),
+          updatedAt: Number(m.updatedAt),
+        })),
+        shares: shares.map((s) => ({
+          id: s.id,
+          nombre: s.nombre,
+          ruta: s.ruta,
+          areaId: s.areaId,
+          createdAt: Number(s.createdAt),
+          updatedAt: Number(s.updatedAt),
+        })),
+        mailGrants: mailGrants.map((g) => ({
+          accountId: g.accountId,
+          userId: g.userId,
+          userDisplay: g.userDisplay,
+          userFirstname: g.userFirstname,
+          userRealname: g.userRealname,
+          canSend: g.canSend,
+          canRead: g.canRead,
+          by: g.by,
+          at: Number(g.at),
+        })),
+        shareGrants: shareGrants.map((g) => ({
+          shareId: g.shareId,
+          userId: g.userId,
+          userDisplay: g.userDisplay,
+          userFirstname: g.userFirstname,
+          userRealname: g.userRealname,
+          by: g.by,
+          at: Number(g.at),
+        })),
+      };
+    } catch {
+      return structuredClone(EMPTY);
+    }
+  }
   try {
     const raw = await fs.readFile(await accessPath(), "utf8");
     return asDb(JSON.parse(raw));
@@ -126,6 +188,85 @@ export async function loadAccess(): Promise<AccessDB> {
 
 // Escritura atómica tmp+rename para evitar JSON truncado (mismo espíritu que saveFloors).
 export async function saveAccess(db: AccessDB): Promise<void> {
+  if (usePostgres()) {
+    // Reemplazo atómico en transacción: todo o nada (antes: read-modify-write
+    // sin lock). Serializado en proceso; UNIQUE/FK protegen entre instancias.
+    await withWriteLock(() =>
+      prisma().$transaction(async (tx) => {
+        await tx.mailGrant.deleteMany();
+        await tx.shareGrant.deleteMany();
+        await tx.mail.deleteMany();
+        await tx.share.deleteMany();
+        await tx.area.deleteMany();
+        if (db.areas.length) {
+          await tx.area.createMany({
+            data: db.areas.map((a) => ({
+              id: a.id,
+              nombre: a.nombre,
+              responsableUserId: a.responsableUserId,
+              responsableNombre: a.responsableNombre,
+              createdAt: BigInt(a.createdAt),
+              updatedAt: BigInt(a.updatedAt),
+            })),
+          });
+        }
+        if (db.mails.length) {
+          await tx.mail.createMany({
+            data: db.mails.map((m) => ({
+              id: m.id,
+              nombre: m.nombre,
+              direccion: m.direccion,
+              areaId: m.areaId,
+              createdAt: BigInt(m.createdAt),
+              updatedAt: BigInt(m.updatedAt),
+            })),
+          });
+        }
+        if (db.shares.length) {
+          await tx.share.createMany({
+            data: db.shares.map((s) => ({
+              id: s.id,
+              nombre: s.nombre,
+              ruta: s.ruta,
+              rutaKey: rutaKey(s.ruta),
+              areaId: s.areaId,
+              createdAt: BigInt(s.createdAt),
+              updatedAt: BigInt(s.updatedAt),
+            })),
+          });
+        }
+        if (db.mailGrants.length) {
+          await tx.mailGrant.createMany({
+            data: db.mailGrants.map((g) => ({
+              accountId: g.accountId,
+              userId: g.userId,
+              userDisplay: g.userDisplay,
+              userFirstname: g.userFirstname,
+              userRealname: g.userRealname,
+              canSend: g.canSend,
+              canRead: g.canRead,
+              by: g.by,
+              at: BigInt(g.at),
+            })),
+          });
+        }
+        if (db.shareGrants.length) {
+          await tx.shareGrant.createMany({
+            data: db.shareGrants.map((g) => ({
+              shareId: g.shareId,
+              userId: g.userId,
+              userDisplay: g.userDisplay,
+              userFirstname: g.userFirstname,
+              userRealname: g.userRealname,
+              by: g.by,
+              at: BigInt(g.at),
+            })),
+          });
+        }
+      }),
+    );
+    return;
+  }
   const p = await accessPath();
   const tmp = `${p}.${process.pid}.tmp`;
   await fs.writeFile(tmp, JSON.stringify(db, null, 2), "utf8");

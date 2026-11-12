@@ -1,0 +1,137 @@
+// GLPI Move — DB propia (correos/carpetas, pisos, config, actividad).
+// GLPI 10 sigue siendo fuente de verdad para bienes/personas (vía API REST legacy).
+// Los JSON en ./data/ quedan como fallback cuando DATABASE_URL no está seteada
+// y como fuente para el import inicial (scripts/migrate-json-to-pg.mjs).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Una sola fila (id = 1). Secretos siguen cifrados AES-GCM con CONFIG_KEY.
+model AppConfig {
+  id               Int     @id @default(1)
+  glpiBaseUrl      String
+  appToken         String  @default("")
+  userTokenEnc     String  @default("")
+  keepUserOnMove   Boolean @default(true)
+  rootLocationId   Int?
+  appName          String  @default("GLPI Move")
+  accentColor      String  @default("#0b5ed7")
+  brandIcon        String?
+
+  @@map("app_config")
+}
+
+model Floor {
+  id             String   @id
+  name           String
+  image          String?
+  glpiLocationId Int?
+  sort           Int      @default(0)
+  puestos        Puesto[]
+
+  @@map("floors")
+}
+
+model Puesto {
+  floorId String
+  glpiId  Int
+  x       Float
+  y       Float
+  w       Float
+  h       Float
+  floor   Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@id([floorId, glpiId])
+  @@map("puestos")
+}
+
+model Area {
+  id                String   @id
+  nombre            String
+  responsableUserId Int
+  responsableNombre String?
+  createdAt         BigInt
+  updatedAt         BigInt
+  mails             Mail[]
+  shares            Share[]
+
+  @@map("areas")
+}
+
+model Mail {
+  id        String      @id
+  nombre    String
+  direccion String      @unique
+  areaId    String
+  area      Area        @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  createdAt BigInt
+  updatedAt BigInt
+  grants    MailGrant[]
+
+  @@map("mails")
+}
+
+model Share {
+  id        String       @id
+  nombre    String
+  ruta      String
+  rutaKey   String       @unique
+  areaId    String
+  area      Area         @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  createdAt BigInt
+  updatedAt BigInt
+  grants    ShareGrant[]
+
+  @@map("shares")
+}
+
+model MailGrant {
+  accountId     String
+  userId        Int
+  userDisplay   String?
+  userFirstname String?
+  userRealname  String?
+  canSend       Boolean @default(false)
+  canRead       Boolean @default(false)
+  by            String?
+  at            BigInt
+  account       Mail    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@id([accountId, userId])
+  @@map("mail_grants")
+}
+
+model ShareGrant {
+  shareId       String
+  userId        Int
+  userDisplay   String?
+  userFirstname String?
+  userRealname  String?
+  by            String?
+  at            BigInt
+  share         Share  @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@id([shareId, userId])
+  @@map("share_grants")
+}
+
+// Log de auditoría liviana. Se recorta a las últimas 100 (igual que activity.json).
+model Activity {
+  id         BigInt @id @default(autoincrement())
+  ts         BigInt
+  actor      String
+  action     String
+  type       String
+  glpiId     Int
+  locationId Int?
+  userId     Int?
+
+  @@map("activity_log")
+}

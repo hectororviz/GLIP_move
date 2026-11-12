@@ -20,6 +20,7 @@ Para usar la cámara en teléfonos, servir por HTTPS (ver
 - [`docs/05-arquitectura.md`](docs/05-arquitectura.md) — stack, auth por roles, proxy y mapeos API, modelo de datos, decisiones técnicas.
 - [`docs/06-troubleshooting.md`](docs/06-troubleshooting.md) — tabla de errores y soluciones.
 - [`docs/08-accesos.md`](docs/08-accesos.md) — Áreas, correos institucionales (Envía/Recibe) y carpetas compartidas (DB propia, solo operadores).
+- [`docs/09-postgres.md`](docs/09-postgres.md) — Postgres + Prisma (DB propia), migración desde JSON e imágenes vía GitHub Actions.
 
 ## Resumen funcional
 

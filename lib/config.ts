@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
+import { prisma, usePostgres, withWriteLock } from "./db";
 
 export type AppConfig = {
   glpiBaseUrl: string;
@@ -59,35 +60,64 @@ export function decryptSecret(payload: string): string {
   }
 }
 
+function defaults(): AppConfig {
+  return {
+    glpiBaseUrl: (process.env.GLPI_BASE_URL || "http://192.168.170.125").replace(/\/$/, ""),
+    appToken: "",
+    userTokenEnc: "",
+    keepUserOnMove: true,
+    rootLocationId: null,
+    appName: "GLPI Move",
+    accentColor: "#0b5ed7",
+    brandIcon: null,
+  };
+}
+
+function normalizeConfig(j: any): AppConfig {
+  const d = defaults();
+  if (!j || typeof j !== "object") return d;
+  return {
+    glpiBaseUrl: (j.glpiBaseUrl || d.glpiBaseUrl).replace(/\/$/, ""),
+    appToken: j.appToken || "",
+    userTokenEnc: j.userTokenEnc || "",
+    keepUserOnMove: j.keepUserOnMove ?? true,
+    rootLocationId: j.rootLocationId ?? null,
+    appName: (j.appName || "GLPI Move").toString().slice(0, 40),
+    accentColor: /^#[0-9a-fA-F]{6}$/.test(j.accentColor || "") ? j.accentColor : "#0b5ed7",
+    brandIcon: typeof j.brandIcon === "string" && j.brandIcon ? j.brandIcon : null,
+  };
+}
+
 export async function loadConfig(): Promise<AppConfig> {
+  if (usePostgres()) {
+    try {
+      const row = await prisma().appConfig.findUnique({ where: { id: 1 } });
+      if (!row) return defaults();
+      return normalizeConfig(row);
+    } catch {
+      return defaults();
+    }
+  }
   const p = await configPath();
   try {
     const j = JSON.parse(await fs.readFile(p, "utf8"));
-    return {
-      glpiBaseUrl: (j.glpiBaseUrl || process.env.GLPI_BASE_URL || "http://192.168.170.125").replace(/\/$/, ""),
-      appToken: j.appToken || "",
-      userTokenEnc: j.userTokenEnc || "",
-      keepUserOnMove: j.keepUserOnMove ?? true,
-      rootLocationId: j.rootLocationId ?? null,
-      appName: (j.appName || "GLPI Move").toString().slice(0, 40),
-      accentColor: /^#[0-9a-fA-F]{6}$/.test(j.accentColor || "") ? j.accentColor : "#0b5ed7",
-      brandIcon: typeof j.brandIcon === "string" && j.brandIcon ? j.brandIcon : null,
-    };
+    return normalizeConfig(j);
   } catch {
-    return {
-      glpiBaseUrl: (process.env.GLPI_BASE_URL || "http://192.168.170.125").replace(/\/$/, ""),
-      appToken: "",
-      userTokenEnc: "",
-      keepUserOnMove: true,
-      rootLocationId: null,
-      appName: "GLPI Move",
-      accentColor: "#0b5ed7",
-      brandIcon: null,
-    };
+    return defaults();
   }
 }
 
 export async function saveConfig(c: AppConfig): Promise<void> {
+  if (usePostgres()) {
+    await withWriteLock(() =>
+      prisma().appConfig.upsert({
+        where: { id: 1 },
+        create: { id: 1, ...c },
+        update: { ...c },
+      }),
+    );
+    return;
+  }
   const p = await configPath();
   await fs.writeFile(p, JSON.stringify(c, null, 2), "utf8");
 }

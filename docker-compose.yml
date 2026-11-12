@@ -1,14 +1,43 @@
 services:
   app:
+    # En CI se publica a GHCR; localmente `docker compose build` la construye.
+    image: ghcr.io/hectororviz/glip_move:latest
     build: .
     # host: el bridge de Docker de este entorno no llega a la LAN de GLPI;
     # con host el contenedor usa la red del equipo (igual que tu navegador).
     network_mode: host
     env_file:
       - .env
+    environment:
+      # Con network_mode: host, Postgres se alcanza por localhost del host.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://glpimove:${POSTGRES_PASSWORD:-glpimove}@127.0.0.1:5432/glpimove}
     volumes:
       - ./data:/app/data
     # Corre como tu UID para poder escribir en ./data (config, planos).
     # En prod con volumen Docker nominal puedes quitar esta línea (usa USER app).
+    # En Rocky Linux con SELinux, si hay EACCES agregar `:Z` al volumen.
     user: "${UID:-1000}:${GID:-1000}"
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: glpimove
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-glpimove}
+      POSTGRES_DB: glpimove
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glpimove"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
