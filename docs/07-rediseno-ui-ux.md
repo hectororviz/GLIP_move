@@ -418,6 +418,18 @@ Sin rediseños ni cambios funcionales. Solo táctil y legibilidad.
 - **Accesos móvil**: ya cumplía (badges no superpuestos, PermBadges
   diferenciados, listas compactas); solo se sumó clamp-2/expandibles.
 
+### Despliegue iteración 13
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; CSS con `clamp-3`/`combo-list`/sistema previo;
+  bundle con `ExpandableMeta` ("tocar para ver completo"), `touchAction`,
+  placeholder corto + ayuda; `/`, `/buscar`, `/mapa`, `/accesos`, `/masivo`,
+  `/config` → 200 por HTTP y HTTPS.
+- Pendiente (sin simuladores de gestos ni cámara real en el entorno):
+  pinch/pan y tap en el plano, hoja del combobox con teclado virtual, escaneo
+  de cámara, anchos/orientación físicos. Sin operaciones destructivas en
+  pruebas.
+
 ### Despliegue iteración 12
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
