@@ -238,10 +238,21 @@ export default function AssetEditModal({
       <section aria-label="Ubicación actual del equipo" className="grid gap-1.5">
         <h3 className="section-h">Ubicación actual</h3>
         <div className="info-card info-card-highlight grid gap-1 py-2.5">
-          <span className="min-w-0" title={compact.full}>
-            <span className="font-semibold text-ink block truncate">{compact.primary}</span>
-            {compact.secondary && <span className="text-muted text-xs block truncate">{compact.secondary}</span>}
-          </span>
+          <div className="flex items-start gap-2">
+            <span className="min-w-0 flex-1" title={compact.full}>
+              <span className="font-semibold text-ink block truncate">{compact.primary}</span>
+              {compact.secondary && <span className="text-muted text-xs block truncate">{compact.secondary}</span>}
+            </span>
+            {hasLoc && !compact.isFloorOnly && (
+              <a
+                className="btn btn-secondary text-xs shrink-0"
+                href={`/mapa?focus=${asset._locationId}`}
+                aria-label={`Ver ${compact.primary} en el mapa`}
+              >
+                Ver en mapa →
+              </a>
+            )}
+          </div>
           {!hasLoc && <span className="badge badge-warning w-fit">Sin ubicación — sin puesto asignado</span>}
           {hasLoc && compact.isFloorOnly && <span className="badge badge-warning w-fit">Sin puesto (solo piso)</span>}
         </div>
