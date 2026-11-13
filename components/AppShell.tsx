@@ -79,10 +79,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setOpen(false);
   }, [pathname]);
 
-  // Cerrar drawer con Escape + foco inicial + bloqueo scroll
+  // Cerrar drawer con Escape + foco al contenedor + bloqueo scroll
+  // (foco al ✕ solo con teclado: evita el anillo azul tras abrir con mouse)
   useEffect(() => {
     if (!open) return;
-    closeRef.current?.focus();
+    menuRef.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -197,7 +198,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {open && (
         <>
           <div className="navdrawer-backdrop md:hidden" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div ref={menuRef} id="nav-movil" className="navdrawer md:hidden" role="dialog" aria-modal="true" aria-label="Menú de navegación">
+          <div ref={menuRef} tabIndex={-1} id="nav-movil" className="navdrawer md:hidden" role="dialog" aria-modal="true" aria-label="Menú de navegación">
             <div className="flex items-center justify-between px-4 h-14 border-b border-line shrink-0">
               <span className="font-bold text-ink truncate">{shortName}</span>
               <button ref={closeRef} className="btn btn-secondary btn-icon tap-target" onClick={() => setOpen(false)} aria-label="Cerrar menú">

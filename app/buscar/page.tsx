@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
-import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection } from "@/components/ui";
+import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection, decodeEntities } from "@/components/ui";
 import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
@@ -39,7 +39,7 @@ function AssetRow({ a, onOpen }: { a: Asset; onOpen: () => void }) {
         <TypeIcon type={a._type} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-ink text-[0.85rem]" title={disp(a.name)}>{disp(a.name)}</span>
+        <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${disp(a.name)} — abrir ficha`} onClick={onOpen}>{disp(a.name)}</button>
         <span className="block text-xs text-muted truncate">{a._type} · Inv <span className="tabular-nums">{disp(a.otherserial)}</span></span>
       </span>
       <button className="btn btn-secondary text-xs shrink-0 !min-h-[44px]" onClick={onOpen}>Ver equipo</button>
@@ -123,9 +123,13 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
           const locName = d.isFloorOnly ? `${d.primary} (sin puesto)` : d.primary;
           return (
             <div key={g.location_id} className="card p-3 grid gap-1">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <b className="text-ink text-sm min-w-0 truncate" title={d.full}>{locName}</b>
-                <a className="btn btn-secondary text-xs" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="inline-flex text-muted shrink-0" aria-hidden="true"><IconBuilding size={14} /></span>
+                  <b className="text-ink text-sm truncate" title={d.full}>{locName}</b>
+                  <span className="text-xs text-muted tabular-nums shrink-0">· {g.items.length} eq.</span>
+                </span>
+                <a className="btn btn-secondary text-xs shrink-0" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
               </div>
               <ul aria-label={`Equipos en ${locName}`}>
                 {g.items.map((a) => (
@@ -152,7 +156,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
         )}
       </section>
 
-      {canEdit ? (
+      {canEdit && (
         <AdminSection title="Administrar asignaciones" hint="Asignar y desvincular equipos">
           <div className="grid gap-1.5">
             <label className="text-xs font-semibold text-ink" htmlFor="person-assign">Asignar equipo a esta persona</label>
@@ -189,8 +193,6 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
             );
           })}
         </AdminSection>
-      ) : (
-        <p className="text-xs text-muted">La edición requiere perfil operador.</p>
       )}
 
       {canSeeAccess && (
@@ -787,7 +789,8 @@ export default function Buscar() {
 
       {detailAsset && (
         <SidePanel
-          title={`${detailAsset._type} · ${disp(detailAsset.name)}`}
+          title={decodeEntities(disp(detailAsset.name))}
+          subtitle={<span className="badge">{detailAsset._type}</span>}
           onClose={closeAsset}
           footer={
             <div className="flex gap-2 justify-end">

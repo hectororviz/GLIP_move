@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { comparePisos, formatLocationDisplay } from "@/lib/location-display";
-import { AdminSection, ConfirmDialog, SearchCombobox, BusyButton } from "./ui";
+import { AdminSection, ConfirmDialog, SearchCombobox, BusyButton, CopyButton, decodeEntities } from "./ui";
 import { IconBuilding, IconUser } from "./icons";
 
 type Asset = any;
@@ -225,12 +225,12 @@ export default function AssetEditModal({
         <h3 className="section-h">Información general</h3>
         <dl className="info-card">
           <div className="info-row"><dt>Tipo</dt><dd>{disp(asset._type)}</dd></div>
-          <div className="info-row"><dt>Nombre</dt><dd className="font-semibold">{disp(asset.name)}</dd></div>
-          <div className="info-row"><dt>Inventario</dt><dd className="tabular-nums font-semibold">{disp(asset.otherserial)}</dd></div>
-          <div className="info-row"><dt>Serie</dt><dd className="tabular-nums">{disp(asset.serial)}</dd></div>
-          {asset._model && <div className="info-row"><dt>Modelo</dt><dd>{disp(asset._model)}</dd></div>}
-          {asset._manufacturer && <div className="info-row"><dt>Fabricante</dt><dd>{disp(asset._manufacturer)}</dd></div>}
-          {estado && <div className="info-row"><dt>Estado</dt><dd>{estado}</dd></div>}
+          <div className="info-row"><dt>Nombre</dt><dd className="font-semibold"><span className="copy-wrap"><span>{decodeEntities(disp(asset.name))}</span><CopyButton value={String(asset.name ?? "")} label="nombre del equipo" /></span></dd></div>
+          <div className="info-row"><dt>Inventario</dt><dd className="tabular-nums font-semibold"><span className="copy-wrap"><span>{disp(asset.otherserial)}</span><CopyButton value={String(asset.otherserial ?? "")} label="número de inventario" /></span></dd></div>
+          <div className="info-row"><dt>Serie</dt><dd className="tabular-nums"><span className="copy-wrap"><span>{disp(asset.serial)}</span><CopyButton value={String(asset.serial ?? "")} label="número de serie" /></span></dd></div>
+          {asset._model && <div className="info-row"><dt>Modelo</dt><dd>{decodeEntities(disp(asset._model))}</dd></div>}
+          {asset._manufacturer && <div className="info-row"><dt>Fabricante</dt><dd>{decodeEntities(disp(asset._manufacturer))}</dd></div>}
+          {estado && <div className="info-row"><dt>Estado</dt><dd>{decodeEntities(estado)}</dd></div>}
         </dl>
       </section>
 
@@ -254,7 +254,7 @@ export default function AssetEditModal({
           {userDisplay ? (
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="min-w-0">
-                <b className="block text-ink truncate" title={userDisplay}>{userDisplay}</b>
+                <b className="block text-ink truncate" title={decodeEntities(userDisplay)}>{decodeEntities(userDisplay)}</b>
                 {hasUser && <span className="block text-xs text-muted tabular-nums">GLPI user_id {asset._userId}</span>}
               </span>
               {hasUser && onOpenUser && (
@@ -270,8 +270,9 @@ export default function AssetEditModal({
         </div>
       </section>
 
-      {/* 4. Administración (secundaria, cerrada, solo operadores) */}
-      {canEdit ? (
+      {/* 4. Administración (secundaria, cerrada, solo operadores).
+          Sin permiso la sección se oculta por completo, sin avisos. */}
+      {canEdit && (
         <AdminSection title="Administrar equipo" hint="Cambiar ubicación o usuario">
           {adminView === "menu" && (
             <div className="grid gap-1.5" role="list">
@@ -380,8 +381,6 @@ export default function AssetEditModal({
             </div>
           )}
         </AdminSection>
-      ) : (
-        <p className="text-xs text-muted">La edición requiere perfil operador.</p>
       )}
 
       {/* Confirmaciones explícitas: sin cambios hasta confirmar */}

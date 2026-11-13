@@ -429,8 +429,30 @@ img, table { max-width: 100%; }
 .admin-action .admin-ic { display: inline-flex; align-items: center; justify-content: center; height: 2rem; width: 2rem; flex-shrink: 0; border-radius: 0.6rem; background: #eef2f8; color: #4b5b76; }
 .admin-action-danger .admin-ic { background: #fef2f2; color: #b91c1c; }
 
-/* Cierre del panel: foco claramente visible, sin borde permanente */
-.sidepanel-header .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+/* Foco programático en contenedores de diálogo: sin anillo (lo anuncian igual).
+   Los botones conservan el outline global de :focus-visible solo con teclado. */
+.sidepanel:focus, .navdrawer:focus { outline: none; }
+:focus:not(:focus-visible) { outline: none; }
+
+/* Copiar al portapapeles: icono discreto junto al valor */
+.copy-wrap { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; max-width: 100%; }
+.copy-wrap > span:first-child { overflow-wrap: anywhere; min-width: 0; }
+.copy-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; min-width: 32px; flex-shrink: 0;
+  border-radius: 0.5rem; color: #4b5b76;
+}
+.copy-btn:hover { background: #eef2f8; color: #0f1f38; }
+.copy-btn[data-ok="true"] { color: #15803d; }
+@media (max-width: 767px) { .copy-btn { width: 36px; height: 36px; min-width: 36px; } }
+
+/* Enlace de fila: abre el detalle desde el nombre, sin controles anidados */
+button.rowlink {
+  display: block; width: 100%; background: none; border: 0; padding: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  border-radius: 0.3rem;
+}
+button.rowlink:hover { color: var(--accent-700, #0a3fa8); text-decoration: underline; }
 
 /* Utilidades */
 .sticky-actions { position: sticky; bottom: 0; }

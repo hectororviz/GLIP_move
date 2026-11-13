@@ -49,6 +49,67 @@ export function TypeIcon({ type }: { type: string }) {
   );
 }
 
+/* Decodifica entidades HTML (ej. "Funcional &#62; Usado" → "Funcional > Usado")
+   sin innerHTML: solo parsea y lee texto. SSR-safe. */
+export function decodeEntities(s: string): string {
+  if (!s || !s.includes("&")) return s;
+  try {
+    if (typeof DOMParser === "undefined") return s;
+    const doc = new DOMParser().parseFromString(s, "text/html");
+    return doc.documentElement.textContent || s;
+  } catch {
+    return s;
+  }
+}
+
+/* ---------- Botón discreto de copiar al portapapeles ---------- */
+export function CopyButton({ value, label }: { value: string; label: string }) {
+  const [state, setState] = useState<"idle" | "ok" | "err">("idle");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  async function copy() {
+    const text = String(value ?? "");
+    if (!text) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback para contextos sin Clipboard API (navegadores viejos)
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        if (!ok) throw new Error("copy failed");
+      }
+      setState("ok");
+    } catch {
+      setState("err");
+    }
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setState("idle"), 1600);
+  }
+
+  const tip = state === "ok" ? "¡Copiado!" : state === "err" ? "No se pudo copiar" : `Copiar ${label}`;
+  return (
+    <button type="button" onClick={copy} className="copy-btn" data-ok={state === "ok"} title={tip} aria-label={tip}>
+      {state === "ok" ? (
+        <span aria-hidden="true" className="text-sm font-bold leading-none">✓</span>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+      <span className="sr-only" role="status">{state === "ok" ? "Copiado al portapapeles" : state === "err" ? "No se pudo copiar" : ""}</span>
+    </button>
+  );
+}
+
 /* ---------- SidePanel: drawer derecho en desktop, fullscreen en móvil ---------- */
 export function SidePanel({
   title,
@@ -66,12 +127,14 @@ export function SidePanel({
   labelledBy?: string;
 }) {
   const titleId = useId();
-  const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const prevFocus = useRef<Element | null>(null);
 
   useEffect(() => {
     prevFocus.current = document.activeElement;
-    closeRef.current?.focus();
+    // Foco al contenedor (sin anillo visible): el lector anuncia el diálogo;
+    // el ✕ solo muestra foco con navegación real de teclado.
+    panelRef.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.stopPropagation(); onClose(); }
     };
@@ -89,6 +152,8 @@ export function SidePanel({
     <>
       <div className="sidepanel-backdrop" onClick={onClose} aria-hidden="true" />
       <section
+        ref={panelRef}
+        tabIndex={-1}
         className="sidepanel"
         role="dialog"
         aria-modal="true"
@@ -103,7 +168,6 @@ export function SidePanel({
               {subtitle && <div className="text-xs text-muted mt-0.5 truncate">{subtitle}</div>}
             </div>
             <button
-              ref={closeRef}
               onClick={onClose}
               aria-label="Cerrar panel (Escape)"
               className="btn btn-secondary icon-btn shrink-0 tap-target"
@@ -112,8 +176,8 @@ export function SidePanel({
             </button>
           </div>
         </header>
-        <div className="sidepanel-body px-4 py-4">{children}</div>
-        {footer && <footer className="sidepanel-footer px-4 pt-3">{footer}</footer>}
+        <div className="sidepanel-body px-4 py-3">{children}</div>
+        {footer && <footer className="sidepanel-footer px-4 pt-2">{footer}</footer>}
       </section>
     </>
   );

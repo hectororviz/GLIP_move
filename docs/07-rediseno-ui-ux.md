@@ -179,6 +179,33 @@ endpoints, contratos, auth, roles ni lógica GLPI; sin dependencias nuevas.
   secundarios en admin (menos protagonismo).
 - Botones táctiles 44 px en filas de equipo y escáner del admin.
 
+## Iteración 5 — Pulido final de Búsqueda (sin rediseño)
+
+Ajustes sobre lo aprobado. Sin cambios de endpoints, backend, auth, roles,
+lógica de búsqueda, escaneo, movimientos ni navegación principal.
+
+- **Encabezado del equipo**: título = nombre destacado; tipo como `badge`
+  discreto en el subtítulo del panel (antes `Tipo · Nombre`).
+- **Entidades HTML**: nuevo `decodeEntities()` en `ui.tsx` (DOMParser solo
+  lectura, sin `innerHTML`, con guarda SSR) aplicado a nombre, modelo,
+  fabricante, estado y usuario en la ficha (`Funcional &#62; Usado` →
+  `Funcional > Usado`) y a las ubicaciones compactas (tablas y tarjetas).
+- **Copiar al portapapeles**: `CopyButton` (nombre, inventario, serie) con
+  icono discreto de 32/36 px, `title` + `aria-label`, confirmación visual ✓
+  1,6 s con `role=status`, fallback `textarea+execCommand` sin Clipboard API
+  y manejo de errores. Sin alterar valores.
+- **Persona**: grupos con icono de puesto + conteo (`· N eq.`); nombre del
+  equipo también abre la ficha (`button.rowlink`, hermano del botón Ver
+  equipo — sin anidado, con teclado); listas compactas sin tablas.
+- **Permisos**: eliminados los avisos permanentes; sin controles de edición
+  no hay nada que explicar. Backend y gates (`canOperate`) intactos.
+- **Foco**: el anillo azul permanente venía del foco programático al ✕ al
+  abrir diálogos. Ahora el foco inicial va al contenedor (`tabIndex=-1`, sin
+  anillo) en `SidePanel` y drawer; `ConfirmDialog` conserva foco en la acción
+  primaria. Se eliminó el glow extra y se agregó `:focus:not(:focus-visible)
+  { outline: none }`. Anillo visible de 2 px solo con teclado.
+- **Pie del panel**: body `py-3`, footer `pt-2`; botón Volver consistente.
+
 ### Despliegue iteración 4
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
