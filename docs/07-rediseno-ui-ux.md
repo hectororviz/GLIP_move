@@ -305,6 +305,16 @@ ni lógica de movimientos/asignaciones.
   de los paneles para quedar por encima (mismo z-index, orden de DOM).
   Calibración 100 % intacta (se excluye `calibrar` del drawer).
 
+### Despliegue iteración 9
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; chunk de mapa servido con "Volver al plano", sin
+  fila de ubicación GLPI y sin tag `<aside>`; `/`, `/buscar`, `/mapa`,
+  `/accesos`, `/masivo`, `/config` → 200 por HTTP y HTTPS.
+- Pendiente en dispositivo con GLPI en línea: abrir/cerrar ficha del puesto,
+  conservación de zoom/posición/selección, cambio entre puestos, admin del
+  puesto y ficha de equipo anidada en escritorio y móvil.
+
 ### Despliegue iteración 8
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
