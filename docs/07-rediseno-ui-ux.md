@@ -179,6 +179,14 @@ endpoints, contratos, auth, roles ni lógica GLPI; sin dependencias nuevas.
   secundarios en admin (menos protagonismo).
 - Botones táctiles 44 px en filas de equipo y escáner del admin.
 
+### Despliegue iteración 4
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; el CSS servido contiene `info-card`,
+  `admin-action` y `section-h`; `/`, `/buscar`, `/mapa` → 200 por HTTP y HTTPS.
+- Flujos contra GLPI real (mover/asignar/desvincular, Ver ficha, escáner)
+  pendientes de prueba en línea.
+
 ## Verificación
 - `npm run build` OK (15 rutas), `docker compose build && up -d` OK,
   `/mapa`, `/buscar`, `/` → 200; `/api/dashboard.estados` con 230 puestos
