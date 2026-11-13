@@ -254,6 +254,18 @@ operaciones GLPI ni semántica de los checks de Administrar.
 - Iconos nuevos `IconCheck`/`IconX` en `components/icons.tsx` (mismo estilo
   stroke del sistema).
 
+### Despliegue iteración 7
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; CSS con `.perm-on`/`.perm-off`; chunk compartido
+  con las 4 ramas (perm-on/off ×2, "Envía"/"No envía" como escape `\xed`,
+  "Recibe"/"No recibe" literales); `/`, `/buscar`, `/mapa`, `/accesos`,
+  `/masivo` → 200 por HTTP y HTTPS.
+- Lógica de las 4 combinaciones verificada en artefactos (ambos activos,
+  ambos inactivos, solo envío, solo recepción). Sin navegador en el entorno,
+  la comprobación visual de píxeles queda pendiente en dispositivo real con
+  un caso como `salas-reuniones` (envío sí, recepción no).
+
 ### Despliegue iteración 6
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
