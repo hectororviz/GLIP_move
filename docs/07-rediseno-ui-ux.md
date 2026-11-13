@@ -145,9 +145,14 @@ reglas de negocio ni lógica GLPI. Sin dependencias nuevas.
   fullscreen, selección + halo, leyenda reactiva, buscador, filtros, edición/
   desvinculación, tabla + modal (guardar/cerrar/Escape/error sin cerrar),
   scan cámara, calibración sin pérdida de coordenadas, sin scroll-X.
-- Iteración 3: `npm run build` OK (17 rutas, `/buscar` 11.7 kB). Pendiente con
-  GLPI en línea: buscar inventario, expandir categoría, abrir equipo en panel,
-  mover/desvincular puesto, asignar/quitar usuario, drawer móvil y formularios
-  con teclado virtual (no simular éxitos: las pruebas de escritura van contra
-  GLPI real).
+- Iteración 3: `npm run build` OK (17 rutas, `/buscar` 11.7 kB). Despliegue
+  local OK con imagen reconstruida (`/`, `/buscar`, `/mapa`, `/api/config` →
+  200; contenedor `glpi-move-app-1` recreado). Nota: sin red a Debian en este
+  entorno, el `docker build` oficial falla en `apt-get`; se desplegó con un
+  Dockerfile temporal (`/tmp/Dockerfile.local`, fuera del repo) que reutiliza
+  la imagen anterior como base y solo reemplaza los artefactos del
+  `npm run build` del host. Pendiente con GLPI en línea: buscar inventario,
+  expandir categoría, abrir equipo en panel, mover/desvincular puesto,
+  asignar/quitar usuario, drawer móvil y formularios con teclado virtual (no
+  simular éxitos: las pruebas de escritura van contra GLPI real).
 - Sin escrituras a GLPI productivo en pruebas.
