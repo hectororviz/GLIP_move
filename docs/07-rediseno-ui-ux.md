@@ -74,6 +74,69 @@ producto existente, sin reescribirlo. Complementa `AUDITORIA_UI_UX.md`,
   `focus`. Se eliminaron las tarjetas locales de sesión de Control y Búsqueda
   (una sola fuente de verdad); `/config` ya exigía `adminAuthed`.
 
+## Iteración 3 — Rediseño responsive mobile-first (Búsqueda + panel de equipo)
+
+Objetivo: interfaz mobile-first sin cambiar contratos de API, endpoints, IDs,
+reglas de negocio ni lógica GLPI. Sin dependencias nuevas.
+
+### Sistema de componentes (`app/globals.css`, `components/ui.tsx`)
+- Tokens: `--tap: 44px`, `--safe-b/--safe-t` (safe-area), `--panel-w:
+  min(680px, 100vw)`; `overflow-x: clip` global (el scroll horizontal solo
+  dentro de `.table-scroll`); inputs a 16 px en móvil (sin zoom iOS en iPhone);
+  `prefers-reduced-motion` ya existente.
+- `ui.tsx` suma: **`SidePanel`** (drawer derecho 600–720 px en desktop con
+  animación de entrada + backdrop; pantalla completa en móvil con header
+  sticky, body con scroll propio y footer con safe-area; cierra con ✕,
+  backdrop o Escape y restaura el foco), **`Tabs`** (nombres siempre visibles,
+  `role=tablist`, flechas/Home/End), **`SearchCombobox`** (input con filtrado
+  inmediato local, lista con max-height + scroll interno, `role=listbox/
+  option`, `aria-activedescendant`, Enter/Escape/flechas, opción seleccionada
+  marcada + botón Limpiar, estados loading/error/vacío), **`ConfirmDialog`**
+  (foco inicial, Escape, variante danger) y **`BusyButton`** (spinner +
+  `aria-busy`).
+- Botones unificados: primario azul institucional, secundario neutro/outline,
+  `btn-danger-outline` para desvinculaciones, `btn-danger` para quitar usuario,
+  disabled + loading distinguibles; sin éxito optimista (se espera la
+  respuesta real del servidor).
+
+### Navegación (`components/AppShell.tsx`)
+- Header compacto con skip-link "Saltar al contenido"; logo + nombre corto.
+- Móvil: botón hamburguesa + **drawer derecho** (`role=dialog`) con todas las
+  secciones permitidas, info institucional, cierre por ✕/backdrop/Escape/
+  selección de sección; respeta los permisos actuales (candados intactos).
+- Desktop: misma navegación horizontal, con `aria-current` y hover/foco.
+
+### Búsqueda (`app/buscar/page.tsx`)
+- Header sin espacios desperdiciados; `<form role=search>` (Enter funciona);
+  grid apilado en móvil (campo full-width + fila Buscar/Escanear táctil),
+  horizontal compacto en desktop; resumen discreto + badge de total.
+- Acordeones con `aria-expanded/controls` + región, altura táctil 52–56 px,
+  badge de conteo; la primera categoría con resultados se auto-expande.
+- Equipos: **tabla densa en desktop, `AssetCard` en móvil** (icono + nombre +
+  inventario, ubicación, badge de usuario, serie, "Detalle ›"; toda la tarjeta
+  es un botón accesible, sin acciones anidadas). Personas/Áreas/Correos/
+  Carpetas con el mismo criterio (tabla desktop + tarjeta móvil); se eliminó
+  la fila-clicable con `›` críptico en favor de botones "Ver detalle".
+- **Todos los detalles pasan del modal centrado al `SidePanel`** (equipo,
+  persona, correo, carpeta, área). Al abrir se guarda `window.scrollY` y al
+  volver se restaura; búsqueda y categoría expandida se conservan (ya no se
+  colapsa todo en cada búsqueda).
+- Sin llamadas API adicionales; debounce solo agregado en el buscador de
+  usuarios del panel (450 ms).
+
+### Detalle del equipo (`components/AssetEditModal.tsx`)
+- Ya no renderiza su propio modal: es el contenido del `SidePanel` (misma
+  firma de props + `onDirtyChange`; el cierre con cambios sin aplicar pide
+  confirmación tanto en el contenido como en el panel).
+- Bloque de resumen: Ubicación actual (edificio/piso/puesto, "Sin ubicación"
+  o "Sin puesto" explícitos) + Usuario asignado ("Sin asignar" ≠ error).
+- Pestañas **Ubicación** (piso select + `SearchCombobox` de puestos que
+  reemplaza al `<select size=8>` extenso; preserva `location_id`; "Mover aquí"
+  deshabilitado sin selección válida; "Desvincular del puesto" diferenciado)
+  y **Usuario** (buscador GLPI, Asignar, "Quitar usuario (conserva puesto)").
+  Operaciones Mover/Desvincular/Asignar/Quitar no se mezclan ni tocan campos
+  ajenos; validaciones originales intactas.
+
 ## Verificación
 - `npm run build` OK (15 rutas), `docker compose build && up -d` OK,
   `/mapa`, `/buscar`, `/` → 200; `/api/dashboard.estados` con 230 puestos
@@ -82,4 +145,9 @@ producto existente, sin reescribirlo. Complementa `AUDITORIA_UI_UX.md`,
   fullscreen, selección + halo, leyenda reactiva, buscador, filtros, edición/
   desvinculación, tabla + modal (guardar/cerrar/Escape/error sin cerrar),
   scan cámara, calibración sin pérdida de coordenadas, sin scroll-X.
+- Iteración 3: `npm run build` OK (17 rutas, `/buscar` 11.7 kB). Pendiente con
+  GLPI en línea: buscar inventario, expandir categoría, abrir equipo en panel,
+  mover/desvincular puesto, asignar/quitar usuario, drawer móvil y formularios
+  con teclado virtual (no simular éxitos: las pruebas de escritura van contra
+  GLPI real).
 - Sin escrituras a GLPI productivo en pruebas.

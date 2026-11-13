@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { comparePisos, formatLocationDisplay } from "@/lib/location-display";
+import { ConfirmDialog, SearchCombobox, Tabs, BusyButton } from "./ui";
+import { IconBuilding, IconUser } from "./icons";
 
 type Asset = any;
 type Person = { id: number; display: string };
@@ -9,12 +11,10 @@ type FloorRef = { id: string; name: string; glpiLocationId: number | null };
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
 /**
- * Modal de edición reutilizable: ubicación + usuario, misma lógica y
- * permisos que la ficha, sin cambiar de vista. No muta hasta confirmar.
- * Pisos = los cargados con mapa en /api/maps (floors.json); puestos = todos
- * los hijos GLPI del piso elegido.
+ * Detalle + edición de equipo para SidePanel.
+ * Pestañas: Ubicación | Usuario. No muta hasta confirmar.
+ * Pisos = floors.json vía /api/maps; puestos = hijos GLPI del piso.
  */
-
 export default function AssetEditModal({
   asset,
   byId,
@@ -22,6 +22,7 @@ export default function AssetEditModal({
   canEdit,
   onClose,
   onSaved,
+  onDirtyChange,
 }: {
   asset: Asset;
   byId: Map<number, any>;
@@ -29,18 +30,20 @@ export default function AssetEditModal({
   canEdit: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const [tab, setTab] = useState<"ubic" | "user">("ubic");
   const [locPick, setLocPick] = useState("");
   const [pisoPick, setPisoPick] = useState("");
-  const [puestoQuery, setPuestoQuery] = useState("");
   const [locMsg, setLocMsg] = useState("");
   const [pq, setPq] = useState("");
   const [presults, setPresults] = useState<Person[]>([]);
   const [pmsg, setPmsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [opBusy, setOpBusy] = useState<string | null>(null);
   const [err, setErr] = useState("");
-  const opener = useRef<Element | null>(null);
-  const firstField = useRef<HTMLSelectElement>(null);
+  const [confirm, setConfirm] = useState<null | { kind: "move" | "unlinkLoc" | "assignUser" | "unlinkUser" | "close"; payload?: any }>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const locName = asset._locationName && asset._locationName !== "—" ? String(asset._locationName) : null;
   const hasLoc = asset._locationId != null && locName;
@@ -51,8 +54,8 @@ export default function AssetEditModal({
   const compact = formatLocationDisplay(asset._locationId, byId as any, locName);
   const dirty = locPick !== "" || pq !== "";
 
-  // Pisos = los cargados con mapa (floors.json vía /api/maps).
-  // Puestos = todos los hijos GLPI del piso elegido.
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
   const kidsOf: Map<number | null, any[]> = useMemo(() => {
     if (childrenOf) return childrenOf as Map<number | null, any[]>;
     const m = new Map<number | null, any[]>();
@@ -66,8 +69,10 @@ export default function AssetEditModal({
 
   const [floors, setFloors] = useState<FloorRef[]>([]);
   const [floorsMsg, setFloorsMsg] = useState("");
+  const [floorsLoading, setFloorsLoading] = useState(false);
   useEffect(() => {
     if (!canEdit) return;
+    setFloorsLoading(true);
     fetch("/api/maps").then((r) => r.json()).then((j) => {
       if (Array.isArray(j?.floors)) {
         setFloors(j.floors.filter((f: any) => f && f.glpiLocationId != null).map((f: any) => ({
@@ -77,7 +82,8 @@ export default function AssetEditModal({
         })));
         setFloorsMsg("");
       } else setFloorsMsg("No se pudo cargar la lista de pisos.");
-    }).catch(() => setFloorsMsg("No se pudo cargar la lista de pisos."));
+    }).catch(() => setFloorsMsg("No se pudo cargar la lista de pisos."))
+      .finally(() => setFloorsLoading(false));
   }, [canEdit]);
 
   const pisos = useMemo(() => {
@@ -86,30 +92,22 @@ export default function AssetEditModal({
     return only;
   }, [floors]);
 
-  const hasPB = useMemo(
-    () => pisos.some((f) => /(^|\s)pb(\s|$)/i.test(f.name) || /planta\s*baja/i.test(f.name)),
-    [pisos]
-  );
-
   const puestosDelPiso = useMemo(() => {
     if (!pisoPick) return [];
     const arr = kidsOf.get(Number(pisoPick)) || [];
     return [...arr].sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
   }, [kidsOf, pisoPick]);
 
-  const puestosFiltrados = useMemo(() => {
-    const q = puestoQuery.trim().toLowerCase();
-    if (!q) return puestosDelPiso;
-    return puestosDelPiso.filter((l: any) =>
-      String(l.name || "").toLowerCase().includes(q) ||
-      String(l.room || "").toLowerCase().includes(q) ||
-      String(l.id) === q.trim()
-    );
-  }, [puestosDelPiso, puestoQuery]);
+  const puestoOptions = useMemo(
+    () => puestosDelPiso.map((l: any) => ({
+      value: String(l.id),
+      label: String(l.name || `Puesto ${l.id}`),
+      hint: `${l.room ? `Int. ${l.room} · ` : ""}id ${l.id}`,
+    })),
+    [puestosDelPiso]
+  );
 
-  // Preselección del piso (no del puesto): el piso es el floor cuyo
-  // glpiLocationId coincide con la ubicación actual o con su padre.
-  // Se preselecciona solo el piso para que el usuario elija el puesto destino.
+  // Preselección del piso (no del puesto)
   useEffect(() => {
     if (asset._locationId == null || !floors.length) return;
     const ids = new Set(floors.map((f) => Number(f.glpiLocationId)));
@@ -119,25 +117,6 @@ export default function AssetEditModal({
     if (parentId != null && ids.has(parentId)) setPisoPick(String(parentId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset._locationId, floors]);
-
-  useEffect(() => {
-    opener.current = document.activeElement;
-    firstField.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (dirty && !confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")) return;
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-      (opener.current as HTMLElement | null)?.focus?.();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function apiPatch(body: object) {
     setBusy(true);
@@ -162,183 +141,283 @@ export default function AssetEditModal({
     }
   }
 
-  async function doMove() {
+  async function execMove() {
     const newId = Number(locPick);
     if (!Number.isFinite(newId) || newId <= 0) { setLocMsg("Elegí un puesto válido."); return; }
     if (newId === asset._locationId) { setLocMsg("Ya está en ese puesto."); return; }
-    const dest = byId.get(newId)?.name || `puesto ${newId}`;
-    const owner = userDisplay ? ` Conservará su usuario (${userDisplay}).` : "";
-    if (!confirm(`Mover ${asset._type} ${asset.otherserial || asset.name} al puesto ${dest}?${owner}`)) return;
+    setOpBusy("move");
     setLocMsg("Moviendo…");
     const ok = await apiPatch({ location_id: newId });
+    setOpBusy(null);
     setLocMsg(ok ? "" : locMsg);
     if (ok) { setLocPick(""); onSaved(); }
   }
 
-  async function doUnlinkLoc() {
+  async function execUnlinkLoc() {
     if (asset._locationId == null) return;
-    if (!confirm(`Sacar ${asset._type} ${asset.otherserial || asset.name} del puesto ${locName || asset._locationId}? Conservará su usuario.`)) return;
+    setOpBusy("unlinkLoc");
     setLocMsg("Quitando del puesto…");
     const ok = await apiPatch({ location_id: null });
+    setOpBusy(null);
     if (ok) { setLocPick(""); onSaved(); }
     else setLocMsg("");
   }
 
-  async function searchPerson() {
-    if (!pq.trim()) return;
+  async function searchPerson(q?: string) {
+    const term = (q ?? pq).trim();
+    if (!term) return;
     setPmsg("Buscando personas…");
-    const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(pq.trim())}`);
+    const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(term)}`);
     const j = await r.json();
     if (!r.ok) { setPmsg("Error: " + j.error); setPresults([]); return; }
     setPresults(j.users || []);
-    setPmsg(j.users?.length ? "" : "Sin personas.");
+    setPmsg(j.users?.length ? "" : "Sin personas para esa búsqueda.");
   }
 
-  async function doAssignUser(u: Person) {
-    const curLoc = locName;
-    if (!confirm(`Asignar ${asset._type} ${asset.otherserial || asset.name} a ${u.display}? ${curLoc ? `Conservará el puesto ${curLoc}.` : "Quedará sin puesto (conserva ubicación actual)."}`)) return;
+  // Debounce: búsqueda remota sin llamadas en cada tecla
+  useEffect(() => {
+    if (!canEdit) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const term = pq.trim();
+    if (term.length < 2) return;
+    debounceRef.current = setTimeout(() => { searchPerson(term); }, 450);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pq]);
+
+  async function execAssignUser(u: Person) {
+    setOpBusy(`assign:${u.id}`);
     const ok = await apiPatch({ user_id: u.id });
+    setOpBusy(null);
     if (ok) { setPq(""); setPresults([]); setPmsg(""); onSaved(); }
   }
 
-  async function doUnlinkUser() {
+  async function execUnlinkUser() {
     if (!hasUser) return;
-    if (!confirm(`Quitar a ${userDisplay || `usuario #${asset._userId}`} como usuario de ${asset._type} ${asset.otherserial || asset.name}? El equipo conservará su puesto.`)) return;
+    setOpBusy("unlinkUser");
     const ok = await apiPatch({ user_id: null });
+    setOpBusy(null);
     if (ok) onSaved();
   }
 
   function requestClose() {
-    if (dirty && !confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")) return;
+    if (dirty) { setConfirm({ kind: "close" }); return; }
     onClose();
   }
 
+  const destName = locPick ? (byId.get(Number(locPick))?.name || `puesto ${locPick}`) : "";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="asset-edit-title">
-      <div className="absolute inset-0 bg-ink/50" onClick={requestClose} aria-hidden="true" />
-      <div className="relative bg-white w-full sm:max-w-lg max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-lift overflow-hidden">
-        <div className="p-4 pb-3 border-b border-line grid gap-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h2 id="asset-edit-title" className="font-bold text-ink clamp-2" title={`${asset._type} ${disp(asset.name)}`}>
-                {asset._type} · {disp(asset.name)}
-              </h2>
-              <p className="text-xs text-muted tabular-nums">Inv. {disp(asset.otherserial)} · Serie {disp(asset.serial)}{asset._model ? ` · ${disp(asset._model)}` : ""}</p>
-            </div>
-            <button className="btn btn-secondary icon-btn-sm" onClick={requestClose} aria-label="Cerrar editor">✕</button>
+    <div className="grid gap-4">
+      {!canEdit && <p className="text-sm text-muted card p-3">Iniciá sesión con perfil operador para editar (solo lectura).</p>}
+      {err && <p className="text-sm text-danger card p-3 toast-err border" role="alert">{err}</p>}
+
+      {/* A. Encabezado compacto + resumen */}
+      <section aria-label="Resumen del estado actual" className="grid gap-2">
+        <div className="grid sm:grid-cols-2 gap-2">
+          <div className="rounded-xl border border-line bg-canvas/60 p-3 grid gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted inline-flex items-center gap-1">
+              <IconBuilding size={12} /> Ubicación actual
+            </span>
+            <span className="min-w-0" title={compact.full}>
+              <span className="font-semibold text-ink block truncate">{compact.primary}</span>
+              {compact.secondary && <span className="text-muted text-xs block truncate">{compact.secondary}</span>}
+            </span>
+            {!hasLoc
+              ? <span className="badge badge-warning w-fit">Sin ubicación — sin puesto asignado</span>
+              : compact.isFloorOnly && <span className="badge badge-warning w-fit">Sin puesto (solo piso)</span>}
+          </div>
+          <div className="rounded-xl border border-line bg-canvas/60 p-3 grid gap-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted inline-flex items-center gap-1">
+              <IconUser size={12} /> Usuario asignado
+            </span>
+            {userDisplay
+              ? <span className="badge badge-success w-fit max-w-full truncate" title={userDisplay}>{userDisplay}</span>
+              : <span className="badge w-fit">Sin asignar — equipo disponible</span>}
+            <span className="text-xs text-muted">{asset._userId != null ? `GLPI user_id ${asset._userId}` : "Sin user_id en GLPI"}</span>
           </div>
         </div>
+        <div className="text-xs text-muted tabular-nums">
+          Inv. <b className="text-ink">{disp(asset.otherserial)}</b> · Serie {disp(asset.serial)}{asset._model ? ` · ${disp(asset._model)}` : ""}
+        </div>
+      </section>
 
-        <div className="p-4 grid gap-4 overflow-y-auto">
-          {!canEdit && <p className="text-sm text-muted">Inicia sesión para editar (solo lectura).</p>}
-          {err && <p className="text-sm text-danger" role="alert">{err}</p>}
+      {/* C. Pestañas */}
+      <section aria-label="Operaciones del equipo" className="grid gap-0">
+        <Tabs
+          ariaLabel="Operaciones del equipo"
+          value={tab}
+          onChange={(id) => setTab(id as "ubic" | "user")}
+          tabs={[
+            { id: "ubic", label: "Ubicación", icon: <IconBuilding size={14} /> },
+            { id: "user", label: "Usuario", icon: <IconUser size={14} /> },
+          ]}
+        />
+        <div className="border border-t-0 border-line rounded-b-xl p-3 sm:p-4 grid gap-3 bg-white" role="tabpanel" aria-label={tab === "ubic" ? "Ubicación" : "Usuario"}>
+          {tab === "ubic" && (
+            <>
+              {canEdit ? (
+                <div className="grid gap-3">
+                  <div className="grid gap-1.5">
+                    <label className="text-xs font-semibold text-ink" htmlFor="asset-piso">Piso (con mapa)</label>
+                    <select
+                      id="asset-piso"
+                      className="input text-sm"
+                      value={pisoPick}
+                      disabled={busy || floorsLoading}
+                      onChange={(e) => { setPisoPick(e.target.value); setLocPick(""); }}
+                    >
+                      <option value="">{floorsLoading ? "Cargando pisos…" : "Elegir piso…"}</option>
+                      {pisos.map((f) => (
+                        <option key={f.id} value={String(f.glpiLocationId)}>{f.name} (id {f.glpiLocationId})</option>
+                      ))}
+                    </select>
+                    {floorsMsg && <p className="text-xs text-danger" role="alert">{floorsMsg}</p>}
+                  </div>
+                  <SearchCombobox
+                    id="asset-puesto"
+                    label="Puesto destino"
+                    placeholder={pisoPick ? "Escribí para filtrar puestos…" : "Primero elegí un piso…"}
+                    options={puestoOptions}
+                    value={locPick}
+                    onSelect={setLocPick}
+                    disabled={busy || !pisoPick}
+                    loading={false}
+                    error={undefined}
+                    emptyText={puestosDelPiso.length ? "Sin coincidencias para ese filtro." : "Este piso aún no tiene puestos cargados en GLPI."}
+                    filterHint={pisoPick ? `${puestosDelPiso.length} puesto(s) en este piso.` : undefined}
+                  />
+                  <div className="flex gap-2 flex-wrap">
+                    <BusyButton
+                      className="btn btn-primary text-sm flex-1 sm:flex-none sm:min-w-[160px]"
+                      busy={opBusy === "move"}
+                      disabled={busy || !locPick}
+                      onClick={() => setConfirm({ kind: "move" })}
+                    >
+                      Mover aquí
+                    </BusyButton>
+                    {asset._locationId != null && (
+                      <button className="btn btn-danger-outline text-sm" disabled={busy || !!opBusy} onClick={() => setConfirm({ kind: "unlinkLoc" })}>
+                        {opBusy === "unlinkLoc" ? "Quitando…" : "Desvincular del puesto"}
+                      </button>
+                    )}
+                  </div>
+                  {locMsg && <p className="text-xs text-muted" role="status">{locMsg}</p>}
+                </div>
+              ) : (
+                <p className="text-sm text-muted">Solo lectura. La ubicación se edita con perfil operador.</p>
+              )}
+            </>
+          )}
 
-          <section aria-label="Ubicación actual" className="grid gap-2">
-            <h3 className="text-sm font-bold text-ink">Ubicación</h3>
-            <div className="rounded-xl border border-line bg-canvas/60 p-3 grid gap-1 text-sm">
-              <div className="min-w-0" title={compact.full}>
-                <span className="font-semibold">{compact.primary}</span>
-                {compact.secondary && <span className="text-muted text-xs block truncate">{compact.secondary}</span>}
+          {tab === "user" && (
+            <>
+              <div className="text-sm flex items-center gap-2 flex-wrap">
+                <span className="text-muted">Actual:</span>
+                {userDisplay ? <b className="text-ink">{userDisplay}</b> : <span className="badge">Sin asignar</span>}
               </div>
-              {!hasLoc && <span className="badge badge-warning w-fit">Sin ubicación</span>}
-            </div>
-            {canEdit && (
-              <div className="grid gap-2">
-                <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-piso">Piso (con mapa)</label>
-                <select
-                  id="asset-edit-piso"
-                  ref={firstField}
-                  className="input text-sm"
-                  value={pisoPick}
-                  disabled={busy}
-                  onChange={(e) => { setPisoPick(e.target.value); setLocPick(""); setPuestoQuery(""); }}
-                >
-                  <option value="">Elegir piso…</option>
-                  {pisos.map((f) => (
-                    <option key={f.id} value={String(f.glpiLocationId)}>{f.name} (id {f.glpiLocationId})</option>
-                  ))}
-                </select>
-                {floorsMsg && <p className="text-xs text-danger" role="alert">{floorsMsg}</p>}
-                {!floorsMsg && !hasPB && pisos.length > 0 && (
-                  <p className="text-xs text-muted">PB aún no cargado — crealo en /config → Pisos y planos.</p>
-                )}
-                <label className="text-xs font-semibold text-ink" htmlFor="asset-edit-loc">Mover a puesto</label>
-                <input
-                  className="input text-sm"
-                  placeholder={pisoPick ? "Filtrar puestos por nombre, interno o id…" : "Primero elegí un piso…"}
-                  aria-label="Filtrar puestos del piso"
-                  value={puestoQuery}
-                  disabled={busy || !pisoPick}
-                  onChange={(e) => setPuestoQuery(e.target.value)}
-                />
-                <select
-                  id="asset-edit-loc"
-                  className="input text-sm"
-                  value={locPick}
-                  disabled={busy || !pisoPick}
-                  onChange={(e) => setLocPick(e.target.value)}
-                  size={Math.min(8, Math.max(3, puestosFiltrados.length))}
-                >
-                  <option value="">Elegir puesto…</option>
-                  {puestosFiltrados.map((l: any) => (
-                    <option key={l.id} value={l.id}>{l.name}{l.room ? ` · Int. ${l.room}` : ""} (id {l.id})</option>
-                  ))}
-                </select>
-                {pisoPick && !puestosFiltrados.length && (
-                  <p className="text-xs text-muted" role="status">
-                    {puestosDelPiso.length ? "Sin coincidencias para ese filtro." : "Este piso aún no tiene puestos cargados en GLPI."}
-                  </p>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  <button className="btn btn-primary text-xs" disabled={busy || !locPick} onClick={doMove}>
-                    {busy ? "Guardando…" : "Mover aquí"}
-                  </button>
-                  {asset._locationId != null && (
-                    <button className="btn btn-secondary text-xs" disabled={busy} onClick={doUnlinkLoc}>Desvincular del puesto</button>
+              {canEdit ? (
+                <div className="grid gap-2">
+                  <div className="grid gap-1.5">
+                    <label className="text-xs font-semibold text-ink" htmlFor="asset-user-q">Buscar usuario GLPI</label>
+                    <div className="flex gap-2">
+                      <input
+                        id="asset-user-q"
+                        aria-label="Buscar persona por nombre, apellido o usuario GLPI"
+                        className="input flex-1 text-sm"
+                        placeholder="Nombre, apellido o usuario…"
+                        value={pq}
+                        disabled={busy}
+                        onChange={(e) => setPq(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && searchPerson()}
+                      />
+                      <button className="btn btn-secondary text-sm shrink-0 tap-target" disabled={busy} onClick={() => searchPerson()}>
+                        Buscar
+                      </button>
+                    </div>
+                  </div>
+                  {pmsg && <p className="text-xs text-muted" role="status">{pmsg}</p>}
+                  <ul className="grid gap-1.5 max-h-[240px] overflow-y-auto pr-0.5" aria-label="Resultados de usuarios">
+                    {presults.map((u) => (
+                      <li key={u.id} className="flex items-center justify-between gap-2 text-sm border border-line rounded-xl px-3 py-2 min-h-[52px]">
+                        <span className="truncate min-w-0" title={`${u.display} #${u.id}`}>{u.display} <span className="text-xs text-muted">#{u.id}</span></span>
+                        <button className="btn btn-secondary text-xs shrink-0" disabled={busy || !!opBusy} onClick={() => setConfirm({ kind: "assignUser", payload: u })}>
+                          {opBusy === `assign:${u.id}` ? "Asignando…" : "Asignar"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {hasUser && (
+                    <button className="btn btn-danger-outline text-sm w-fit" disabled={busy || !!opBusy} onClick={() => setConfirm({ kind: "unlinkUser" })}>
+                      {opBusy === "unlinkUser" ? "Quitando…" : "Quitar usuario (conserva puesto)"}
+                    </button>
                   )}
                 </div>
-                {locMsg && <p className="text-xs text-muted" role="status">{locMsg}</p>}
-              </div>
-            )}
-          </section>
-
-          <section aria-label="Usuario asignado" className="grid gap-2 border-t pt-3">
-            <h3 className="text-sm font-bold text-ink">Usuario (asignación directa, opcional)</h3>
-            <div className="text-sm">
-              {userDisplay ? <span className="badge badge-success" title={userDisplay}>{userDisplay}</span> : <span className="badge">Sin asignar</span>}
-            </div>
-            {canEdit && (
-              <div className="grid gap-2">
-                <div className="flex gap-2">
-                  <input
-                    aria-label="Buscar persona"
-                    className="input flex-1 text-sm"
-                    placeholder="Nombre, apellido o usuario GLPI…"
-                    value={pq}
-                    disabled={busy}
-                    onChange={(e) => setPq(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && searchPerson()}
-                  />
-                  <button className="btn btn-secondary text-xs" disabled={busy} onClick={searchPerson}>Buscar</button>
-                </div>
-                {pmsg && <p className="text-xs text-muted" role="status">{pmsg}</p>}
-                {presults.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between gap-2 text-sm min-w-0">
-                    <span className="truncate" title={u.display}>{u.display} <span className="text-xs text-muted">#{u.id}</span></span>
-                    <button className="btn btn-secondary text-xs shrink-0" disabled={busy} onClick={() => doAssignUser(u)}>Asignar</button>
-                  </div>
-                ))}
-                {hasUser && (
-                  <button className="btn btn-secondary text-xs w-fit" disabled={busy} onClick={doUnlinkUser}>Quitar usuario (conserva puesto)</button>
-                )}
-              </div>
-            )}
-          </section>
+              ) : (
+                <p className="text-sm text-muted">Solo lectura. El usuario se edita con perfil operador.</p>
+              )}
+            </>
+          )}
         </div>
+      </section>
 
-        <div className="p-4 pt-3 border-t border-line flex gap-2 justify-end bg-white">
-          <button className="btn btn-secondary text-sm" onClick={requestClose}>Cerrar</button>
-        </div>
+      {/* Confirmaciones explícitas */}
+      {confirm?.kind === "move" && (
+        <ConfirmDialog
+          title="Confirmar movimiento"
+          body={<><span>Mover <b className="text-ink">{asset._type} {asset.otherserial || asset.name}</b> al puesto <b className="text-ink">{destName}</b>.</span>{userDisplay && <span>Conservará su usuario ({userDisplay}).</span>}</>}
+          confirmLabel="Mover equipo"
+          busy={opBusy === "move"}
+          onClose={() => setConfirm(null)}
+          onConfirm={() => { setConfirm(null); execMove(); }}
+        />
+      )}
+      {confirm?.kind === "unlinkLoc" && (
+        <ConfirmDialog
+          title="Desvincular del puesto"
+          body={<><span>Sacar <b className="text-ink">{asset._type} {asset.otherserial || asset.name}</b> del puesto <b className="text-ink">{locName || asset._locationId}</b>.</span><span>Conservará su usuario{userDisplay ? ` (${userDisplay})` : ""}.</span></>}
+          confirmLabel="Desvincular"
+          danger
+          busy={opBusy === "unlinkLoc"}
+          onClose={() => setConfirm(null)}
+          onConfirm={() => { setConfirm(null); execUnlinkLoc(); }}
+        />
+      )}
+      {confirm?.kind === "assignUser" && (
+        <ConfirmDialog
+          title="Asignar usuario"
+          body={<><span>Asignar <b className="text-ink">{asset._type} {asset.otherserial || asset.name}</b> a <b className="text-ink">{confirm.payload.display}</b>.</span>{locName ? <span>Conservará el puesto {locName}.</span> : <span>Quedará sin puesto (conserva ubicación actual).</span>}</>}
+          confirmLabel="Asignar"
+          busy={!!opBusy}
+          onClose={() => setConfirm(null)}
+          onConfirm={() => { const u = confirm.payload; setConfirm(null); execAssignUser(u); }}
+        />
+      )}
+      {confirm?.kind === "unlinkUser" && (
+        <ConfirmDialog
+          title="Quitar usuario"
+          body={<><span>Quitar a <b className="text-ink">{userDisplay}</b> como usuario de <b className="text-ink">{asset._type} {asset.otherserial || asset.name}</b>.</span><span>El equipo conservará su puesto.</span></>}
+          confirmLabel="Quitar usuario"
+          danger
+          busy={opBusy === "unlinkUser"}
+          onClose={() => setConfirm(null)}
+          onConfirm={() => { setConfirm(null); execUnlinkUser(); }}
+        />
+      )}
+      {confirm?.kind === "close" && (
+        <ConfirmDialog
+          title="Cerrar sin guardar"
+          body={<span>Hay una selección o búsqueda sin aplicar. Se perderá si cerrás ahora.</span>}
+          confirmLabel="Cerrar igual"
+          cancelLabel="Seguir editando"
+          onClose={() => setConfirm(null)}
+          onConfirm={() => { setConfirm(null); onClose(); }}
+        />
+      )}
+
+      {/* Cierre accesible dentro del contenido (además del header del panel) */}
+      <div className="flex justify-end">
+        <button className="btn btn-secondary text-sm" onClick={requestClose}>Cerrar detalle</button>
       </div>
     </div>
   );

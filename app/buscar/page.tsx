@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
-import { Spinner, EmptyState, TypeIcon } from "@/components/ui";
+import { Spinner, EmptyState, TypeIcon, SidePanel } from "@/components/ui";
 import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
@@ -82,30 +82,31 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
   return (
     <div className="grid gap-3 text-sm">
       <div className="flex items-start justify-between gap-2 flex-wrap">
-        <div>
-          <div className="font-bold text-ink text-base">{p.display}</div>
+        <div className="min-w-0">
+          <div className="font-bold text-ink text-base truncate">{p.display}</div>
           <div className="text-muted text-xs">Usuario GLPI #{p.id}{p.login ? ` · ${p.login}` : ""}</div>
           {(p.email || p.phone) && (
-            <div className="text-muted text-xs">{[p.email, p.phone].filter(Boolean).join(" · ")}</div>
+            <div className="text-muted text-xs break-all">{[p.email, p.phone].filter(Boolean).join(" · ")}</div>
           )}
         </div>
-        <span className="badge badge-brand">{groups.length} puesto(s)</span>
+        <span className="badge badge-brand shrink-0">{groups.length} puesto(s)</span>
       </div>
 
-      <div className="grid gap-2 border-t pt-2">
+      <div className="grid gap-2 border-t pt-3">
         <div className="text-sm font-semibold">Asignar equipo a esta persona</div>
         <div className="flex gap-2">
           <input
-            className="input flex-1 text-sm"
+            className="input flex-1 text-sm min-w-0"
             placeholder="Inventario, serie o URL GLPI…"
             value={assignInv}
             onChange={(e) => setAssignInv(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && assignInv && assignToPerson(assignInv)}
+            aria-label="Inventario a asignar"
           />
-          <button onClick={() => assignInv && assignToPerson(assignInv)} className="btn btn-primary text-xs" disabled={assignBusy}>OK</button>
-          <button onClick={() => setAssignScan(!assignScan)} className="btn btn-secondary text-xs" aria-label="Escanear"><IconCamera size={14} /></button>
+          <button onClick={() => assignInv && assignToPerson(assignInv)} className="btn btn-primary text-xs tap-target shrink-0" disabled={assignBusy}>OK</button>
+          <button onClick={() => setAssignScan(!assignScan)} className="btn btn-secondary tap-target shrink-0" aria-label="Escanear inventario"><IconCamera size={16} /></button>
         </div>
-        {assignMsg && <p className="text-xs text-muted">{assignMsg}</p>}
+        {assignMsg && <p className="text-xs text-muted" role="status">{assignMsg}</p>}
       </div>
       {assignScan && (
         <ScanModal
@@ -121,10 +122,10 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
         return (
           <div key={g.location_id} className="card p-3 grid gap-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <b className="text-ink" title={d.full}>{locName}</b>
-              <div className="flex gap-2">
-                <a className="btn btn-secondary text-xs" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
-                <button className="btn btn-danger text-xs" onClick={() => onQuitar(g)}>Quitar del puesto</button>
+              <b className="text-ink min-w-0 truncate" title={d.full}>{locName}</b>
+              <div className="flex gap-2 flex-wrap">
+                <a className="btn btn-secondary text-xs tap-target" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
+                <button className="btn btn-danger-outline text-xs tap-target" onClick={() => onQuitar(g)}>Quitar del puesto</button>
               </div>
             </div>
             <ul className="grid gap-1 text-muted">
@@ -154,14 +155,14 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
       )}
 
       {canSeeAccess && (
-        <div className="grid gap-2 border-t pt-2">
+        <div className="grid gap-2 border-t pt-3">
           <div className="text-sm font-semibold">Accesos (áreas / correos / carpetas) <a className="underline text-xs font-normal" href="/accesos">gestionar en Accesos →</a></div>
           <div className="grid sm:grid-cols-2 gap-2">
             <div className="card p-3 grid gap-1">
               <b className="text-sm inline-flex items-center gap-1"><IconMail size={13} /> Correos ({accessMails.length})</b>
               {accessMails.map((g) => (
                 <div key={g.accountId} className="text-sm text-muted">
-                  <b className="text-ink">{g.nombre || g.accountId}</b> <span className="text-xs tabular-nums">{g.direccion || ""}</span>
+                  <b className="text-ink">{g.nombre || g.accountId}</b> <span className="text-xs tabular-nums break-all">{g.direccion || ""}</span>
                   <span className="text-xs inline-flex items-center gap-1"> · {g.canSend ? <><IconMail size={11} /> Envía</> : ""}{g.canSend && g.canRead ? " + " : ""}{g.canRead ? <><IconEye size={11} /> Recibe</> : ""} · {g.area || ""}</span>
                 </div>
               ))}
@@ -171,7 +172,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
               <b className="text-sm inline-flex items-center gap-1"><IconFolder size={13} /> Carpetas ({accessShares.length})</b>
               {accessShares.map((g) => (
                 <div key={g.shareId} className="text-sm text-muted" title={g.ruta || ""}>
-                  <b className="text-ink">{g.nombre || g.shareId}</b> <span className="text-xs tabular-nums">{g.ruta || ""}</span>
+                  <b className="text-ink">{g.nombre || g.shareId}</b> <span className="text-xs tabular-nums break-all">{g.ruta || ""}</span>
                   <span className="text-xs"> · {g.area || ""}</span>
                 </div>
               ))}
@@ -201,24 +202,65 @@ const CATS: { id: Cat; icon: (p: { size?: number }) => React.ReactNode; label: s
   { id: "carpetas", icon: (p) => <IconFolder size={18} {...p} />, label: "Carpetas" },
 ];
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [onClose]);
+/* Tarjeta móvil de equipo: 1ª línea icono+nombre+inventario, 2ª ubicación/usuario, 3ª serie, acción */
+function AssetCard({ a, byId, onOpen }: { a: Asset; byId: Map<number, any>; onOpen: () => void }) {
+  const hasUser = (a._userName && a._userName !== "—") || a._userId != null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-ink/50" onClick={onClose} aria-hidden="true" />
-      <div className="relative bg-white w-full sm:max-w-2xl max-h-[92vh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-lift overflow-hidden">
-        <div className="p-4 pb-3 border-b border-line flex items-start justify-between gap-2">
-          <h2 className="font-bold text-ink">{title}</h2>
-          <button className="btn btn-secondary icon-btn-sm" onClick={onClose} aria-label="Cerrar detalle">✕</button>
-        </div>
-        <div className="p-4 overflow-y-auto">{children}</div>
-      </div>
-    </div>
+    <article className="card asset-card" aria-label={`${a._type} ${disp(a.name)}`}>
+      <button onClick={onOpen} className="grid gap-1.5 text-left min-w-0 rounded-lg focus-visible:outline-2" aria-label={`Ver detalle de ${a._type} ${disp(a.name)}, inventario ${disp(a.otherserial)}`}>
+        <span className="flex items-start gap-2 min-w-0">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas border border-line" aria-hidden="true">
+            <TypeIcon type={a._type} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline justify-between gap-2 min-w-0">
+              <b className="text-ink truncate text-[0.95rem]">{disp(a.name)}</b>
+              <span className="tabular-nums text-[0.8rem] font-bold text-ink shrink-0">#{disp(a.otherserial)}</span>
+            </span>
+            <span className="block text-xs text-muted truncate">{a._type}{a._model ? ` · ${disp(a._model)}` : ""}</span>
+          </span>
+        </span>
+        <span className="min-w-0 pl-11">
+          <CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} />
+        </span>
+        <span className="flex items-center gap-2 pl-11 min-w-0">
+          {hasUser
+            ? <span className="badge badge-success max-w-full truncate" title={String(a._userName && a._userName !== "—" ? a._userName : `Usuario #${a._userId}`)}>{String(a._userName && a._userName !== "—" ? a._userName : `Usuario #${a._userId}`)}</span>
+            : <span className="badge">Sin asignar</span>}
+          <span className="text-xs text-muted tabular-nums truncate">S. {disp(a.serial)}</span>
+          <span className="ml-auto text-sm font-semibold shrink-0" style={{ color: "var(--accent)" }} aria-hidden="true">Detalle ›</span>
+        </span>
+      </button>
+    </article>
+  );
+}
+
+function PersonCard({ p, onOpen }: { p: Person; onOpen: () => void }) {
+  return (
+    <article className="card asset-card">
+      <button onClick={onOpen} className="flex items-center gap-3 text-left min-w-0" aria-label={`Ver detalle de ${p.display}`}>
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas border border-line" aria-hidden="true"><IconUser size={16} /></span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-ink truncate">{p.display}</b>
+          <span className="block text-xs text-muted truncate">GLPI #{p.id}{p.login ? ` · ${p.login}` : ""}</span>
+        </span>
+        <span className="text-sm font-semibold shrink-0" style={{ color: "var(--accent)" }} aria-hidden="true">›</span>
+      </button>
+    </article>
+  );
+}
+
+function GenericCard({ title, lines, onOpen, label }: { title: string; lines: string[]; onOpen: () => void; label: string }) {
+  return (
+    <article className="card asset-card">
+      <button onClick={onOpen} className="grid gap-1 text-left min-w-0" aria-label={label}>
+        <b className="text-ink break-words leading-snug">{title}</b>
+        {lines.filter(Boolean).map((l, i) => (
+          <span key={i} className="block text-xs text-muted break-words leading-snug">{l}</span>
+        ))}
+        <span className="text-sm font-semibold" style={{ color: "var(--accent)" }} aria-hidden="true">Detalle ›</span>
+      </button>
+    </article>
   );
 }
 
@@ -238,14 +280,33 @@ export default function Buscar() {
   const pendingAction = useRef<(() => void) | null>(null);
   const { byId, childrenOf } = useLocations();
   const abortRef = useRef<AbortController | null>(null);
+  const scrollRestore = useRef(0);
+  const dirtyRef = useRef(false);
 
-  // detalle en modal
+  // detalle en panel lateral
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
   const [detailPerson, setDetailPerson] = useState<null | { p: Person; groups: PersonGroup[]; unlocated: Asset[]; mails: AccessMail[]; shares: AccessShare[] }>(null);
   const [detailMail, setDetailMail] = useState<null | { mail: any; personas: any[] }>(null);
   const [detailShare, setDetailShare] = useState<null | { share: any; personas: any[] }>(null);
   const [detailArea, setDetailArea] = useState<null | { area: any; mails: any[]; shares: any[] }>(null);
   const [exporting, setExporting] = useState<string | null>(null);
+
+  function openDetail(saveScroll = true) {
+    if (saveScroll) scrollRestore.current = window.scrollY;
+  }
+  function closeDetail(restore = true) {
+    setDetailAsset(null);
+    setDetailPerson(null);
+    setDetailMail(null);
+    setDetailShare(null);
+    setDetailArea(null);
+    dirtyRef.current = false;
+    if (restore) requestAnimationFrame(() => window.scrollTo({ top: scrollRestore.current }));
+  }
+  function guardedClose() {
+    if (dirtyRef.current && !confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")) return;
+    closeDetail(true);
+  }
 
   async function downloadExport(scope: "area" | "mail" | "share", id: string) {
     const key = `${scope}:${id}`;
@@ -290,7 +351,6 @@ export default function Buscar() {
   useEffect(() => {
     syncAuth();
     window.addEventListener("auth-changed", syncAuth);
-    // ?q= linkeable
     try {
       const init = new URLSearchParams(window.location.search).get("q") || "";
       if (init) {
@@ -317,12 +377,7 @@ export default function Buscar() {
     setLoading(true);
     setMsg("Buscando en equipos, personas, áreas, correos y carpetas…");
     setSearched(true);
-    setOpen(new Set()); // acordeones colapsados
-    setDetailAsset(null);
-    setDetailPerson(null);
-    setDetailMail(null);
-    setDetailShare(null);
-    setDetailArea(null);
+    closeDetail(false);
     try {
       history.replaceState(null, "", `/buscar?q=${encodeURIComponent(query)}`);
     } catch {}
@@ -335,7 +390,12 @@ export default function Buscar() {
       setCanSeeAccess(!!(j.canSeeAccess ?? j.canOperate));
       const totals = [j.results.equipos.total, j.results.personas.total, j.results.areas.total, j.results.correos.total, j.results.carpetas.total];
       const sum = totals.reduce((a: number, b: number) => a + b, 0);
-      setMsg(sum ? `${sum} resultado(s) en ${totals.filter((t: number) => t > 0).length} categoría(s).` : "Sin resultados en ninguna categoría. Probá con/sin ceros, por serie, nombre o sigla de área (ej. CTIC).");
+      const cats = totals.filter((t: number) => t > 0).length;
+      setMsg(sum ? `${sum} resultado(s) en ${cats} categoría(s).` : "Sin resultados en ninguna categoría. Probá con/sin ceros, por serie, nombre o sigla de área (ej. CTIC).");
+      // Auto-expandir primera categoría con resultados (conserva contexto, evita acordeones vacíos)
+      const order: Cat[] = ["equipos", "personas", "areas", "correos", "carpetas"];
+      const first = order.find((c) => (j.results[c]?.total || 0) > 0);
+      setOpen(first ? new Set([first]) : new Set());
     } catch (e: any) {
       if (String(e.name) === "AbortError") return;
       setMsg("Error: " + (e.message || "red"));
@@ -348,6 +408,7 @@ export default function Buscar() {
   const toggle = (c: Cat) => setOpen((s) => { const n = new Set(s); if (n.has(c)) n.delete(c); else n.add(c); return n; });
 
   async function openPersonDetail(p: Person) {
+    openDetail(true);
     setDetailPerson({ p, groups: [], unlocated: [], mails: [], shares: [] });
     try {
       const [ra, rg] = await Promise.all([
@@ -361,6 +422,7 @@ export default function Buscar() {
   }
 
   async function openMailDetail(m: any) {
+    openDetail(true);
     setDetailMail({ mail: m, personas: [] });
     if (!canSee) return;
     try {
@@ -371,6 +433,7 @@ export default function Buscar() {
   }
 
   async function openShareDetail(s: any) {
+    openDetail(true);
     setDetailShare({ share: s, personas: [] });
     if (!canSee) return;
     try {
@@ -381,6 +444,7 @@ export default function Buscar() {
   }
 
   async function openAreaDetail(a: any) {
+    openDetail(true);
     setDetailArea({ area: a, mails: [], shares: [] });
     if (!canSee) return;
     try {
@@ -389,6 +453,12 @@ export default function Buscar() {
       const found = (j.areas || []).find((x: any) => x.id === a.id);
       if (found) setDetailArea({ area: a, mails: found.mails || [], shares: found.shares || [] });
     } catch {}
+  }
+
+  function openAssetDetail(a: Asset) {
+    openDetail(true);
+    dirtyRef.current = false;
+    setDetailAsset(a);
   }
 
   async function quitarDelPuesto(g: PersonGroup) {
@@ -408,33 +478,46 @@ export default function Buscar() {
 
   const lockedBox = (label: string) => (
     <div className="p-4 grid gap-2 text-center">
-      <span className="inline-flex text-muted" aria-hidden="true"><IconLock size={36} /></span>
-      <p className="text-sm text-muted">{label} requiere sesión con perfil operador. <button className="underline" onClick={() => setAuthOpen(true)}>Iniciar sesión</button></p>
+      <span className="inline-flex justify-center text-muted" aria-hidden="true"><IconLock size={28} /></span>
+      <p className="text-sm text-muted">{label} requiere sesión con perfil operador. <button className="underline font-semibold" onClick={() => setAuthOpen(true)}>Iniciar sesión</button></p>
     </div>
   );
 
+  const totals = results ? [results.equipos.total, results.personas.total, results.areas.total, results.correos.total, results.carpetas.total] : [];
+  const sumTotals = totals.reduce((a: number, b: number) => a + (b || 0), 0);
+
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-3 no-hscroll">
       <div className="page-header">
         <h1>Búsqueda</h1>
-        <p>Buscador único: equipos, personas, áreas, correos y carpetas. <span className="text-muted">Ej. CTIC.</span></p>
+        <p>Buscador único: equipos, personas, áreas, correos y carpetas.</p>
       </div>
 
       <div className="card p-3 grid gap-2">
-        <div className="flex gap-2 flex-wrap">
+        <form
+          className="searchbar"
+          role="search"
+          aria-label="Búsqueda unificada"
+          onSubmit={(e) => { e.preventDefault(); search(); }}
+        >
           <input
-            className="input flex-1 min-w-[200px]"
+            className="input w-full min-w-0"
             placeholder="Inventario, serie, nombre, persona, área, correo, carpeta…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && search()}
             aria-label="Búsqueda genérica"
+            autoComplete="off"
+            enterKeyHint="search"
           />
-          <button onClick={() => search()} className="btn btn-primary" disabled={loading}>
-            {loading ? "Buscando…" : "Buscar"}
-          </button>
-          <button onClick={() => setScan(!scan)} className="btn btn-secondary" aria-label="Escanear"><IconCamera size={15} /></button>
-        </div>
+          <div className="flex gap-2">
+            <button type="submit" className="btn btn-primary flex-1 sm:flex-none sm:min-w-[120px]" disabled={loading || !q.trim()}>
+              {loading ? <span className="inline-flex items-center gap-2"><span className="spinner" aria-hidden="true" /> Buscando…</span> : "Buscar"}
+            </button>
+            <button type="button" onClick={() => setScan(!scan)} className="btn btn-secondary tap-target shrink-0" aria-label="Escanear código con cámara" aria-pressed={scan}>
+              <IconCamera size={17} />
+            </button>
+          </div>
+        </form>
         {scan && (
           <ScanModal
             title="Buscar (escaneo)"
@@ -442,124 +525,165 @@ export default function Buscar() {
             onResult={(v) => { setQ(v); setScan(false); search(v); }}
           />
         )}
-        <p className="text-sm text-muted" role="status">{msg}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm text-muted" role="status" aria-live="polite">{msg || "Ej. inventario, serie, CTIC."}</p>
+          {searched && results && !loading && sumTotals > 0 && (
+            <span className="badge badge-brand" aria-label={`${sumTotals} resultados en total`}>{sumTotals} en total</span>
+          )}
+        </div>
       </div>
 
-      {loading && <Spinner label="Buscando en las 5 categorías…" />}
+      {loading && (
+        <div className="card p-4"><Spinner label="Buscando en las 5 categorías…" /></div>
+      )}
 
       {searched && results && !loading && (
-        <div className="grid gap-3">
+        <div className="grid gap-2.5">
           {results.equipos.error && <div className="card p-3 text-sm toast-err border" role="alert">Equipos: {results.equipos.error}</div>}
           {results.personas.error && <div className="card p-3 text-sm toast-err border" role="alert">Personas: {results.personas.error}</div>}
           {CATS.map((c) => {
             const r: any = (results as any)[c.id];
             const isOpen = open.has(c.id);
             const count = r.locked ? 0 : r.total;
+            const panelId = `panel-${c.id}`;
             return (
               <section key={c.id} className="card p-0 overflow-hidden" aria-label={`${c.label}`}>
-                <button
-                  onClick={() => toggle(c.id)}
-                  aria-expanded={isOpen}
-                  className="w-full flex items-center gap-2 p-3 text-left hover:bg-canvas transition"
-                >
-                  <span aria-hidden="true" className="inline-flex text-muted"><c.icon /></span>
-                  <b className="text-ink">{c.label}</b>
-                  <span className="badge badge-brand" aria-label={`${count} encontrados`}>{r.locked ? <IconLock size={12} /> : `${count}`}</span>
-                  {r.error && !r.locked && <span className="text-xs text-danger truncate">· error parcial</span>}
-                  <span className="ml-auto text-muted text-sm" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
-                </button>
+                <h2 className="m-0">
+                  <button
+                    onClick={() => toggle(c.id)}
+                    aria-expanded={isOpen}
+                    aria-controls={panelId}
+                    className="acc-trigger w-full flex items-center gap-2.5 px-3 sm:px-4 text-left transition"
+                  >
+                    <span aria-hidden="true" className="inline-flex text-muted shrink-0"><c.icon /></span>
+                    <b className="text-ink text-[0.95rem]">{c.label}</b>
+                    <span className={`badge shrink-0 ${count > 0 ? "badge-brand" : ""}`} aria-label={`${count} encontrados`}>
+                      {r.locked ? <IconLock size={12} /> : `${count}`}
+                    </span>
+                    {r.error && !r.locked && <span className="text-xs text-danger truncate">· error parcial</span>}
+                    <span className="ml-auto text-muted text-base w-6 text-center shrink-0" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>
+                  </button>
+                </h2>
                 {isOpen && (
-                  <div className="border-t p-3 grid gap-2">
+                  <div id={panelId} role="region" aria-label={`${c.label} resultados`} className="border-t border-line p-2.5 sm:p-3 grid gap-2">
                     {r.locked && lockedBox(c.label)}
                     {!r.locked && count === 0 && <EmptyState title={`Sin ${c.label.toLowerCase()}`} hint={r.error || "Sin coincidencias para esta búsqueda."} />}
                     {!r.locked && c.id === "equipos" && (r.items as any[]).length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="table-dense min-w-[760px]">
-                          <thead><tr><th>Tipo</th><th>Nombre</th><th>Inventario</th><th>Ubicación / Usuario</th><th>Detalle</th></tr></thead>
-                          <tbody>
-                            {(r.items as any[]).map((a) => (
-                              <tr key={`${a._type}-${a.id}`}>
-                                <td><span className="inline-flex items-center gap-1.5 whitespace-nowrap"><TypeIcon type={a._type} /><b>{a._type}</b></span></td>
-                                <td className="max-w-[220px]"><span className="block truncate font-medium" title={disp(a.name)}>{disp(a.name)}</span><span className="text-xs text-muted tabular-nums">S. {disp(a.serial)}</span></td>
-                                <td className="tabular-nums font-semibold">{disp(a.otherserial)}</td>
-                                <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} />{(a._userName && a._userName !== "—") || a._userId != null ? <span className="badge badge-success mt-1 w-fit max-w-full truncate" title={a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}><span className="inline-flex items-center gap-1 truncate"><IconUser size={11} /> {a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}</span></span> : <span className="badge mt-1 w-fit">Sin asignar</span>}</td>
-                                <td><button className="btn btn-secondary text-xs !min-h-[30px] !py-1" onClick={() => setDetailAsset(a)}>Ver detalle →</button></td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <>
+                        {/* Desktop: tabla compacta */}
+                        <div className="table-scroll hidden md:block" tabIndex={0} aria-label="Resultados de equipos en tabla">
+                          <table className="table-dense min-w-[760px]">
+                            <thead><tr><th scope="col">Tipo</th><th scope="col">Nombre</th><th scope="col">Inventario</th><th scope="col">Ubicación / Usuario</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+                            <tbody>
+                              {(r.items as any[]).map((a) => (
+                                <tr key={`${a._type}-${a.id}`}>
+                                  <td><span className="inline-flex items-center gap-1.5 whitespace-nowrap"><TypeIcon type={a._type} /><b>{a._type}</b></span></td>
+                                  <td className="max-w-[220px]"><span className="block truncate font-medium" title={disp(a.name)}>{disp(a.name)}</span><span className="text-xs text-muted tabular-nums">S. {disp(a.serial)}</span></td>
+                                  <td className="tabular-nums font-semibold">{disp(a.otherserial)}</td>
+                                  <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} />{(a._userName && a._userName !== "—") || a._userId != null ? <span className="badge badge-success mt-1 w-fit max-w-full truncate" title={a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}><span className="inline-flex items-center gap-1 truncate"><IconUser size={11} /> {a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}</span></span> : <span className="badge mt-1 w-fit">Sin asignar</span>}</td>
+                                  <td><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openAssetDetail(a)}>Ver detalle</button></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* Móvil/tablet: tarjetas */}
+                        <div className="grid gap-2 md:hidden">
+                          {(r.items as any[]).map((a) => (
+                            <AssetCard key={`${a._type}-${a.id}`} a={a} byId={byId} onOpen={() => openAssetDetail(a)} />
+                          ))}
+                        </div>
+                      </>
                     )}
                     {!r.locked && c.id === "personas" && (r.items as Person[]).length > 0 && (
                       <div className="grid gap-2">
                         {(r.items as Person[]).map((p) => (
-                          <div key={p.id} className="card p-3 flex items-center justify-between gap-3 flex-wrap text-sm">
-                            <div><div className="font-bold text-ink">{p.display}</div><div className="text-muted text-xs">GLPI #{p.id}{p.login ? ` · ${p.login}` : ""}</div></div>
-                            <button className="btn btn-secondary text-xs" onClick={() => openPersonDetail(p)}>Ver detalle →</button>
+                          <div key={p.id} className="hidden md:flex card p-3 items-center justify-between gap-3 flex-wrap text-sm border-line">
+                            <div className="min-w-0"><div className="font-bold text-ink truncate">{p.display}</div><div className="text-muted text-xs">GLPI #{p.id}{p.login ? ` · ${p.login}` : ""}</div></div>
+                            <button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openPersonDetail(p)}>Ver detalle</button>
                           </div>
                         ))}
+                        <div className="grid gap-2 md:hidden">
+                          {(r.items as Person[]).map((p) => (
+                            <PersonCard key={p.id} p={p} onOpen={() => openPersonDetail(p)} />
+                          ))}
+                        </div>
                       </div>
                     )}
                     {!r.locked && c.id === "areas" && (r.items as any[]).length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="table-dense">
-                          <thead><tr><th>Área</th><th className="hidden md:table-cell">Responsable</th><th>Correos</th><th>Carpetas</th><th className="hidden md:table-cell">Detalle</th><th className="md:hidden"><span className="sr-only">Abrir</span></th></tr></thead>
-                          <tbody>
-                            {(r.items as any[]).map((a) => (
-                              <tr key={a.id} className="cursor-pointer" title={`Ver detalle de ${a.nombre}`} tabIndex={0}
-                                onClick={() => openAreaDetail(a)}
-                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openAreaDetail(a); } }}>
-                                <td className="min-w-0"><b className="block break-all md:truncate">{a.nombre}</b><span className="block text-xs text-muted font-normal md:hidden break-all max-w-[38vw] leading-tight">{a.responsableNombre || "—"}</span></td>
-                                <td className="text-sm hidden md:table-cell">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
-                                <td className="tabular-nums">{a.mails}</td>
-                                <td className="tabular-nums">{a.shares}</td>
-                                <td className="hidden md:table-cell" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><button className="btn btn-secondary text-xs" onClick={() => openAreaDetail(a)}>Ver detalle →</button></td>
-                                <td className="md:hidden text-muted" aria-hidden="true">›</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <>
+                        <div className="table-scroll hidden md:block" tabIndex={0} aria-label="Resultados de áreas en tabla">
+                          <table className="table-dense">
+                            <thead><tr><th scope="col">Área</th><th scope="col">Responsable</th><th scope="col">Correos</th><th scope="col">Carpetas</th><th scope="col"><span className="sr-only">Abrir</span></th></tr></thead>
+                            <tbody>
+                              {(r.items as any[]).map((a) => (
+                                <tr key={a.id}>
+                                  <td className="min-w-0"><b className="block truncate">{a.nombre}</b></td>
+                                  <td className="text-sm">{a.responsableNombre || "—"} <span className="text-xs text-muted">#{a.responsableUserId}</span></td>
+                                  <td className="tabular-nums">{a.mails}</td>
+                                  <td className="tabular-nums">{a.shares}</td>
+                                  <td><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openAreaDetail(a)}>Ver detalle</button></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="grid gap-2 md:hidden">
+                          {(r.items as any[]).map((a) => (
+                            <GenericCard key={a.id} title={a.nombre} lines={[`Resp. ${a.responsableNombre || "—"}`, `${a.mails} correos · ${a.shares} carpetas`]} label={`Ver detalle del área ${a.nombre}`} onOpen={() => openAreaDetail(a)} />
+                          ))}
+                        </div>
+                      </>
                     )}
                     {!r.locked && c.id === "correos" && (r.items as any[]).length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="table-dense">
-                          <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Dirección</th><th className="hidden md:table-cell">Área</th><th className="hidden md:table-cell">Personas</th><th><span className="sr-only">Abrir</span></th></tr></thead>
-                          <tbody>
-                            {(r.items as any[]).map((m) => (
-                              <tr key={m.id} className="cursor-pointer" title={`Ver detalle de ${m.nombre}`} tabIndex={0}
-                                onClick={() => openMailDetail(m)}
-                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openMailDetail(m); } }}>
-                                <td className="min-w-0"><b className="block break-all md:truncate">{m.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden break-all max-w-[30vw] leading-tight" title={m.direccion}>{m.direccion}</span><span className="block text-xs text-muted font-normal md:hidden">{m.area} · {m.personas} pers. ({m.envian} env./{m.reciben} rec.)</span></td>
-                                <td className="tabular-nums text-sm hidden md:table-cell">{m.direccion}</td>
-                                <td className="text-sm hidden md:table-cell">{m.area}</td>
-                                <td className="tabular-nums text-xs hidden md:table-cell">{m.personas} <span className="text-muted">({m.envian} env./{m.reciben} rec.)</span></td>
-                                <td className="text-muted" aria-hidden="true">›</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <>
+                        <div className="table-scroll hidden md:block" tabIndex={0} aria-label="Resultados de correos en tabla">
+                          <table className="table-dense">
+                            <thead><tr><th scope="col">Nombre</th><th scope="col">Dirección</th><th scope="col">Área</th><th scope="col">Personas</th><th scope="col"><span className="sr-only">Abrir</span></th></tr></thead>
+                            <tbody>
+                              {(r.items as any[]).map((m) => (
+                                <tr key={m.id}>
+                                  <td className="min-w-0"><b className="block truncate">{m.nombre}</b></td>
+                                  <td className="tabular-nums text-sm">{m.direccion}</td>
+                                  <td className="text-sm">{m.area}</td>
+                                  <td className="tabular-nums text-xs">{m.personas} <span className="text-muted">({m.envian} env./{m.reciben} rec.)</span></td>
+                                  <td><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openMailDetail(m)}>Ver detalle</button></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="grid gap-2 md:hidden">
+                          {(r.items as any[]).map((m) => (
+                            <GenericCard key={m.id} title={m.nombre} lines={[m.direccion, `${m.area} · ${m.personas} pers. (${m.envian} env./${m.reciben} rec.)`]} label={`Ver detalle del correo ${m.nombre}`} onOpen={() => openMailDetail(m)} />
+                          ))}
+                        </div>
+                      </>
                     )}
                     {!r.locked && c.id === "carpetas" && (r.items as any[]).length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="table-dense">
-                          <thead><tr><th>Nombre</th><th className="hidden md:table-cell">Ruta</th><th className="hidden md:table-cell">Área</th><th className="hidden md:table-cell">Personas</th><th><span className="sr-only">Abrir</span></th></tr></thead>
-                          <tbody>
-                            {(r.items as any[]).map((s) => (
-                              <tr key={s.id} className="cursor-pointer" title={`Ver detalle de ${s.nombre}`} tabIndex={0}
-                                onClick={() => openShareDetail(s)}
-                                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openShareDetail(s); } }}>
-                                <td className="min-w-0"><b className="block break-all md:truncate">{s.nombre}</b><span className="block text-xs text-muted font-normal tabular-nums md:hidden break-all max-w-[30vw] leading-tight" title={s.ruta}>{s.ruta}</span><span className="block text-xs text-muted font-normal md:hidden">{s.area} · {s.personas} pers.</span></td>
-                                <td className="tabular-nums text-sm max-w-[280px] hidden md:table-cell"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
-                                <td className="text-sm hidden md:table-cell">{s.area}</td>
-                                <td className="tabular-nums hidden md:table-cell">{s.personas}</td>
-                                <td className="text-muted" aria-hidden="true">›</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <>
+                        <div className="table-scroll hidden md:block" tabIndex={0} aria-label="Resultados de carpetas en tabla">
+                          <table className="table-dense">
+                            <thead><tr><th scope="col">Nombre</th><th scope="col">Ruta</th><th scope="col">Área</th><th scope="col">Personas</th><th scope="col"><span className="sr-only">Abrir</span></th></tr></thead>
+                            <tbody>
+                              {(r.items as any[]).map((s) => (
+                                <tr key={s.id}>
+                                  <td className="min-w-0"><b className="block truncate">{s.nombre}</b></td>
+                                  <td className="tabular-nums text-sm max-w-[280px]"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
+                                  <td className="text-sm">{s.area}</td>
+                                  <td className="tabular-nums">{s.personas}</td>
+                                  <td><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openShareDetail(s)}>Ver detalle</button></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="grid gap-2 md:hidden">
+                          {(r.items as any[]).map((s) => (
+                            <GenericCard key={s.id} title={s.nombre} lines={[s.ruta, `${s.area} · ${s.personas} pers.`]} label={`Ver detalle de la carpeta ${s.nombre}`} onOpen={() => openShareDetail(s)} />
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
@@ -573,21 +697,39 @@ export default function Buscar() {
       )}
 
       {detailAsset && (
-        <Modal title={`${detailAsset._type} · ${disp(detailAsset.name)}`} onClose={() => setDetailAsset(null)}>
+        <SidePanel
+          title={`${detailAsset._type} · ${disp(detailAsset.name)}`}
+          subtitle={`Inv. ${disp(detailAsset.otherserial)} · Serie ${disp(detailAsset.serial)}`}
+          onClose={guardedClose}
+          footer={
+            <div className="flex gap-2 justify-end">
+              <button className="btn btn-secondary text-sm tap-target" onClick={guardedClose}>Volver a resultados</button>
+            </div>
+          }
+        >
           <AssetEditModal
             key={`${detailAsset._type}-${detailAsset.id}`}
             asset={detailAsset}
             byId={byId}
             childrenOf={childrenOf}
             canEdit={!!authUser?.canOperate}
-            onClose={() => setDetailAsset(null)}
+            onClose={() => closeDetail(true)}
             onSaved={() => { search(); }}
+            onDirtyChange={(d) => { dirtyRef.current = d; }}
           />
-        </Modal>
+          {!authUser?.canOperate && (
+            <p className="text-xs text-muted mt-3">Solo lectura — <button className="underline font-semibold" onClick={() => setAuthOpen(true)}>iniciar sesión como operador para editar</button>.</p>
+          )}
+        </SidePanel>
       )}
 
       {detailPerson && (
-        <Modal title={`Persona: ${detailPerson.p.display}`} onClose={() => setDetailPerson(null)}>
+        <SidePanel
+          title={`Persona: ${detailPerson.p.display}`}
+          subtitle={`GLPI #${detailPerson.p.id}${detailPerson.p.login ? ` · ${detailPerson.p.login}` : ""}`}
+          onClose={() => closeDetail(true)}
+          footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={() => closeDetail(true)}>Volver a resultados</button></div>}
+        >
           <FichaPersona
             p={detailPerson.p}
             groups={detailPerson.groups}
@@ -599,19 +741,23 @@ export default function Buscar() {
             accessShares={detailPerson.shares}
             canSeeAccess={canSee}
           />
-        </Modal>
+        </SidePanel>
       )}
 
       {detailMail && (
-        <Modal title={`Correo: ${detailMail.mail.nombre || detailMail.mail.direccion}`} onClose={() => setDetailMail(null)}>
+        <SidePanel
+          title={`Correo: ${detailMail.mail.nombre || detailMail.mail.direccion}`}
+          subtitle={`${detailMail.mail.direccion || ""} · Área ${detailMail.mail.area || "—"}`}
+          onClose={() => closeDetail(true)}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</a><button className="btn btn-secondary text-xs tap-target" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+        >
           <div className="grid gap-2 text-sm">
-            <p className="tabular-nums text-muted">{detailMail.mail.direccion} · Área {detailMail.mail.area || "—"}</p>
             {!canSee && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador o de lectura para ver las personas.</span></p>}
             {canSee && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canSee && detailMail.personas.length > 0 && (
-              <div className="overflow-x-auto">
+              <div className="table-scroll" tabIndex={0}>
                 <table className="table-dense table-modal-fluid">
-                  <thead><tr><th>Persona</th><th>Envía</th><th>Recibe</th></tr></thead>
+                  <thead><tr><th scope="col">Persona</th><th scope="col">Envía</th><th scope="col">Recibe</th></tr></thead>
                   <tbody>
                     {detailMail.personas.map((g: any) => (
                       <tr key={g.userId}>
@@ -624,21 +770,24 @@ export default function Buscar() {
                 </table>
               </div>
             )}
-            {canSee && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
           </div>
-        </Modal>
+        </SidePanel>
       )}
 
       {detailShare && (
-        <Modal title={`Carpeta: ${detailShare.share.nombre}`} onClose={() => setDetailShare(null)}>
+        <SidePanel
+          title={`Carpeta: ${detailShare.share.nombre}`}
+          subtitle={`${detailShare.share.ruta || ""} · Área ${detailShare.share.area || "—"}`}
+          onClose={() => closeDetail(true)}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</a><button className="btn btn-secondary text-xs tap-target" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+        >
           <div className="grid gap-2 text-sm">
-            <p className="tabular-nums text-muted" title={detailShare.share.ruta}>{detailShare.share.ruta} · Área {detailShare.share.area || "—"}</p>
             {!canSee && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador o de lectura para ver las personas.</span></p>}
             {canSee && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
             {canSee && detailShare.personas.length > 0 && (
-              <div className="overflow-x-auto">
+              <div className="table-scroll" tabIndex={0}>
                 <table className="table-dense table-modal-fluid">
-                  <thead><tr><th>Persona</th></tr></thead>
+                  <thead><tr><th scope="col">Persona</th></tr></thead>
                   <tbody>
                     {detailShare.personas.map((g: any) => (
                       <tr key={g.userId}>
@@ -649,24 +798,26 @@ export default function Buscar() {
                 </table>
               </div>
             )}
-            {canSee && <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a><button className="btn btn-secondary text-xs w-fit" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button></span>}
           </div>
-        </Modal>
+        </SidePanel>
       )}
 
       {detailArea && (
-        <Modal title={`Área: ${detailArea.area.nombre}`} onClose={() => setDetailArea(null)}>
+        <SidePanel
+          title={`Área: ${detailArea.area.nombre}`}
+          subtitle={`Responsable: ${detailArea.area.responsableNombre || "—"} #${detailArea.area.responsableUserId}`}
+          onClose={() => closeDetail(true)}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</a>{canSee && <button className="btn btn-secondary text-xs tap-target" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}<button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+        >
           <div className="grid gap-2 text-sm">
-            <p className="text-muted">Responsable: <b className="text-ink">{detailArea.area.responsableNombre || "—"}</b> <span className="text-xs">#{detailArea.area.responsableUserId}</span></p>
             <b className="text-sm inline-flex items-center gap-1"><IconMail size={13} /> Correos ({detailArea.mails.length})</b>
             {detailArea.mails.map((m: any) => <div key={m.id} className="text-sm text-muted"><b className="text-ink">{m.nombre}</b> <span className="tabular-nums text-xs break-all">{m.direccion}</span> <span className="text-xs">· {m.personas} persona(s)</span></div>)}
             {!detailArea.mails.length && <p className="text-sm text-muted">Sin correos.</p>}
             <b className="text-sm inline-flex items-center gap-1"><IconFolder size={13} /> Carpetas ({detailArea.shares.length})</b>
             {detailArea.shares.map((s: any) => <div key={s.id} className="text-sm text-muted" title={s.ruta}><b className="text-ink">{s.nombre}</b> <span className="tabular-nums text-xs break-all">{s.ruta}</span> <span className="text-xs">· {s.personas} persona(s)</span></div>)}
             {!detailArea.shares.length && <p className="text-sm text-muted">Sin carpetas.</p>}
-            <span className="inline-flex gap-1 flex-wrap"><a className="btn btn-secondary text-xs w-fit" href="/accesos">Gestionar en Accesos →</a>{canSee && <button className="btn btn-secondary text-xs w-fit" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}</span>
           </div>
-        </Modal>
+        </SidePanel>
       )}
 
       {authOpen && (
