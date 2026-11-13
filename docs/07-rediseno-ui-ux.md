@@ -151,7 +151,14 @@ reglas de negocio ni lógica GLPI. Sin dependencias nuevas.
   entorno, el `docker build` oficial falla en `apt-get`; se desplegó con un
   Dockerfile temporal (`/tmp/Dockerfile.local`, fuera del repo) que reutiliza
   la imagen anterior como base y solo reemplaza los artefactos del
-  `npm run build` del host. Pendiente con GLPI en línea: buscar inventario,
+  `npm run build` del host. Lección: hay que reemplazar `/app/.next` **por
+  completo** (`rm` + `COPY .next/standalone/.next` con manifests+`server/` +
+  `COPY .next/static`); copiar solo `server.js`/`static` por encima deja
+  manifests y chunks viejos que sirven la UI anterior aunque el `server.js`
+  sea nuevo (detectado porque el HTML referenciaba el CSS viejo y el CSS no
+  contenía `sidepanel`). Tras el fix: BUILD_ID igual al del host, un solo CSS
+  (`b4c87f…`, con `sidepanel`/`asset-card`/`combo-list`) y `/`, `/buscar`,
+  `/mapa` → 200 por HTTP y HTTPS. Pendiente con GLPI en línea: buscar inventario,
   expandir categoría, abrir equipo en panel, mover/desvincular puesto,
   asignar/quitar usuario, drawer móvil y formularios con teclado virtual (no
   simular éxitos: las pruebas de escritura van contra GLPI real).
