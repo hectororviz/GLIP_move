@@ -206,6 +206,15 @@ lógica de búsqueda, escaneo, movimientos ni navegación principal.
   { outline: none }`. Anillo visible de 2 px solo con teclado.
 - **Pie del panel**: body `py-3`, footer `pt-2`; botón Volver consistente.
 
+### Despliegue iteración 5
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; CSS `c1b4bb…` con `copy-btn`/`rowlink`/
+  `info-card`; `/`, `/buscar`, `/mapa` → 200 por HTTP y HTTPS.
+- Pendiente con GLPI en línea: copiado en móvil real, entidades en estados
+  reales, foco con teclado físico, navegación equipo↔persona con datos,
+  anchos 320–1440 físicos.
+
 ### Despliegue iteración 4
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
