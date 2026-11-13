@@ -305,6 +305,32 @@ ni lógica de movimientos/asignaciones.
   de los paneles para quedar por encima (mismo z-index, orden de DOM).
   Calibración 100 % intacta (se excluye `calibrar` del drawer).
 
+## Iteración 10 — Pulido de Movimiento masivo
+
+Sin cambios funcionales (mismo flujo de 3 pasos, mismas validaciones,
+duplicados, PATCH solo-`location_id`, auditoría y registro en Actividad).
+
+- **Selector de puestos**: el `SearchCombobox` cierra al elegir y en móvil es
+  hoja inferior fija (`.combo-list` fixed + safe-area, `55dvh`, z 65) con
+  `scrollIntoView` del campo al abrir; desktop mantiene 240 px con scroll,
+  hover/seleccionado/focus-visible/teclado intactos.
+- **Badge "Con usuario"** (tabla y tarjetas) con icono + nombre, basado en
+  `_userId` real (no en el display). El estado "Listo" no cambia: la presencia
+  de usuario no es error.
+- **Limpieza con confirmación** (ya existía `ConfirmDialog` con conteo; se
+  mantiene: sin filas no hay botón, no toca GLPI).
+- **Confirmación de movimiento** ampliada: destino + piso (derivado del padre
+  GLPI) + cantidad + cantidad con usuario; consecuencia verificada en
+  `app/api/glpi/route.ts`: el PATCH masivo solo envía `location_id`, nunca
+  `user_id`, por lo que **siempre conserva usuarios** (el flag
+  `keepUserOnMove` de config no está cableado a los movimientos; no se
+  modifica su comportamiento). Sin doble envío (botón bloqueado en curso).
+- **Ingreso manual**: foco devuelto al campo tras Agregar (carga consecutiva);
+  Enter, duplicados, errores y permanencia en lista intactos. Cámara en
+  ráfaga sin cambios.
+- Resultados por ítem (movido/fallo con detalle) y resumen con parciales:
+  sin cambios, sin éxito anticipado.
+
 ### Despliegue iteración 9
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.

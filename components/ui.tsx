@@ -295,6 +295,17 @@ export function SearchCombobox({
     setQuery("");
   }
 
+  function openList() {
+    setOpen(true);
+    // En móvil lleva el campo a la vista para que la hoja de opciones no
+    // quede oculta tras el teclado o fuera de pantalla.
+    try {
+      if (window.matchMedia?.("(max-width: 767px)").matches) {
+        requestAnimationFrame(() => inputRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+      }
+    } catch {}
+  }
+
   return (
     <div className="grid gap-1.5" ref={boxRef}>
       <label htmlFor={id} className="text-xs font-semibold text-ink">{label}</label>
@@ -312,9 +323,9 @@ export function SearchCombobox({
           value={query}
           disabled={disabled}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
+          onFocus={openList}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.min(a + 1, Math.max(0, filtered.length - 1))); }
+            if (e.key === "ArrowDown") { e.preventDefault(); openList(); setActive((a) => Math.min(a + 1, Math.max(0, filtered.length - 1))); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
             else if (e.key === "Enter") { if (open && filtered[active]) { e.preventDefault(); choose(filtered[active].value); } }
             else if (e.key === "Escape") { setOpen(false); }

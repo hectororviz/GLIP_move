@@ -71,6 +71,7 @@ export default function Masivo() {
   const [scanOpen, setScanOpen] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
   const listEndRef = useRef<HTMLDivElement>(null);
+  const manualRef = useRef<HTMLInputElement>(null);
 
   // ---- auth (mismo patrón que /buscar) ----
   useEffect(() => {
@@ -155,6 +156,11 @@ export default function Masivo() {
     : destLocId
       ? `puesto ${destLocId}`
       : "";
+  const destFloorName = useMemo(() => {
+    const pid = (destLoc as any)?.parentId;
+    if (pid == null) return "";
+    return pisos.find((f) => Number(f.glpiLocationId) === Number(pid))?.name || "";
+  }, [destLoc, pisos]);
 
   // ---- lookup de un código (misma lógica que /buscar) ----
   async function lookup(code: string): Promise<Asset | null> {
@@ -232,6 +238,7 @@ export default function Masivo() {
   }, [destLocId]);
 
   const readyRows = rows.filter((r) => r.status === "listo");
+  const readyWithUser = useMemo(() => readyRows.filter((r) => r.asset?._userId != null).length, [readyRows]);
   const counts = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of readyRows) {
@@ -460,6 +467,7 @@ export default function Masivo() {
         )}
         <div className="flex gap-2">
           <input
+            ref={manualRef}
             className="input flex-1 text-sm min-w-0"
             placeholder="Inventario manual o QR: 0000012865, A 0001-0537, URL GLPI…"
             value={manual}
@@ -480,6 +488,7 @@ export default function Masivo() {
             onClick={() => {
               addCode(manual);
               setManual("");
+              requestAnimationFrame(() => manualRef.current?.focus());
             }}
           >
             Agregar
@@ -558,9 +567,10 @@ export default function Masivo() {
                           <span className="block truncate" title={a ? disp(a.name) : ""}>
                             {a ? disp(a.name) : "—"}
                           </span>
-                          {a?._userName && a._userName !== "—" && (
-                            <span className="text-xs text-muted truncate items-center gap-1 flex" title={disp(a._userName)}>
-                              <IconUser size={11} /> {disp(a._userName)}
+                          {a?._userId != null && (
+                            <span className="inline-flex items-center gap-1 mt-0.5 min-w-0" title={`Con usuario asignado: ${a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}`}>
+                              <span className="badge badge-success shrink-0"><span className="inline-flex items-center gap-1"><IconUser size={11} /> Con usuario</span></span>
+                              <span className="truncate text-xs text-muted">{a._userName && a._userName !== "—" ? disp(a._userName) : `Usuario #${a._userId}`}</span>
                             </span>
                           )}
                         </td>
@@ -619,9 +629,12 @@ export default function Masivo() {
                         <span className="text-xs text-muted">Sin datos de GLPI</span>
                       )}
                     </div>
-                    {a?._userName && a._userName !== "—" && (
-                      <span className="text-xs text-muted truncate pl-11 inline-flex items-center gap-1" title={disp(a._userName)}><IconUser size={11} /> {disp(a._userName)}</span>
-                    )}
+                      {a?._userId != null && (
+                        <span className="pl-11 inline-flex items-center gap-1.5 min-w-0" title={`Con usuario asignado: ${a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}`}>
+                          <span className="badge badge-success shrink-0"><span className="inline-flex items-center gap-1"><IconUser size={11} /> Con usuario</span></span>
+                          <span className="text-xs text-muted truncate">{a._userName && a._userName !== "—" ? disp(a._userName) : `Usuario #${a._userId}`}</span>
+                        </span>
+                      )}
                   </article>
                 );
               })}
@@ -677,8 +690,9 @@ export default function Masivo() {
           title="Confirmar movimiento masivo"
           body={
             <>
-              <span>Mover <b className="text-ink tabular-nums">{readyRows.length} equipo(s)</b> al puesto <b className="text-ink">{destName}</b> <span className="text-xs text-muted">(id {destLocId})</span>.</span>
-              <span>Conservarán su usuario actual. Esta acción se registra en Actividad y no se puede deshacer en lote.</span>
+              <span>Mover <b className="text-ink tabular-nums">{readyRows.length} equipo(s)</b>{readyWithUser > 0 && <> (<b className="text-ink tabular-nums">{readyWithUser} con usuario</b>)</>} al puesto <b className="text-ink">{destName}</b>{destFloorName ? <span className="text-muted"> · {destFloorName}</span> : null} <span className="text-xs text-muted">(id {destLocId})</span>.</span>
+              <span>Conservarán su usuario actual: el movimiento solo actualiza el puesto, no modifica la asignación de usuarios.</span>
+              <span>Esta acción se registra en Actividad y no se puede deshacer en lote.</span>
             </>
           }
           confirmLabel={`Mover ${readyRows.length} equipo(s)`}

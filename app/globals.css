@@ -387,7 +387,16 @@ img, table { max-width: 100%; }
   box-shadow: 0 12px 32px rgba(15,31,56,0.16); max-height: 240px; overflow-y: auto;
   -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 }
-@media (max-width: 767px) { .combo-list { max-height: 46vh; } }
+/* En celulares el desplegable es una hoja inferior táctil: no queda aplastado
+   por el contenido ni tapado por el teclado en navegadores que redimensionan
+   el viewport (Chrome Android); con iOS el campo hace scroll a la vista. */
+@media (max-width: 767px) {
+  .combo-list {
+    position: fixed; left: 0.75rem; right: 0.75rem; top: auto;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    max-height: 55dvh; z-index: 65; border-radius: 1rem;
+  }
+}
 .combo-opt { display: flex; align-items: center; gap: 0.5rem; width: 100%; text-align: left; padding: 0.65rem 0.8rem; min-height: var(--tap); font-size: 0.9rem; }
 .combo-opt:hover, .combo-opt[data-active="true"] { background: var(--accent-soft, #eef4ff); }
 .combo-opt[aria-selected="true"] { font-weight: 700; color: var(--accent-700, #0a3fa8); }
