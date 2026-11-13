@@ -367,6 +367,18 @@ y auditoría). Componentes y estilos existentes.
   ancho completo en móvil, safe-area y sticky intactos. Diálogo y lógica de
   confirmación sin cambios.
 
+### Despliegue iteración 11
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; CSS con `.tabs-fit`; chunks con
+  `Administrar puesto y equipos`→(iter8), `tabs-fit`, `Con cambios sin
+  guardar`, `Reemplazar plano`, "Usuario:"; `/`, `/buscar`, `/mapa`,
+  `/accesos`, `/masivo`, `/config` → 200 por HTTP y HTTPS.
+- Pendiente en dispositivo real con admin/operador: tabs fit en 320–768,
+  expansión de pisos, reemplazo con confirmación, restablecer condicional,
+  etiqueta Usuario en tabla y tarjetas, barra de confirmación móvil, anchos
+  físicos. Sin operaciones destructivas en pruebas.
+
 ### Despliegue iteración 10
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
