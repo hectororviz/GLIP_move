@@ -6,7 +6,8 @@ import AuthModal from "./AuthModal";
 import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants, editFormOf, parseGlpiUrl } from "@/lib/inventory";
 import { clasificarPuesto, ESTADO_META, type EstadoPuesto } from "@/lib/puesto-state";
-import { Spinner } from "./ui";
+import { Spinner, SidePanel, AdminSection, TypeIcon, decodeEntities } from "./ui";
+import AssetEditModal from "./AssetEditModal";
 
 type Puesto = { glpi_id: number; x: number; y: number; w: number; h: number };
 type Floor = { id: string; name: string; image: string | null; glpiLocationId: number | null; puestos: Puesto[] };
@@ -16,36 +17,6 @@ const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 
 // Pisos como botones hasta este umbral; más pisos usan desplegable.
 const MAX_FLOOR_BUTTONS = 5;
-
-function TrashIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 6h18" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-    </svg>
-  );
-}
-
-function RefreshIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-      <path d="M21 3v6h-6" />
-    </svg>
-  );
-}
-
-function EditIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
-  );
-}
 
 type Drag =
   | { mode: "draw"; sx: number; sy: number; cx: number; cy: number }
@@ -76,6 +47,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const [mapQuery, setMapQuery] = useState("");
   const [mapResults, setMapResults] = useState<{ id: number; label: string; detail: string }[]>([]);
   const [mapMsg, setMapMsg] = useState("");
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
+  const assetDirtyRef = useRef(false);
   const [showPuestos, setShowPuestos] = useState(true);
   const [showNumeros, setShowNumeros] = useState(true);
   const [showEstados, setShowEstados] = useState(true);
@@ -365,10 +339,29 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     return map;
   }
 
+  function clearSel() {
+    setSel(null); setItems([]);
+    setOccOpen(false); setOccQuery(""); setOccResults([]);
+    setRoomOpen(false); setRoomMsg(""); setRoomVal("");
+    setScanMode(null); setReplaceTarget(null);
+    setDetailAsset(null); assetDirtyRef.current = false;
+  }
+
+  function openAssetDetail(a: Asset) {
+    assetDirtyRef.current = false;
+    setDetailAsset(a);
+  }
+  function closeDetailAsset() {
+    if (assetDirtyRef.current && !confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")) return;
+    assetDirtyRef.current = false;
+    setDetailAsset(null);
+  }
+
   async function openPuesto(p: Puesto) {
     setSel(p); setMsg("Cargando equipos..."); setScanMode(null);
     setRoomOpen(false); setRoomMsg("");
     setPersonalByUser({});
+    setDetailAsset(null); assetDirtyRef.current = false;
     const r = await fetch(`/api/glpi?location_id=${p.glpi_id}`);
     const j = await r.json();
     if (!r.ok) { setMsg("Error: " + j.error); setItems([]); return; }
@@ -649,8 +642,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-4 overflow-x-clip items-start">
       <div className="min-w-0 overflow-hidden lg:sticky lg:top-20">
-        <div className="flex gap-2 items-center mb-2 flex-wrap">
-          <h1 className="text-xl font-bold">Control {floor ? `· ${floor.name}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
+        <div className="flex gap-2 items-center mb-1.5 flex-wrap">
+          <h1 className="text-lg font-bold">Control {floor ? `· ${floor.name}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
           {dashLoading && !calibrar && <Spinner label="Estados…" />}
           {floors.length > 1 && floors.length <= MAX_FLOOR_BUTTONS && (
             <div className="flex gap-1 flex-wrap" role="tablist" aria-label="Pisos">
@@ -662,7 +655,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     role="tab"
                     aria-selected={active}
                     onClick={() => { setFloorId(f.id); setSel(null); setItems([]); setMapResults([]); }}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${active ? "text-white" : "bg-white text-muted border border-line hover:text-ink"}`}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition min-h-[36px] ${active ? "text-white" : "bg-white text-muted border border-line hover:text-ink"}`}
                     style={active ? { background: "var(--accent)" } : undefined}
                   >
                     {f.name}
@@ -676,24 +669,28 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
               {floors.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           )}
+          {!calibrar && floor && (
+            <button className="btn btn-secondary text-xs md:hidden ml-auto tap-target" aria-expanded={toolsOpen} aria-controls="map-tools" onClick={() => setToolsOpen((v) => !v)}>
+              {toolsOpen ? "Ocultar herramientas" : "Herramientas"}
+            </button>
+          )}
         </div>
         {!calibrar && floor && (
-          <div className="card px-3 py-2 mb-2 flex gap-2 items-center flex-wrap text-xs">
-            <span className="font-bold text-ink">Leyenda:</span>
+          <div className="card px-2.5 py-1.5 mb-1.5 flex gap-x-3 gap-y-1 items-center flex-wrap text-[11px]" aria-label="Leyenda de estados">
             {(["en-uso", "disponible", "incompleto", "inconsistente"] as EstadoPuesto[]).map((e) => (
-              <span key={e} className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true" className="inline-block w-3.5 h-3.5 rounded border-2" style={{ background: e === "en-uso" ? "var(--st-use-bg)" : e === "disponible" ? "var(--st-free-bg)" : e === "incompleto" ? "var(--st-inc-bg)" : "var(--st-warn-bg)", borderColor: ESTADO_META[e].color }} />
+              <span key={e} className="inline-flex items-center gap-1" title={e === "en-uso" ? "Puesto equipado con bienes y usuario" : e === "disponible" ? "Puesto equipado con bienes, sin usuario" : e === "incompleto" ? "Puesto sin bienes ni usuario" : "Puesto con usuario pero sin bienes"}>
+                <span aria-hidden="true" className="inline-block w-3 h-3 rounded border-2" style={{ background: e === "en-uso" ? "var(--st-use-bg)" : e === "disponible" ? "var(--st-free-bg)" : e === "incompleto" ? "var(--st-inc-bg)" : "var(--st-warn-bg)", borderColor: ESTADO_META[e].color }} />
                 <span className="text-muted">{ESTADO_META[e].label} <b className="text-ink tabular-nums">{countsFloor[e]}</b></span>
               </span>
             ))}
           </div>
         )}
         {!calibrar && floor && (
-          <div className="card px-3 py-2 mb-2 grid gap-2">
+          <div id="map-tools" className={`card px-3 py-2 mb-1.5 ${toolsOpen ? "grid" : "hidden"} md:grid gap-2`}>
             <div className="flex gap-2 flex-wrap items-center">
               <label htmlFor="map-search" className="text-xs font-bold text-ink">Buscar en plano</label>
               <input id="map-search" className="input flex-1 min-w-[180px] !py-1.5 text-sm" placeholder="Nº puesto, usuario o inventario…" value={mapQuery} onChange={(e) => setMapQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && buscarEnPlano()} />
-              <button className="btn btn-primary text-xs" onClick={buscarEnPlano}>Buscar</button>
+              <button className="btn btn-primary text-xs tap-target" onClick={buscarEnPlano}>Buscar</button>
               <span className="text-xs text-muted" role="status">{mapMsg}</span>
             </div>
             {!!mapResults.length && (
@@ -734,7 +731,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             <div ref={mapWrapRef} className={`relative ${isFull ? "bg-white" : ""}`}>
             <TransformWrapper ref={transformRef} minScale={0.5} maxScale={8} panning={{ disabled: panDisabled }}>
               <div className="relative">
-                <TransformComponent wrapperClass="!w-full !h-[60vh] bg-white rounded-xl shadow overflow-hidden">
+                <TransformComponent wrapperClass="!w-full !h-[58vh] lg:!h-[66vh] bg-white rounded-xl shadow overflow-hidden">
                   <div ref={boxRef} className="relative inline-block select-none"
                     onPointerDown={onBoxDown} onPointerMove={onBoxMove} onPointerUp={onBoxUp}
                     onContextMenu={(e) => {
@@ -748,7 +745,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     }}
                     style={{ touchAction: panDisabled ? "none" : undefined, cursor: calibrar && tool === "draw" ? "crosshair" : undefined }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[60vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, focusEpoch.current, 0); }} />
+                <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[58vh] lg:max-h-[66vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, focusEpoch.current, 0); }} />
                 {showPuestos && puestos.map((p) => {
                   const est = showEstados && !calibrar ? estadoOf(p.glpi_id) : null;
                   const dim = !calibrar && filtro !== "todos" && est !== filtro;
@@ -869,229 +866,229 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         )}
       </div>
 
-      <aside className="card p-0 min-w-0 overflow-hidden lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] flex flex-col" aria-label="Panel del puesto">
+      <aside className={`card p-0 min-w-0 overflow-hidden flex-col ${sel && !calibrar ? "flex fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t max-h-[72dvh]" : "hidden"} md:flex lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:rounded-xl`} aria-label="Panel del puesto">
+        <div className="md:hidden px-4 pt-2 pb-1 shrink-0 bg-white grid gap-0.5 border-b border-line">
+          <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full" style={{ background: "#dbe4f0" }} />
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <b className="text-sm truncate">{sel ? decodeEntities(nameOf(sel.glpi_id)) : "Puesto"}</b>
+            <button className="btn btn-secondary icon-btn shrink-0" onClick={clearSel} aria-label="Cerrar panel del puesto">✕</button>
+          </div>
+        </div>
         <div className="p-4 pb-3 border-b border-line grid gap-3 bg-white sticky top-0 z-10">
-        {!authUser?.canOperate && (
-          <p className="text-xs text-muted">Iniciá sesión desde el botón superior derecho para editar.</p>
-        )}
         <details>
-          <summary className="text-sm font-bold cursor-pointer">Lugares (árbol GLPI)</summary>
-          <div className="mt-2">
+          <summary className="text-sm font-bold cursor-pointer py-2">Lugares (árbol GLPI)</summary>
+          <div className="mt-2 max-h-[30vh] md:max-h-none overflow-auto">
             <PlacesTree floors={floors} occByLoc={occByLoc} onPuesto={(id) => openById(id)} onPiso={(f) => { setFloorId(f.id); setSel(null); setItems([]); }} />
           </div>
         </details>
         </div>
         <div className="p-4 pt-3 grid gap-3 overflow-y-auto overflow-x-hidden min-w-0 max-w-full">
-        {!sel ? <p className="text-sm text-slate-500">Selecciona un puesto en el mapa o en Lugares.</p> : (
+        {!sel ? <p className="text-sm text-muted">Selecciona un puesto en el mapa o en Lugares.</p> : (
           <>
             <div className="grid gap-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-lg font-bold text-ink">{nameOf(sel.glpi_id)}</span>
-                {(() => { const e = estadoOf(sel.glpi_id); return <span className="badge" style={{ background: e === "en-uso" ? "#ecfdf5" : e === "disponible" ? "#eef4ff" : e === "incompleto" ? "#fffbeb" : "#fef2f2", color: ESTADO_META[e].color, border: `1px solid ${ESTADO_META[e].color}55` }}>● {ESTADO_META[e].label}</span>; })()}
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold text-ink min-w-0 flex-1 truncate" title={nameOf(sel.glpi_id)}>{decodeEntities(nameOf(sel.glpi_id))}</span>
+                <button className="btn btn-secondary icon-btn shrink-0 hidden md:inline-flex" onClick={clearSel} aria-label="Cerrar panel del puesto">✕</button>
               </div>
-              <div className="text-xs text-muted">{floor?.name} · GLPI loc {sel.glpi_id} · {items.length} bien(es) · {occupants.length} usuario(s)
-                {byId.get(sel.glpi_id)?.room && <span className="badge badge-brand ml-2">Int. {byId.get(sel.glpi_id)?.room}</span>}
+              <div className="text-xs text-muted flex items-center gap-1.5 flex-wrap">
+                {(() => { const e = estadoOf(sel.glpi_id); return <span className="badge shrink-0" title={`Estado: ${ESTADO_META[e].label}`} style={{ background: e === "en-uso" ? "#ecfdf5" : e === "disponible" ? "#eef4ff" : e === "incompleto" ? "#fffbeb" : "#fef2f2", color: ESTADO_META[e].color, border: `1px solid ${ESTADO_META[e].color}55` }}>● {ESTADO_META[e].label}</span>; })()}
+                <span className="min-w-0">{floor?.name} · GLPI loc {sel.glpi_id} · {items.length} bien(es) · {occupants.length} usuario(s)</span>
+                {byId.get(sel.glpi_id)?.room && <span className="badge badge-brand shrink-0">Int. {byId.get(sel.glpi_id)?.room}</span>}
               </div>
             </div>
-            <div className="grid gap-2 border rounded-lg p-2">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <span className="text-sm font-semibold">Ocupante</span>
-                <div className="flex gap-1">
-                  {occupants.length > 0 ? (
-                    <button
-                      title="Cambiar ocupante"
-                      aria-label="Cambiar ocupante"
-                      className="btn btn-secondary icon-btn-sm"
-                      onClick={() => setOccOpen(!occOpen)}
-                    >
-                      <RefreshIcon size={13} />
-                    </button>
-                  ) : (
-                    <button
-                      title="Asignar ocupante"
-                      aria-label="Asignar ocupante"
-                      className="btn btn-secondary text-xs"
-                      onClick={() => setOccOpen(!occOpen)}
-                    >
-                      Asignar
-                    </button>
-                  )}
-                </div>
-              </div>
-              {occupants.length ? (
-                <ul className="grid gap-1 text-sm min-w-0">
-                  {occupants.map((o) => (
-                    <li key={o.id} className="grid gap-1 min-w-0">
-                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                        <span className="break-anywhere" title={o.name}>{o.name}</span>
-                        <button
-                          title="Quitar ocupante"
-                          aria-label={`Quitar ocupante ${o.name}`}
-                          className="btn btn-danger icon-btn-sm"
-                          onClick={() => requireEdit(() => removeOccupant(o.id, o.name))}
-                        >
-                          <TrashIcon size={13} />
-                        </button>
-                      </div>
-                      {(personalByUser[o.id] || []).map((pa) => (
-                        <div key={`${pa._type}-${pa.id}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 pl-2 text-xs text-muted">
-                          <span className="break-anywhere" title={`${pa._type} ${disp(pa.name)} Inv ${disp(pa.otherserial)}`}>{pa._type}: <b className="text-ink">{disp(pa.name)}</b> · Inv <span className="tabular-nums">{disp(pa.otherserial)}</span></span>
-                          {glpiBase && (
-                            <a
-                              title="Editar en GLPI"
-                              aria-label={`Editar ${pa._type} ${disp(pa.otherserial)} en GLPI`}
-                              href={`${glpiBase}/front/${editFormOf(pa._type)}?id=${pa.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-secondary icon-btn-sm"
-                            >
-                              <EditIcon size={13} />
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <span className="text-xs text-muted">Puesto sin ocupante.</span>
-              )}
-              {occOpen && (
-                <div className="grid gap-2">
-                  <div className="flex gap-2">
-                    <input
-                      className="input flex-1 text-sm"
-                      placeholder="Nombre, apellido o usuario GLPI…"
-                      value={occQuery}
-                      onChange={(e) => setOccQuery(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && searchOccupants()}
-                    />
-                    <button className="btn btn-primary text-xs" onClick={searchOccupants}>Buscar</button>
-                  </div>
-                  {occResults.map((u) => (
-                    <div key={u.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span>{u.display} <span className="text-xs text-muted">#{u.id}</span></span>
-                      <button className="btn btn-secondary text-xs" onClick={() => requireEdit(() => assignOccupant(u))}>Asignar</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-2 flex-wrap border-t pt-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm font-semibold">Int.:</span>
-                  {sel && byId.get(sel.glpi_id)?.room ? (
-                    <span className="badge badge-brand" title={`Interno ${byId.get(sel!.glpi_id)?.room}`}>{byId.get(sel!.glpi_id)?.room}</span>
-                  ) : (
-                    <span className="text-xs text-muted">Sin interno</span>
-                  )}
-                </div>
-                {authUser?.canOperate ? (
-                  <div className="flex gap-1 shrink-0">
-                    <button
-                      title="Editar interno del puesto"
-                      aria-label={`Editar interno de ${sel ? nameOf(sel.glpi_id) : "puesto"}`}
-                      className="btn btn-secondary icon-btn-sm"
-                      onClick={() => { setRoomVal((sel && byId.get(sel.glpi_id)?.room) || ""); setRoomMsg(""); setRoomOpen(!roomOpen); }}
-                    >
-                      <EditIcon size={13} />
-                    </button>
-                    {sel && byId.get(sel.glpi_id)?.room && (
-                      <button
-                        title="Quitar interno del puesto"
-                        aria-label={`Quitar interno de ${nameOf(sel.glpi_id)}`}
-                        className="btn btn-danger icon-btn-sm"
-                        onClick={() => requireEdit(clearRoom)}
-                      >
-                        <TrashIcon size={13} />
-                      </button>
-                    )}
-                  </div>
+            <section aria-label="Información del puesto" className="grid gap-1.5">
+              <h3 className="section-h">Información general</h3>
+              <dl className="info-card">
+                <div className="info-row"><dt>Piso</dt><dd>{floor?.name || "—"}</dd></div>
+                <div className="info-row"><dt>Ubicación GLPI</dt><dd className="break-words">{decodeEntities(byId.get(sel.glpi_id)?.completename || nameOf(sel.glpi_id))} <span className="text-xs text-muted tabular-nums">#{sel.glpi_id}</span></dd></div>
+                <div className="info-row"><dt>Interno</dt><dd>{byId.get(sel.glpi_id)?.room || <span className="text-muted">Sin interno</span>}</dd></div>
+                <div className="info-row"><dt>Estado</dt><dd>{ESTADO_META[estadoOf(sel.glpi_id)].label}</dd></div>
+              </dl>
+            </section>
+            <section aria-label="Ocupante del puesto" className="grid gap-1.5">
+              <h3 className="section-h">Ocupante</h3>
+              <div className="info-card grid gap-1.5 py-2.5">
+                {occupants.length ? (
+                  <ul className="grid gap-2 text-sm min-w-0">
+                    {occupants.map((o) => (
+                      <li key={o.id} className="grid gap-1 min-w-0">
+                        <b className="break-words text-ink" title={`${o.name} (#${o.id})`}>{decodeEntities(o.name)} <span className="text-xs text-muted font-normal tabular-nums">#{o.id} · {o.count} equipo(s)</span></b>
+                        {(personalByUser[o.id] || []).map((pa) => (
+                          <button key={`${pa._type}-${pa.id}`} type="button" className="rowlink text-xs text-muted break-anywhere text-left" title={`${pa._type} ${disp(pa.name)} — abrir ficha (bien personal)`} onClick={() => openAssetDetail(pa)}>
+                            {pa._type}: <b className="text-ink">{disp(pa.name)}</b> · Inv <span className="tabular-nums">{disp(pa.otherserial)}</span> <span className="text-[11px]">(personal)</span>
+                          </button>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
                 ) : (
-                  <span className="text-[11px] text-muted">Inicia sesión para editar</span>
+                  <span className="text-xs text-muted">Puesto sin ocupante.</span>
                 )}
               </div>
-              {roomOpen && authUser?.canOperate && (
-                <div className="grid gap-2">
-                  <div className="flex gap-2">
-                    <input
-                      className="input flex-1 text-sm"
-                      placeholder="Nº de interno… (vacío para quitar)"
-                      value={roomVal}
-                      maxLength={50}
-                      onChange={(e) => setRoomVal(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && requireEdit(saveRoom)}
-                    />
-                    <button className="btn btn-primary text-xs" onClick={() => requireEdit(saveRoom)}>Guardar</button>
-                  </div>
-                  {roomMsg && <p className="text-xs text-muted">{roomMsg}</p>}
-                </div>
-              )}
-              {!roomOpen && roomMsg && <p className="text-xs text-muted">{roomMsg}</p>}
-            </div>
-            <section aria-label="Bienes del puesto" className="grid gap-2 min-w-0">
-              <h3 className="text-sm font-bold text-ink">Bienes ({items.length})</h3>
-              {items.length === 0 && <p className="text-xs text-muted">Sin bienes asociados a este puesto.</p>}
-            {items.map((a) => {
-              const title = `${a._type} · ${disp(a.name)} · Inv. ${disp(a.otherserial)}`;
-              return (
-              <div key={`${a._type}-${a.id}`} className={`border border-line rounded-xl px-2.5 py-2 min-w-0 max-w-full text-sm bg-white overflow-hidden ${highlightKey === `${a._type}-${a.id}` ? "flash-highlight" : ""}`}>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-[13px] clamp-2" title={title}><span aria-hidden="true" className="mr-1">{a._type === "Computer" ? "🖥️" : a._type === "Monitor" ? "🖵" : a._type === "Phone" ? "☎️" : a._type === "Printer" ? "🖨️" : a._type === "Peripheral" ? "⌨️" : "📦"}</span>{a._type} · {disp(a.name)}</div>
-                    <div className="text-xs text-muted break-anywhere">Inv. <span className="tabular-nums">{disp(a.otherserial)}</span></div>
-                  </div>
-                  <div className="flex gap-1 shrink-0 items-center" role="group" aria-label={`Acciones para ${disp(a.otherserial)}`}>
-                    {glpiBase && (
-                      <a
-                        title="Editar en GLPI"
-                        aria-label={`Editar ${a._type} ${disp(a.otherserial)} en GLPI`}
-                        href={`${glpiBase}/front/${editFormOf(a._type)}?id=${a.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary icon-btn-sm"
-                      >
-                        <EditIcon size={13} />
-                      </a>
-                    )}
-                    <button
-                      title="Reemplazar equipo"
-                      aria-label={`Reemplazar ${a._type} ${disp(a.otherserial)}`}
-                      onClick={() => requireEdit(() => { setReplaceTarget(a); setScanMode("replace"); })}
-                      className="btn btn-secondary icon-btn-sm"
-                    >
-                      <RefreshIcon size={13} />
-                    </button>
-                    <button
-                      title="Desvincular del puesto (no elimina en GLPI)"
-                      aria-label={`Desvincular ${a._type} ${disp(a.otherserial)} del puesto`}
-                      onClick={() => requireEdit(() => unassign(a))}
-                      className="btn btn-danger icon-btn-sm"
-                    >
-                      <TrashIcon size={13} />
-                    </button>
-                  </div>
-                </div>
-                <div className="text-xs text-muted break-anywhere">Mod. {disp(a._model)} · Serie <span className="tabular-nums">{disp(a.serial)}</span> · Us. {disp(a._userName)}</div>
-              </div>
-              );
-            })}
             </section>
-            <p className={`text-sm ${msg.startsWith("Error") || msg.startsWith("No ") ? "text-danger" : "text-muted"}`} role="status">{msg}</p>
-            <div className="grid gap-2 border-t pt-2">
-              <div className="text-sm font-semibold">Agregar por inventario</div>
-              <div className="flex gap-2">
-                <input aria-label="Número de inventario" className="input flex-1 text-sm !py-2" placeholder="0000012865, 12865 o A 0001-0537" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && requireEdit(() => assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {}))} />
-                <button onClick={() => manualInv && requireEdit(() => assignInventory(manualInv))} className="btn btn-primary text-xs">OK</button>
-                <button aria-label="Escanear código" onClick={() => scanMode ? setScanMode(null) : requireEdit(() => setScanMode("add"))} className="btn btn-secondary text-xs">📷</button>
+            <section aria-label="Bienes del puesto" className="grid gap-1.5 min-w-0">
+              <h3 className="section-h">Bienes ({items.length})</h3>
+              {items.length === 0 && <p className="text-xs text-muted">Sin bienes asociados a este puesto.</p>}
+              {items.length > 0 && (
+              <ul className="card p-3 grid gap-0" aria-label={`Bienes en ${nameOf(sel.glpi_id)}`}>
+              {items.map((a) => {
+                const title = `${a._type} · ${disp(a.name)} · Inv. ${disp(a.otherserial)}`;
+                return (
+                <li key={`${a._type}-${a.id}`} className={`flex items-center gap-2.5 min-w-0 py-1.5 border-b border-line last:border-0 ${highlightKey === `${a._type}-${a.id}` ? "flash-highlight rounded-lg px-1" : ""}`}>
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-canvas border border-line" aria-hidden="true">
+                    <TypeIcon type={a._type} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${title} — abrir ficha`} onClick={() => openAssetDetail(a)}>{disp(a.name)}</button>
+                    <span className="block text-xs text-muted truncate">{a._type} · Inv <span className="tabular-nums">{disp(a.otherserial)}</span>{a._model ? ` · Mod. ${disp(a._model)}` : ""}{a.serial ? <> · Serie <span className="tabular-nums">{disp(a.serial)}</span></> : null}</span>
+                  </span>
+                </li>
+                );
+              })}
+              </ul>
+              )}
+            </section>
+            {msg && <p className={`text-sm break-words ${msg.startsWith("Error") || msg.startsWith("No ") ? "text-danger" : "text-muted"}`} role="status">{msg}</p>}
+            {authUser?.canOperate && (
+            <AdminSection title="Administrar puesto y equipos" hint="Ocupante, interno y bienes">
+              <div className="grid gap-1.5 border border-line rounded-xl bg-white p-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-sm font-semibold">Ocupante</span>
+                  <button className="btn btn-secondary text-xs" onClick={() => setOccOpen(!occOpen)}>{occOpen ? "Cerrar" : occupants.length ? "Cambiar" : "Asignar"}</button>
+                </div>
+                {occupants.length > 0 && (
+                  <div className="grid gap-1.5">
+                    {occupants.map((o) => (
+                      <div key={o.id} className="flex items-center justify-between gap-2 text-sm border border-line rounded-xl px-3 py-2 min-h-[52px]">
+                        <span className="truncate min-w-0" title={o.name}>{decodeEntities(o.name)} <span className="text-xs text-muted">#{o.id}</span></span>
+                        <button className="btn btn-danger-outline text-xs shrink-0" onClick={() => requireEdit(() => removeOccupant(o.id, o.name))}>Quitar</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {occOpen && (
+                  <div className="grid gap-2">
+                    <div className="flex gap-2">
+                      <input
+                        className="input flex-1 text-sm min-w-0"
+                        placeholder="Nombre, apellido o usuario GLPI…"
+                        aria-label="Buscar ocupante en GLPI"
+                        value={occQuery}
+                        onChange={(e) => setOccQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && searchOccupants()}
+                      />
+                      <button className="btn btn-primary text-xs shrink-0 tap-target" onClick={searchOccupants}>Buscar</button>
+                    </div>
+                    {occResults.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between gap-2 text-sm border border-line rounded-xl px-3 py-2 min-h-[52px]">
+                        <span className="truncate min-w-0" title={`${u.display} #${u.id}`}>{u.display} <span className="text-xs text-muted">#{u.id}</span></span>
+                        <button className="btn btn-secondary text-xs shrink-0" onClick={() => requireEdit(() => assignOccupant(u))}>Asignar</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <p className="text-[11px] text-muted">Buscando → encontrado / no encontrado / error. La operación confirma antes de mover equipos con usuario.</p>
-            </div>
+              <div className="grid gap-1.5 border border-line rounded-xl bg-white p-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-sm font-semibold">Interno del puesto</span>
+                  <span className="flex gap-2">
+                    <button className="btn btn-secondary text-xs" onClick={() => { setRoomVal((sel && byId.get(sel.glpi_id)?.room) || ""); setRoomMsg(""); setRoomOpen(!roomOpen); }}>{byId.get(sel.glpi_id)?.room ? "Editar" : "Asignar"}</button>
+                    {sel && byId.get(sel.glpi_id)?.room && (
+                      <button className="btn btn-danger-outline text-xs" onClick={() => requireEdit(clearRoom)}>Quitar</button>
+                    )}
+                  </span>
+                </div>
+                {roomOpen && (
+                  <div className="grid gap-2">
+                    <div className="flex gap-2">
+                      <input
+                        className="input flex-1 text-sm min-w-0"
+                        placeholder="Nº de interno… (vacío para quitar)"
+                        aria-label="Número de interno"
+                        value={roomVal}
+                        maxLength={50}
+                        onChange={(e) => setRoomVal(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && requireEdit(saveRoom)}
+                      />
+                      <button className="btn btn-primary text-xs shrink-0 tap-target" onClick={() => requireEdit(saveRoom)}>Guardar</button>
+                    </div>
+                  </div>
+                )}
+                {roomMsg && <p className="text-xs text-muted" role="status">{roomMsg}</p>}
+              </div>
+              <div className="grid gap-1.5 border border-line rounded-xl bg-white p-3">
+                <span className="text-sm font-semibold">Agregar bienes por inventario</span>
+                <div className="flex gap-2">
+                  <input aria-label="Número de inventario" className="input flex-1 text-sm min-w-0" placeholder="0000012865, 12865 o A 0001-0537" value={manualInv} onChange={(e) => setManualInv(e.target.value)} onKeyDown={(e) => e.key === "Enter" && manualInv && requireEdit(() => assignInventory(manualInv, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {}))} />
+                  <button onClick={() => manualInv && requireEdit(() => assignInventory(manualInv))} className="btn btn-primary text-xs shrink-0 tap-target">OK</button>
+                  <button aria-label="Escanear código" onClick={() => scanMode ? setScanMode(null) : requireEdit(() => setScanMode("add"))} className="btn btn-secondary tap-target shrink-0">📷</button>
+                </div>
+                <p className="text-[11px] text-muted">Buscando → encontrado / no encontrado / error. La operación confirma antes de mover equipos con usuario.</p>
+              </div>
+              {items.length > 0 && (
+              <div className="grid gap-1.5" role="group" aria-label="Editar o desvincular bienes">
+                <span className="text-xs font-semibold text-ink">Editar o desvincular bienes</span>
+                {items.map((a) => (
+                  <div key={`${a._type}-${a.id}`} className="border border-line rounded-xl bg-white px-3 py-2 grid gap-1.5">
+                    <span className="truncate text-sm min-w-0" title={`${a._type} ${disp(a.name)} · Inv ${disp(a.otherserial)}`}>{a._type} · <b>{disp(a.name)}</b> · Inv <span className="tabular-nums">{disp(a.otherserial)}</span></span>
+                    <span className="flex gap-1.5 flex-wrap">
+                      {glpiBase && (
+                        <a
+                          title="Editar en GLPI"
+                          aria-label={`Editar ${a._type} ${disp(a.otherserial)} en GLPI`}
+                          href={`${glpiBase}/front/${editFormOf(a._type)}?id=${a.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary text-xs"
+                        >
+                          Editar en GLPI
+                        </a>
+                      )}
+                      <button
+                        aria-label={`Reemplazar ${a._type} ${disp(a.otherserial)}`}
+                        onClick={() => requireEdit(() => { setReplaceTarget(a); setScanMode("replace"); })}
+                        className="btn btn-secondary text-xs"
+                      >
+                        Reemplazar
+                      </button>
+                      <button
+                        aria-label={`Desvincular ${a._type} ${disp(a.otherserial)} del puesto (no elimina en GLPI)`}
+                        onClick={() => requireEdit(() => unassign(a))}
+                        className="btn btn-danger-outline text-xs"
+                      >
+                        Desvincular
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              )}
+            </AdminSection>
+            )}
             {scanMode && (
               <ScanModal
                 title={scanMode === "replace" ? "Reemplazar equipo (escaneo)" : "Agregar equipo (escaneo)"}
                 onClose={() => { setScanMode(null); setReplaceTarget(null); }}
                 onResult={(v) => assignInventory(v, replaceTarget && scanMode === "replace" ? { replace: replaceTarget } : {})}
               />
+            )}
+            {detailAsset && (
+              <SidePanel
+                title={decodeEntities(disp(detailAsset.name))}
+                subtitle={<span className="badge">{detailAsset._type}</span>}
+                onClose={closeDetailAsset}
+                footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={closeDetailAsset}>← Volver al puesto</button></div>}
+              >
+                <AssetEditModal
+                  key={`${detailAsset._type}-${detailAsset.id}`}
+                  asset={detailAsset}
+                  byId={byId}
+                  childrenOf={childrenOf}
+                  canEdit={!!authUser?.canOperate}
+                  onSaved={() => { if (sel) openPuesto(sel); setDetailAsset(null); }}
+                  onDirtyChange={(d) => { assetDirtyRef.current = d; }}
+                />
+              </SidePanel>
             )}
           </>
         )}
@@ -1141,7 +1138,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
 function ZoomControls({ onFullscreen, isFull }: { onFullscreen: () => void; isFull: boolean }) {
   const { zoomIn, zoomOut, resetTransform, centerView } = useControls();
-  const btn = "bg-white/95 border border-line rounded-lg w-9 h-9 text-lg leading-none shadow flex items-center justify-center hover:bg-canvas";
+  const btn = "bg-white/95 border border-line rounded-lg w-11 h-11 text-xl leading-none shadow flex items-center justify-center hover:bg-canvas";
   return (
     <div className="absolute top-2 right-2 flex flex-col gap-1 z-10" role="toolbar" aria-label="Controles del plano">
       <button className={btn} onClick={() => zoomIn()} title="Acercar" aria-label="Acercar">+</button>

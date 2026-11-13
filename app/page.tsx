@@ -87,25 +87,25 @@ export default function Home() {
 
       {dash?.health.glpiOk === false && !error && (
         <div className="card p-4 text-sm toast-warn border" role="alert">
-          <b>GLPI no responde:</b> {(dash.health.glpiError || "sin conexión").slice(0, 160)}
+          <b>GLPI no responde:</b> <span className="break-all">{(dash.health.glpiError || "sin conexión").slice(0, 160)}</span>
           <Link href="/config" className="underline ml-2">Revisar conexión</Link>
         </div>
       )}
 
       {/* KPIs principales */}
       <section aria-label="Indicadores principales" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Equipos en GLPI", value: dash ? String(dash.stats.total) + (dash.stats.truncated ? "+" : "") : "…", sub: dash?.stats.truncated ? "conteo parcial (límite GLPI 1000/tipo)" : "6 tipos de bienes" },
-          { label: "Asignados directos a usuario", value: dash ? String(dash.stats.assigned) : "…", sub: dash ? `${Math.round((dash.stats.assigned / Math.max(1, dash.stats.total)) * 100)}% del total · estén o no en puesto` : "" },
-          { label: "Sin ubicación", value: dash ? String(dash.stats.unlocated) : "…", sub: "locations_id = 0 (no cuenta no dibujados)" },
-          { label: "Puestos dibujados", value: dash ? String(dash.puestos.drawn) : "…", sub: dash ? `${dash.puestos.withItems} equipados · ${dash.puestos.occupied} con usuario` : "" },
-        ].map((k) => (
-          <div key={k.label} className="card p-4 grid gap-1">
-            <span className="text-xs text-muted uppercase tracking-wide font-semibold">{k.label}</span>
-            <span className="text-3xl font-bold tabular-nums">{loading && !dash ? <Spinner label="" /> : k.value}</span>
-            <span className="text-xs text-muted">{k.sub}</span>
-          </div>
-        ))}
+          {[
+            { label: "Equipos en GLPI", value: dash ? String(dash.stats.total) + (dash.stats.truncated ? "+" : "") : "…", sub: dash?.stats.truncated ? "conteo parcial (límite GLPI 1000/tipo)" : "6 tipos de bienes" },
+            { label: "Asignados directos a usuario", value: dash ? String(dash.stats.assigned) : "…", sub: dash ? `${Math.round((dash.stats.assigned / Math.max(1, dash.stats.total)) * 100)}% del total · estén o no en puesto` : "" },
+            { label: "Sin ubicación", value: dash ? String(dash.stats.unlocated) : "…", sub: "locations_id = 0 (no cuenta no dibujados)" },
+            { label: "Puestos dibujados", value: dash ? String(dash.puestos.drawn) : "…", sub: dash ? `${dash.puestos.withItems} equipados · ${dash.puestos.occupied} con usuario` : "" },
+          ].map((k) => (
+            <div key={k.label} className="card p-4 grid gap-1 min-h-[118px] content-start">
+              <span className="text-xs text-muted uppercase tracking-wide font-semibold leading-snug">{k.label}</span>
+              <span className="text-3xl font-bold tabular-nums leading-none">{loading && !dash ? <Spinner label="" /> : k.value}</span>
+              <span className="text-xs text-muted leading-snug break-words">{k.sub}</span>
+            </div>
+          ))}
       </section>
 
       {/* Estados de puestos */}
@@ -141,15 +141,15 @@ export default function Home() {
               {dash.stats.byType.map((b) => (
                 <div key={b.type} className="grid gap-1">
                   <div className="flex justify-between text-sm gap-2">
-                    <span className="font-medium"><span aria-hidden="true" className="mr-1">{TYPE_ICON[b.type] || "📦"}</span>{b.type}</span>
-                    <span className="tabular-nums text-muted text-xs sm:text-sm">{b.total}{b.truncated ? "+" : ""} · {b.assigned} con usuario · {b.unlocated} sin ubic.</span>
+                    <span className="font-medium min-w-0 truncate" title={b.type}><span aria-hidden="true" className="mr-1">{TYPE_ICON[b.type] || "📦"}</span>{b.type}</span>
+                    <span className="tabular-nums text-muted text-xs sm:text-sm whitespace-nowrap shrink-0">{b.total}{b.truncated ? "+" : ""} · {b.assigned} con usuario · {b.unlocated} sin ubic.</span>
                   </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#eef2f8" }}>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#eef2f8" }} role="img" aria-label={`${b.type}: ${b.total} equipos (barra relativa al tipo con más equipos, no es porcentaje)`}>
                     <div className="h-full rounded-full" style={{ width: `${(b.total / maxType) * 100}%`, background: "var(--accent)" }} />
                   </div>
                 </div>
               ))}
-              {dash.stats.truncated && <p className="text-xs text-muted">“+” indica truncado en 1000 por tipo (límite GLPI): los porcentajes son sobre el parcial.</p>}
+              <p className="text-xs text-muted">Barras relativas al tipo con más equipos (no son porcentajes).{dash.stats.truncated && " “+” indica truncado en 1000 por tipo (límite GLPI)."}</p>
             </div>
           )}
         </section>
@@ -194,8 +194,8 @@ export default function Home() {
             <ul className="grid gap-2 text-sm">
               {dash.recent.map((a, i) => (
                 <li key={`${a.ts}-${i}`} className="flex justify-between gap-2 flex-wrap border-b border-line pb-1.5 last:border-0">
-                  <span className="min-w-0">
-                    <b>{a.actor}</b> {a.action} <span className="text-muted">{a.type} #{a.id}</span>
+                  <span className="min-w-0 break-words">
+                    <b>{a.actor}</b> {a.action} <span className="text-muted break-all">{a.type} #{a.id}</span>
                   </span>
                   <span className="text-xs text-muted tabular-nums shrink-0">
                     {new Date(a.ts).toLocaleString()}
@@ -211,8 +211,8 @@ export default function Home() {
           {!dash ? <p className="text-sm text-muted">{loading ? <Spinner /> : "Sin datos."}</p> : (
             <ul className="grid gap-1.5 text-sm">
               <li>
-                {dash.health.glpiOk ? <span className="badge badge-success">● GLPI conectado</span> : <span className="badge badge-danger">● GLPI caído</span>}
-                {dash.health.latencyMs != null && <span className="text-xs text-muted ml-2 tabular-nums">{dash.health.latencyMs} ms</span>}
+                {dash.health.glpiOk ? <span className="badge badge-success">● GLPI conectado</span> : <span className="badge badge-danger">● GLPI sin conexión</span>}
+                {dash.health.latencyMs != null && <span className="text-xs text-muted ml-2 tabular-nums" title="Tiempo de respuesta de GLPI">{dash.health.latencyMs} ms</span>}
                 <span className="text-xs text-muted ml-2">sync {new Date(dash.cached_at).toLocaleTimeString()}{dash.cached ? " (caché 5 min)" : ""}</span>
               </li>
               {!dash.health.appTokenSet && <li>⚠️ Falta el App-Token. <Link href="/config" className="underline">Cargarlo en /config</Link>.</li>}

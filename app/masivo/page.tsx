@@ -5,7 +5,8 @@ import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
 import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
 import { comparePisos, formatLocationDisplay } from "@/lib/location-display";
-import { Spinner, TypeIcon } from "@/components/ui";
+import { Spinner, TypeIcon, SearchCombobox, ConfirmDialog } from "@/components/ui";
+import { IconUser } from "@/components/icons";
 
 type Asset = any;
 type AuthUser = { login: string; name: string; profiles: string[]; canOperate: boolean };
@@ -28,13 +29,33 @@ type Row = {
   note?: string;
 };
 
+type ConfirmState = null | { kind: "move" } | { kind: "clear" };
+
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 let uidSeq = 1;
+
+const STATUS_META: Record<RowStatus, { label: string; cls: string; title: string }> = {
+  buscando: { label: "Buscando…", cls: "", title: "Buscando el bien en GLPI" },
+  listo: { label: "Listo", cls: "badge-success", title: "Validado, pendiente de mover" },
+  duplicado: { label: "Duplicado", cls: "badge-warning", title: "Ya está en la lista (mismo bien, otro código)" },
+  "ya-ahi": { label: "Ya está ahí", cls: "", title: "El bien ya está en el puesto destino" },
+  "no-encontrado": { label: "No existe", cls: "badge-danger", title: "Sin coincidencias en GLPI" },
+  error: { label: "Error", cls: "badge-danger", title: "Error de red o de GLPI" },
+  moviendo: { label: "Moviendo…", cls: "", title: "Moviendo en este momento" },
+  movido: { label: "Movido ✓", cls: "badge-success", title: "Movimiento confirmado por GLPI" },
+  fallo: { label: "Falló", cls: "badge-danger", title: "GLPI rechazó el movimiento" },
+};
+
+function StatusBadge({ status, note }: { status: RowStatus; note?: string }) {
+  if (status === "buscando") return <Spinner label="Buscando…" />;
+  if (status === "moviendo") return <Spinner label="Moviendo…" />;
+  const m = STATUS_META[status];
+  return <span className={`badge ${m.cls}`} title={note || m.title}>{m.label}</span>;
+}
 
 export default function Masivo() {
   const { byId, childrenOf } = useLocations();
   const [pisoPick, setPisoPick] = useState("");
-  const [puestoQuery, setPuestoQuery] = useState("");
   const [destLocId, setDestLocId] = useState("");
   const [floors, setFloors] = useState<FloorRef[]>([]);
   const [floorsMsg, setFloorsMsg] = useState("");
@@ -118,16 +139,15 @@ export default function Masivo() {
     return [...arr].sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
   }, [kidsOf, pisoPick]);
 
-  const puestosFiltrados = useMemo(() => {
-    const q = puestoQuery.trim().toLowerCase();
-    if (!q) return puestosDelPiso;
-    return puestosDelPiso.filter(
-      (l: any) =>
-        String(l.name || "").toLowerCase().includes(q) ||
-        String(l.room || "").toLowerCase().includes(q) ||
-        String(l.id) === q.trim()
-    );
-  }, [puestosDelPiso, puestoQuery]);
+  const puestoOptions = useMemo(
+    () =>
+      puestosDelPiso.map((l: any) => ({
+        value: String(l.id),
+        label: String(l.name || `Puesto ${l.id}`),
+        hint: `${l.room ? `Int. ${l.room} · ` : ""}id ${l.id}`,
+      })),
+    [puestosDelPiso]
+  );
 
   const destLoc = destLocId ? byId.get(Number(destLocId)) : null;
   const destName = destLoc
@@ -226,13 +246,15 @@ export default function Masivo() {
     setRows((prev) => prev.filter((r) => r.uid !== uid));
   };
 
+  const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+
   const clearAll = () => {
     if (busy || !rows.length) return;
-    if (!confirm(`Quitar los ${rows.length} renglones de la lista?`)) return;
     setRows([]);
     setResult("");
     setMsg("");
     setProgress(null);
+    setConfirmState(null);
   };
 
   const clearMoved = () => {
@@ -244,19 +266,16 @@ export default function Masivo() {
     const dest = Number(destLocId);
     if (!Number.isFinite(dest) || dest <= 0) {
       setMsg("Elegí el puesto destino antes de confirmar.");
+      setConfirmState(null);
       return;
     }
     const targets = rows.filter((r) => r.status === "listo");
     if (!targets.length) {
       setMsg("No hay equipos listos para mover (revisá duplicados / no encontrados).");
+      setConfirmState(null);
       return;
     }
-    if (
-      !confirm(
-        `Mover ${targets.length} equipo(s) al puesto ${destName}? Conservarán su usuario actual. Esta acción se registra en Actividad.`
-      )
-    )
-      return;
+    setConfirmState(null);
     setBusy(true);
     setResult("");
     setProgress({ done: 0, total: targets.length });
@@ -364,89 +383,72 @@ export default function Masivo() {
       </div>
 
       {/* Destino */}
-      <section aria-label="Puesto destino" className="card p-4 grid gap-2">
+      <section aria-label="Puesto destino" className="card p-3 sm:p-4 grid gap-2.5">
         <h2 className="font-bold text-ink">1 · Puesto destino</h2>
-        <div className="grid sm:grid-cols-2 gap-2">
-          <div className="grid gap-1">
-            <label className="text-xs font-semibold text-ink" htmlFor="masivo-piso">
-              Piso (con mapa)
-            </label>
-            <select
-              id="masivo-piso"
-              className="input text-sm"
-              value={pisoPick}
-              disabled={busy}
-              onChange={(e) => {
-                setPisoPick(e.target.value);
-                setDestLocId("");
-                setPuestoQuery("");
-              }}
-            >
-              <option value="">Elegir piso…</option>
-              {pisos.map((f) => (
-                <option key={f.id} value={String(f.glpiLocationId)}>
-                  {f.name} (id {f.glpiLocationId})
-                </option>
-              ))}
-            </select>
+        {destLocId ? (
+          <div className="info-card info-card-highlight grid gap-1 py-2.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="min-w-0">
+                <span className="block text-xs text-muted font-semibold uppercase tracking-wide">Destino</span>
+                <b className="block text-ink truncate" title={`${destName} (id ${destLocId})`}>{destName}</b>
+                <span className="block text-xs text-muted tabular-nums">id {destLocId} · {readyRows.length} equipo(s) listo(s)</span>
+              </span>
+              <button className="btn btn-secondary text-xs shrink-0" disabled={busy} onClick={() => setDestLocId("")}>Cambiar</button>
+            </div>
           </div>
-          <div className="grid gap-1">
-            <label className="text-xs font-semibold text-ink" htmlFor="masivo-puesto">
-              Puesto destino
-            </label>
-            <input
-              className="input text-sm"
-              placeholder={pisoPick ? "Filtrar por nombre, interno o id…" : "Primero elegí un piso…"}
-              aria-label="Filtrar puestos del piso"
-              value={puestoQuery}
+        ) : (
+          <div className="grid gap-2.5">
+            <div className="grid gap-1.5">
+              <label className="text-xs font-semibold text-ink" htmlFor="masivo-piso">
+                Piso (con mapa)
+              </label>
+              <select
+                id="masivo-piso"
+                className="input text-sm"
+                value={pisoPick}
+                disabled={busy}
+                onChange={(e) => {
+                  setPisoPick(e.target.value);
+                  setDestLocId("");
+                }}
+              >
+                <option value="">Elegir piso…</option>
+                {pisos.map((f) => (
+                  <option key={f.id} value={String(f.glpiLocationId)}>
+                    {f.name} (id {f.glpiLocationId})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {floorsMsg && (
+              <p className="text-xs text-danger" role="alert">
+                {floorsMsg}
+              </p>
+            )}
+            <SearchCombobox
+              id="masivo-puesto"
+              label="Puesto destino"
+              placeholder={pisoPick ? "Escribí para filtrar puestos…" : "Primero elegí un piso…"}
+              options={puestoOptions}
+              value={destLocId}
+              onSelect={setDestLocId}
               disabled={busy || !pisoPick}
-              onChange={(e) => setPuestoQuery(e.target.value)}
+              loading={false}
+              emptyText={puestosDelPiso.length ? "Sin coincidencias para ese filtro." : "Este piso aún no tiene puestos cargados en GLPI."}
+              filterHint={pisoPick ? `${puestosDelPiso.length} puesto(s) en este piso.` : undefined}
             />
           </div>
-        </div>
-        {floorsMsg && (
-          <p className="text-xs text-danger" role="alert">
-            {floorsMsg}
-          </p>
-        )}
-        <select
-          id="masivo-puesto"
-          aria-label="Puesto destino"
-          className="input text-sm"
-          value={destLocId}
-          disabled={busy || !pisoPick}
-          onChange={(e) => setDestLocId(e.target.value)}
-          size={Math.min(8, Math.max(3, puestosFiltrados.length))}
-        >
-          <option value="">Elegir puesto…</option>
-          {puestosFiltrados.map((l: any) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-              {l.room ? ` · Int. ${l.room}` : ""} (id {l.id})
-            </option>
-          ))}
-        </select>
-        {pisoPick && !puestosFiltrados.length && (
-          <p className="text-xs text-muted" role="status">
-            {puestosDelPiso.length ? "Sin coincidencias para ese filtro." : "Este piso aún no tiene puestos cargados en GLPI."}
-          </p>
-        )}
-        {destLocId && (
-          <p className="text-sm" role="status">
-            Destino: <b className="text-ink">{destName}</b>{" "}
-            <span className="text-muted text-xs">(id {destLocId})</span>
-          </p>
         )}
       </section>
 
       {/* Escaneo */}
-      <section aria-label="Escaneo en ráfaga" className="card p-4 grid gap-2">
+      <section aria-label="Escaneo en ráfaga" className="card p-3 sm:p-4 grid gap-2.5">
         <h2 className="font-bold text-ink">2 · Escaneá en ráfaga</h2>
-        <div className="flex gap-2 flex-wrap">
-          <button className="btn btn-primary text-sm" disabled={busy} onClick={() => setScanOpen(true)}>
+        <div className="flex gap-2 flex-wrap items-center">
+          <button className="btn btn-primary text-sm tap-target min-w-[160px]" disabled={busy} onClick={() => setScanOpen(true)}>
             📷 Escanear
           </button>
-          <span className="text-xs text-muted self-center">La cámara abre en modal; el destello verde confirma sin cerrar.</span>
+          <span className="text-xs text-muted">La cámara no se cierra sola; el destello verde confirma cada lectura.</span>
         </div>
         {scanOpen && (
           <BatchScanModal
@@ -458,10 +460,12 @@ export default function Masivo() {
         )}
         <div className="flex gap-2">
           <input
-            className="input flex-1 text-sm"
+            className="input flex-1 text-sm min-w-0"
             placeholder="Inventario manual o QR: 0000012865, A 0001-0537, URL GLPI…"
             value={manual}
             disabled={busy}
+            aria-label="Inventario manual, QR o URL GLPI"
+            enterKeyHint="done"
             onChange={(e) => setManual(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && manual.trim()) {
@@ -471,7 +475,7 @@ export default function Masivo() {
             }}
           />
           <button
-            className="btn btn-secondary text-sm"
+            className="btn btn-secondary text-sm tap-target shrink-0"
             disabled={busy || !manual.trim()}
             onClick={() => {
               addCode(manual);
@@ -489,11 +493,11 @@ export default function Masivo() {
       </section>
 
       {/* Lista */}
-      <section aria-label="Equipos escaneados" className="card p-4 grid gap-2">
+      <section aria-label="Equipos escaneados" className="card p-3 sm:p-4 grid gap-2.5">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h2 className="font-bold text-ink">3 · Lista ({rows.length})</h2>
           {rows.length > 0 && (
-            <button className="btn btn-secondary text-xs" disabled={busy} onClick={clearAll}>
+            <button className="btn btn-secondary text-xs" disabled={busy} onClick={() => setConfirmState({ kind: "clear" })}>
               Limpiar lista
             </button>
           )}
@@ -513,92 +517,117 @@ export default function Masivo() {
         {rows.length === 0 ? (
           <p className="text-sm text-muted">Todavía no escaneaste nada. Cada lectura suma un renglón con su estado.</p>
         ) : (
-          <div className="overflow-x-auto -mx-4 px-4">
-            <table className="table-dense min-w-[720px]">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Tipo</th>
-                  <th>Inventario</th>
-                  <th>Nombre</th>
-                  <th>Ubicación actual</th>
-                  <th>Estado</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const a = r.asset;
-                  const loc = a
-                    ? formatLocationDisplay(a._locationId, byId as any, a._locationName != null ? String(a._locationName) : null)
-                        .primary
-                    : "—";
-                  return (
-                    <tr key={r.uid}>
-                      <td className="tabular-nums text-xs max-w-[160px] truncate" title={r.code}>
-                        {r.code}
-                      </td>
-                      <td>
-                        {a ? (
-                          <span className="inline-flex items-center gap-1 whitespace-nowrap">
-                            <TypeIcon type={a._type} />
-                            <b>{a._type}</b>
+          <>
+            <div className="table-scroll hidden md:block" tabIndex={0} aria-label="Equipos escaneados en tabla">
+              <table className="table-dense min-w-[720px]">
+                <thead>
+                  <tr>
+                    <th scope="col">Código</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col">Inventario</th>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Ubicación actual</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col"><span className="sr-only">Quitar</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const a = r.asset;
+                    const loc = a
+                      ? formatLocationDisplay(a._locationId, byId as any, a._locationName != null ? String(a._locationName) : null)
+                          .primary
+                      : "—";
+                    return (
+                      <tr key={r.uid}>
+                        <td className="tabular-nums text-xs max-w-[160px] truncate" title={r.code}>
+                          {r.code}
+                        </td>
+                        <td>
+                          {a ? (
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                              <TypeIcon type={a._type} />
+                              <b>{a._type}</b>
+                            </span>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="tabular-nums font-semibold">{a ? disp(a.otherserial) : "—"}</td>
+                        <td className="max-w-[180px]">
+                          <span className="block truncate" title={a ? disp(a.name) : ""}>
+                            {a ? disp(a.name) : "—"}
                           </span>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="tabular-nums font-semibold">{a ? disp(a.otherserial) : "—"}</td>
-                      <td className="max-w-[180px]">
-                        <span className="block truncate" title={a ? disp(a.name) : ""}>
-                          {a ? disp(a.name) : "—"}
+                          {a?._userName && a._userName !== "—" && (
+                            <span className="text-xs text-muted truncate items-center gap-1 flex" title={disp(a._userName)}>
+                              <IconUser size={11} /> {disp(a._userName)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="text-xs max-w-[160px] truncate" title={loc}>
+                          {loc}
+                        </td>
+                        <td>
+                          <StatusBadge status={r.status} note={r.note} />
+                        </td>
+                        <td>
+                          {!busy && r.status !== "movido" && (
+                            <button
+                              className="btn btn-secondary text-xs !min-h-[36px]"
+                              onClick={() => removeRow(r.uid)}
+                              aria-label={`Quitar ${r.code} de la lista`}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="grid gap-2 md:hidden" role="list" aria-label="Equipos escaneados">
+              {rows.map((r) => {
+                const a = r.asset;
+                const loc = a
+                  ? formatLocationDisplay(a._locationId, byId as any, a._locationName != null ? String(a._locationName) : null)
+                      .primary
+                  : "—";
+                return (
+                  <article key={r.uid} className="card asset-card" role="listitem">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas border border-line" aria-hidden="true">
+                        {a ? <TypeIcon type={a._type} /> : <span className="text-muted text-xs">?</span>}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-2 min-w-0">
+                          <b className="text-ink truncate text-[0.95rem]" title={a ? disp(a.name) : r.code}>{a ? disp(a.name) : r.code}</b>
+                          {a && <span className="tabular-nums text-[0.8rem] font-bold text-ink shrink-0">#{disp(a.otherserial)}</span>}
                         </span>
-                        {a?._userName && a._userName !== "—" && (
-                          <span className="text-xs text-muted block truncate" title={disp(a._userName)}>
-                            👤 {disp(a._userName)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="text-xs max-w-[160px] truncate" title={loc}>
-                        {loc}
-                      </td>
-                      <td>
-                        {r.status === "buscando" && <Spinner label="Buscando…" />}
-                        {r.status === "listo" && <span className="badge badge-success">listo</span>}
-                        {r.status === "duplicado" && <span className="badge badge-warning">duplicado</span>}
-                        {r.status === "ya-ahi" && <span className="badge">ya está ahí</span>}
-                        {r.status === "no-encontrado" && <span className="badge badge-danger">no existe</span>}
-                        {r.status === "error" && (
-                          <span className="badge badge-danger" title={r.note}>
-                            error
-                          </span>
-                        )}
-                        {r.status === "moviendo" && <Spinner label="Moviendo…" />}
-                        {r.status === "movido" && <span className="badge badge-success">movido ✓</span>}
-                        {r.status === "fallo" && (
-                          <span className="badge badge-danger" title={r.note}>
-                            falló
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {!busy && r.status !== "movido" && (
-                          <button
-                            className="btn btn-secondary text-xs !min-h-[28px] !py-0.5"
-                            onClick={() => removeRow(r.uid)}
-                            aria-label={`Quitar ${r.code}`}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <span className="block text-xs text-muted truncate tabular-nums" title={r.code}>{r.code}</span>
+                      </span>
+                      {!busy && r.status !== "movido" && (
+                        <button className="btn btn-secondary icon-btn shrink-0" onClick={() => removeRow(r.uid)} aria-label={`Quitar ${r.code} de la lista`}>✕</button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 pl-11 min-w-0 flex-wrap">
+                      <StatusBadge status={r.status} note={r.note} />
+                      {a ? (
+                        <span className="text-xs text-muted truncate min-w-0" title={loc}>{a._type} · {loc}</span>
+                      ) : (
+                        <span className="text-xs text-muted">Sin datos de GLPI</span>
+                      )}
+                    </div>
+                    {a?._userName && a._userName !== "—" && (
+                      <span className="text-xs text-muted truncate pl-11 inline-flex items-center gap-1" title={disp(a._userName)}><IconUser size={11} /> {disp(a._userName)}</span>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
             <div ref={listEndRef} />
-          </div>
+          </>
         )}
 
         {progress && (
@@ -622,17 +651,17 @@ export default function Masivo() {
       </section>
 
       {/* Footer sticky confirmar */}
-      <div className="sticky bottom-3 z-10 card p-3 flex items-center gap-2 flex-wrap shadow-lift">
-        <span className="text-sm text-muted tabular-nums">
-          {readyRows.length} listo(s) {destName ? `→ ${destName}` : "· sin destino"}
+      <div className="sticky z-10 card p-3 flex items-center gap-2 flex-wrap shadow-lift" style={{ bottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
+        <span className="text-sm text-muted tabular-nums min-w-0">
+          {readyRows.length} listo(s) {destName ? <span className="text-ink font-semibold">→ {destName}</span> : "· sin destino"}
         </span>
-        <span className="ml-auto inline-flex gap-2">
+        <span className="ml-auto inline-flex gap-2 flex-wrap">
           {rows.some((r) => r.status === "movido") && (
-            <button className="btn btn-secondary text-sm" disabled={busy} onClick={clearMoved}>
+            <button className="btn btn-secondary text-sm tap-target" disabled={busy} onClick={clearMoved}>
               Nuevo lote
             </button>
           )}
-          <button className="btn btn-primary text-sm" disabled={confirmDisabled} onClick={() => requireEdit(doConfirm)}>
+          <button className="btn btn-primary text-sm tap-target min-w-[200px]" disabled={confirmDisabled} onClick={() => requireEdit(() => setConfirmState({ kind: "move" }))}>
             {busy ? "Moviendo…" : `Confirmar movimiento (${readyRows.length})`}
           </button>
         </span>
@@ -641,6 +670,32 @@ export default function Masivo() {
         <p className="text-xs text-muted" role="status">
           Elegí el puesto destino para habilitar Confirmar.
         </p>
+      )}
+
+      {confirmState?.kind === "move" && (
+        <ConfirmDialog
+          title="Confirmar movimiento masivo"
+          body={
+            <>
+              <span>Mover <b className="text-ink tabular-nums">{readyRows.length} equipo(s)</b> al puesto <b className="text-ink">{destName}</b> <span className="text-xs text-muted">(id {destLocId})</span>.</span>
+              <span>Conservarán su usuario actual. Esta acción se registra en Actividad y no se puede deshacer en lote.</span>
+            </>
+          }
+          confirmLabel={`Mover ${readyRows.length} equipo(s)`}
+          busy={busy}
+          onClose={() => setConfirmState(null)}
+          onConfirm={doConfirm}
+        />
+      )}
+      {confirmState?.kind === "clear" && (
+        <ConfirmDialog
+          title="Limpiar lista"
+          body={<span>Se quitarán los <b className="text-ink tabular-nums">{rows.length} renglones</b> de la lista (incluidos movidos y fallidos). Esta acción no toca GLPI.</span>}
+          confirmLabel="Limpiar lista"
+          danger
+          onClose={() => setConfirmState(null)}
+          onConfirm={clearAll}
+        />
       )}
 
       {authOpen && (

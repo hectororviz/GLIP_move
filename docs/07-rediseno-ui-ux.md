@@ -254,6 +254,66 @@ operaciones GLPI ni semántica de los checks de Administrar.
 - Iconos nuevos `IconCheck`/`IconX` en `components/icons.tsx` (mismo estilo
   stroke del sistema).
 
+## Iteración 8 — Inicio, Control, Masivo y Configuración
+
+Mismo lenguaje que Búsqueda/Accesos (info primero, admin secundaria
+colapsada, paneles laterales, confirmaciones explícitas). Sin cambios de
+endpoints, contratos, auth, roles, reglas de negocio, coordenadas, calibración
+ni lógica de movimientos/asignaciones.
+
+### Inicio (`app/page.tsx`)
+- KPIs con altura mínima uniforme y números tabulares; secundaria con
+  `break-words`.
+- Equipos por tipo: filas con `truncate`, cantidades tabulares sin compresión y
+  aclaración de que las barras son relativas al máximo (no porcentajes), con
+  `role=img` descriptivo.
+- Actividad con `break-words`/`break-all`; salud con "sin conexión" claro,
+  latencia con tooltip y error con corte controlado.
+
+### Control (`components/FloorMap.tsx`, calibración intacta)
+- Toolbar compacta: título reducido, pisos igual que antes, botón
+  **Herramientas** colapsable solo en móvil (desktop siempre visible);
+  leyenda de una línea compacta con conteos y tooltips; plano más alto
+  (`58vh`, `66vh` en desktop); zoom táctil de 44 px.
+- Panel: en móvil es hoja inferior (`max-h-72dvh`, con asa y ✕) que se cierra
+  sin mover el zoom; ✕ también en desktop.
+- Ficha consulta-primero: encabezado (nombre + estado + piso/GLPI/conteos),
+  Información general, Ocupante (nombres + personales clicables), Bienes como
+  filas con icono + nombre-botón + inv + modelo/serie (sin columna de
+  eliminar; la ficha del equipo usa el componente de Búsqueda con retorno al
+  puesto).
+- **Administrar puesto y equipos** (cerrado, solo operadores): ocupante
+  (asignar/cambiar/quitar con confirmaciones intactas), interno
+  (editar/quitar), agregar por inventario/scan, y por equipo Editar en GLPI,
+  Reemplazar y Desvincular con botones de texto táctiles. Sin aviso de login
+  para viewers ni iconos de acción en la consulta.
+- Nombres con entidades decodificadas; estados con la misma clasificación y
+  colores (etiquetas siempre presentes, no solo color).
+
+### Masivo (`app/masivo/page.tsx`, flujo de 3 pasos intacto)
+- Destino con piso + `SearchCombobox` de puestos (se cierra al elegir);
+  resumen `Destino: piso · puesto (+id)` con **Cambiar**; recálculo de
+  "ya-ahí" intacto.
+- Escaneo/manual iguales; lista en tabla desktop y **tarjetas móvil** con
+  estado textual + badge (`StatusBadge`: las 9 variantes con texto y tooltip,
+  nunca solo color); quitar con ✕ de 44 px.
+- Confirmación con `ConfirmDialog` (destino, cantidad, alcance real) y
+  limpieza de lista también confirmada y diferenciada (danger); barra sticky
+  con safe-area; sin doble ejecución.
+
+### Configuración (`app/config/page.tsx`)
+- `Tabs` compartido con scroll móvil, contadores y badges "sin guardar";
+  secciones en `max-w-3xl`.
+- Conexión: etiquetas visibles, tokens "no cambiar", indicador de cambios,
+  `BusyButton` en Guardar/Probar, resultado con `role=status`.
+- Pisos: tarjetas `AdminSection` colapsadas (nombre + `X/Y` + ubicación),
+  miniatura, ParentPicker, reemplazo, calibrar y borrado con `ConfirmDialog`.
+- Apariencia: colores con ✓ visible + `aria-pressed` + 44 px; logo con
+  confirmación al quitar.
+- Avanzada: checkbox táctil con explicación, backup con mensajes inline,
+  importación con validación de extensión + `ConfirmDialog` de alcance
+  (reemplazo total).
+
 ### Despliegue iteración 7
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.

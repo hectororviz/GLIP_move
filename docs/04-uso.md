@@ -6,34 +6,41 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
 
 ## Control por piso (`/mapa`)
 
-1. Header fijo con menú hamburguesa en móvil; un solo scroll de página (el mapa
-   queda fijo mientras la lista fluye).
+1. El plano es protagonista: toolbar compacta (piso + **Herramientas** colapsable
+   en móvil, siempre visible en escritorio), leyenda de una línea con conteos y
+   tooltips, controles de zoom táctiles (44 px). Búsqueda en plano, capas
+   (puestos/números/estados) y filtro por estado dentro de Herramientas.
 2. Selector de piso (botones hasta 5 pisos, desplegable si hay más) + panel
    **Lugares**: árbol Polo → pisos → puestos.
    - Piso con mapa lleva badge `mapa` y contador `X/Y puestos`; clic → abre su plano.
-   - Puesto dibujado → clic abre su sidebar aunque esté en otro piso (cambia de plano solo).
+   - Puesto dibujado → clic abre su ficha aunque esté en otro piso (cambia de plano solo).
    - `(sin dibujar)` = hijo de GLPI aún no calibrado.
-3. En el plano: zoom rueda/pinch, clic en un puesto → sidebar con **ocupante**
-   (nombre completo) y sus equipos. La etiqueta del puesto muestra el número
-   corto y centrado (`Puesto 23` → `23`); el nombre completo queda en el tooltip.
-4. Por equipo: iconos **Editar en GLPI** (abre la ficha en pestaña nueva),
-   **Reemplazar (scan)** y **Quitar** (deja `locations_id=0`, pide confirmación).
-   Ficha compacta: `Tipo: Nombre / Mod.: … / Inv.: …`. (La asignación a
-   persona se hace desde Búsqueda: ficha del bien o ficha de la persona.)
+3. En el plano: zoom rueda/pinch, clic en un puesto → ficha consulta-primero
+   (nombre, estado, piso, ubicación GLPI, interno; ocupante; bienes con tipo,
+   nombre, inventario, modelo/serie). En móvil la ficha es hoja inferior que
+   se cierra sin mover el zoom. La etiqueta muestra el número corto y centrado
+   (`Puesto 23` → `23`); el nombre completo queda en el tooltip.
+4. Por equipo: el nombre abre su **ficha del componente de Búsqueda**
+   (conservar/retornar al puesto); **Editar en GLPI** (pestaña nueva),
+   **Reemplazar (scan)** y **Desvincular** (deja `locations_id=0`, pide
+   confirmación) viven en **Administrar puesto y equipos** (cerrado,
+   solo operadores). (La asignación a persona se hace desde Búsqueda.)
 5. **Ocupante**: asignar/cambiar con buscador de usuarios GLPI (confirma
    cantidad de equipos afectados) o quitar (solo limpia `users_id`, conserva
-   el puesto). La ocupación se deriva de `users_id` en GLPI: sin directorio
-   local duplicado. Regla general: asignar/quitar usuario nunca mueve ni saca
-   del puesto; mover/sacar del puesto nunca toca el usuario.
-   Debajo de cada ocupante aparecen sus **bienes personales** (asignados a
-   ella, sin puesto) con icono lápiz que abre su edición en GLPI.
-6. **Agregar por inventario**: tipear `0000012865`, `12865`, `A 0001-0537` o
-   pegar URL de QR GLPI (Enter u OK), o botón 📷 para escanear (modal
-   centrado). También vale lector Bluetooth (escribe en el campo como teclado).
-   Si el bien es de otra persona o está en otro puesto, pide confirmación
-   mostrando usuario y ubicación actuales (conserva su usuario al moverlo).
-7. El bien recién agregado **destella en verde 5 s** en la sidebar.
-8. Tras asignar/quitar, la sidebar se recarga desde GLPI.
+   el puesto), todo dentro de Administrar. La ocupación se deriva de
+   `users_id` en GLPI: sin directorio local duplicado. Regla general:
+   asignar/quitar usuario nunca mueve ni saca del puesto; mover/sacar del
+   puesto nunca toca el usuario. Debajo de cada ocupante aparecen sus
+   **bienes personales** (asignados a ella, sin puesto), clicables hacia su
+   ficha.
+6. **Agregar por inventario** (en Administrar): tipear `0000012865`, `12865`,
+   `A 0001-0537` o pegar URL de QR GLPI (Enter u OK), o botón 📷 para escanear
+   (modal centrado). También vale lector Bluetooth (escribe en el campo como
+   teclado). Si el bien es de otra persona o está en otro puesto, pide
+   confirmación mostrando usuario y ubicación actuales (conserva su usuario al
+   moverlo).
+7. El bien recién agregado **destella en verde 5 s** en la ficha.
+8. Tras asignar/quitar, la ficha se recarga desde GLPI.
 9. **Ver en mapa** (desde Búsqueda): cambia de piso si hace falta, centra con
    zoom sobre el puesto y lo destella.
 
@@ -84,21 +91,23 @@ operador**: nav y card de inicio muestran 🔒 sin permiso, y la ruta directa
 muestra pantalla de acceso restringido + botón Iniciar sesión. El backend igual
 exige operador en `PATCH /api/glpi` (401/403).
 
-1. **Destino**: cascada Piso (solo pisos con mapa) → filtro → Puesto (todos los
-   hijos GLPI del piso). Se puede cambiar hasta antes de Confirmar; las filas
-   "ya está ahí" se recalculan solas.
+1. **Destino**: piso (solo pisos con mapa) + combobox de puestos con filtro
+   (nombre, interno o id). Al elegir muestra resumen `Destino: piso · puesto
+   (+ id)` con botón Cambiar; las filas "ya está ahí" se recalculan solas.
 2. **Escaneo en ráfaga (modal)**: botón **📷 Escanear** abre modal con la cámara;
    botón **Cerrar** (o Esc/backdrop) la cierra y libera el hardware. Cada lectura
    da destello verde + beep + suma un renglón sin cerrar el modal. Cooldown
    anti-doble lectura y aviso amarillo + sonido grave si es duplicado. Input
    manual y lector BT agregan igual (Enter o Agregar) sin abrir el modal.
-3. **Lista**: `Código | Tipo | Inventario | Nombre | Ubicación actual | Estado`.
+3. **Lista**: tabla compacta en escritorio, tarjetas en móvil (nombre e
+   inventario destacados, ubicación, estado con texto + badge, ✕ para quitar).
    Estados: `buscando / listo / duplicado / ya-ahí / no-existe / error /
-   moviendo / movido / falló`. ✕ quita (no en curso), Limpiar vacía todo.
-4. **Recuento por tipo**: badges `🖥️ Computer ×N` + `Total listos: N` (solo
-   cuentan `listo`, lo movible).
-5. **Confirmar** (footer sticky): valida destino + ≥1 listo, pide un solo
-   `confirm(N → puesto)`, ejecuta PATCH secuencial con progreso `i/N`,
-   conserva `users_id` y registra en Actividad por ítem. Al terminar muestra
-   `OK n/m` y `Reintentar` es implícito (fallidos quedan en `falló` para
-   re-confirmar). `Nuevo lote` limpia movidos/ya-ahí.
+   moviendo / movido / falló` (siempre con texto, no solo color). Limpiar
+   pide confirmación.
+4. **Recuento por tipo**: badges con icono de tipo `×N` + `Total listos: N`
+   (solo cuentan `listo`, lo movible).
+5. **Confirmar** (barra inferior sticky con safe-area): muestra destino +
+   cantidad y pide confirmación con alcance real (conserva usuarios, registra
+   en Actividad, no deshace en lote). Ejecuta PATCH secuencial con progreso
+   `i/N`; fallidos quedan en `falló` para re-confirmar. `Nuevo lote` limpia
+   movidos/ya-ahí. Sin doble ejecución (botón bloqueado en curso).
