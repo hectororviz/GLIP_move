@@ -4,7 +4,7 @@ import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
 import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection, PermBadges, ExpandableMeta, decodeEntities } from "@/components/ui";
-import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconUser } from "@/components/icons";
+import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconPhone, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
 
@@ -228,10 +228,12 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
   );
 }
 
-type Cat = "equipos" | "personas" | "areas" | "correos" | "carpetas";
+  type Cat = "equipos" | "personas" | "puestos" | "areas" | "correos" | "carpetas";
+type PuestoHit = { id: number; name: string; completename: string; parentId: number | null; room: string | null; floorName: string | null; drawn: boolean; _match?: string };
 type Results = {
   equipos: { total: number; items: any[]; error?: string };
   personas: { total: number; items: Person[]; error?: string };
+  puestos: { total: number; items: PuestoHit[]; error?: string };
   areas: { total: number; items: any[]; error?: string; locked?: boolean };
   correos: { total: number; items: any[]; error?: string; locked?: boolean };
   carpetas: { total: number; items: any[]; error?: string; locked?: boolean };
@@ -240,6 +242,7 @@ type Results = {
 const CATS: { id: Cat; icon: (p: { size?: number }) => React.ReactNode; label: string }[] = [
   { id: "equipos", icon: (p) => <IconMonitor size={18} {...p} />, label: "Equipos" },
   { id: "personas", icon: (p) => <IconUser size={18} {...p} />, label: "Personas" },
+  { id: "puestos", icon: (p) => <IconPhone size={18} {...p} />, label: "Puestos" },
   { id: "areas", icon: (p) => <IconBuilding size={18} {...p} />, label: "Áreas" },
   { id: "correos", icon: (p) => <IconMail size={18} {...p} />, label: "Correos" },
   { id: "carpetas", icon: (p) => <IconFolder size={18} {...p} />, label: "Carpetas" },
@@ -293,6 +296,36 @@ function PersonCard({ p, onOpen }: { p: Person; onOpen: () => void }) {
   );
 }
 
+function PuestoCard({ p, floorLabel, onOpen }: { p: PuestoHit; floorLabel: string; onOpen: () => void }) {
+  return (
+    <article className="card asset-card" aria-label={`Puesto ${disp(p.name)}, interno ${disp(p.room)}`}>
+      <button onClick={onOpen} className="grid gap-1.5 text-left min-w-0 rounded-lg focus-visible:outline-2" aria-label={`Ver detalle del puesto ${disp(p.name)}, interno ${disp(p.room)}`}>
+        <span className="flex items-start gap-2 min-w-0">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas border border-line" aria-hidden="true">
+            <IconPhone size={16} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline justify-between gap-2 min-w-0">
+              <b className="text-ink truncate text-[0.95rem]">{disp(p.name)}</b>
+              {p.room
+                ? <span className="badge badge-brand shrink-0 tabular-nums">Int. {disp(p.room)}</span>
+                : <span className="badge shrink-0">Sin interno</span>}
+            </span>
+            <span className="block text-xs text-muted break-words">{floorLabel}{p._match === "interno" || p._match === "interno~" ? " · coincide interno" : p._match && p._match.startsWith("puesto") ? " · coincide puesto" : ""}</span>
+          </span>
+        </span>
+        <span className="flex items-center gap-2 pl-11 min-w-0">
+          <span className="text-xs text-muted tabular-nums truncate">GLPI #{p.id}{p.drawn ? "" : " · sin dibujar"}</span>
+          <span className="ml-auto text-sm font-semibold shrink-0" style={{ color: "var(--accent)" }} aria-hidden="true">Detalle ›</span>
+        </span>
+      </button>
+      <span className="flex gap-2 pl-11">
+        <a className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</a>
+      </span>
+    </article>
+  );
+}
+
 function GenericCard({ title, lines, onOpen, label }: { title: string; lines: string[]; onOpen: () => void; label: string }) {
   return (
     <article className="card asset-card">
@@ -334,6 +367,7 @@ export default function Buscar() {
   const [detailMail, setDetailMail] = useState<null | { mail: any; personas: any[] }>(null);
   const [detailShare, setDetailShare] = useState<null | { share: any; personas: any[] }>(null);
   const [detailArea, setDetailArea] = useState<null | { area: any; mails: any[]; shares: any[] }>(null);
+  const [detailPuesto, setDetailPuesto] = useState<null | { loc: PuestoHit; items: Asset[]; occupants: { id: number; name: string }[]; loading: boolean; error: string }>(null);
   const [exporting, setExporting] = useState<string | null>(null);
 
   function openDetail(saveScroll = true) {
@@ -345,6 +379,7 @@ export default function Buscar() {
     setDetailMail(null);
     setDetailShare(null);
     setDetailArea(null);
+    setDetailPuesto(null);
     setReturnTarget(null);
     dirtyRef.current = false;
     personDirtyRef.current = false;
@@ -436,7 +471,7 @@ export default function Buscar() {
     const ctl = new AbortController();
     abortRef.current = ctl;
     setLoading(true);
-    setMsg("Buscando en equipos, personas, áreas, correos y carpetas…");
+    setMsg("Buscando en equipos, personas, puestos, áreas, correos y carpetas…");
     setSearched(true);
     closeDetail(false);
     try {
@@ -449,12 +484,16 @@ export default function Buscar() {
       setResults(j.results);
       setCanOperate(!!j.canOperate);
       setCanSeeAccess(!!(j.canSeeAccess ?? j.canOperate));
-      const totals = [j.results.equipos.total, j.results.personas.total, j.results.areas.total, j.results.correos.total, j.results.carpetas.total];
+      const totals = [j.results.equipos.total, j.results.personas.total, j.results.puestos?.total || 0, j.results.areas.total, j.results.correos.total, j.results.carpetas.total];
       const sum = totals.reduce((a: number, b: number) => a + b, 0);
       const cats = totals.filter((t: number) => t > 0).length;
-      setMsg(sum ? `${sum} resultado(s) en ${cats} categoría(s).` : "Sin resultados en ninguna categoría. Probá con/sin ceros, por serie, nombre o sigla de área (ej. CTIC).");
+      setMsg(sum ? `${sum} resultado(s) en ${cats} categoría(s).` : "Sin resultados en ninguna categoría. Probá con/sin ceros, por serie, nombre, puesto o interno (ej. 53, 7052, CTIC).");
       // Auto-expandir primera categoría con resultados (conserva contexto, evita acordeones vacíos)
-      const order: Cat[] = ["equipos", "personas", "areas", "correos", "carpetas"];
+      // Si la búsqueda es numérica y hay puestos, priorizar puestos (ej. 53 puesto, 7052 interno).
+      const isNumeric = /^\d+$/.test(query);
+      const order: Cat[] = isNumeric && (j.results.puestos?.total || 0) > 0
+        ? ["puestos", "equipos", "personas", "areas", "correos", "carpetas"]
+        : ["equipos", "personas", "puestos", "areas", "correos", "carpetas"];
       const first = order.find((c) => (j.results[c]?.total || 0) > 0);
       setOpen(first ? new Set([first]) : new Set());
     } catch (e: any) {
@@ -513,6 +552,52 @@ export default function Buscar() {
       const j = await r.json();
       const found = (j.areas || []).find((x: any) => x.id === a.id);
       if (found) setDetailArea({ area: a, mails: found.mails || [], shares: found.shares || [] });
+    } catch {}
+  }
+
+  async function openPuestoDetail(p: PuestoHit) {
+    openDetail(true);
+    setDetailPuesto({ loc: p, items: [], occupants: [], loading: true, error: "" });
+    try {
+      const r = await fetch(`/api/glpi?location_id=${p.id}`);
+      const j = await r.json();
+      if (!r.ok) { setDetailPuesto({ loc: p, items: [], occupants: [], loading: false, error: j.error || `Error ${r.status}` }); return; }
+      const items: Asset[] = j.items || [];
+      const ids = [...new Set(items.map((a) => a._userId).filter((id) => id != null))] as number[];
+      const occMap = new Map<number, string>();
+      await Promise.all(ids.map(async (id) => {
+        try {
+          const ur = await fetch(`/api/glpi/users?id=${id}`);
+          const uj = await ur.json();
+          if (ur.ok && uj.user?.display) occMap.set(id, uj.user.display);
+        } catch {}
+      }));
+      const occupants = ids.map((id) => {
+        const fromItems = items.find((a) => a._userId === id);
+        const name = occMap.get(id) || (fromItems?._userName && fromItems._userName !== "—" ? String(fromItems._userName) : `Usuario #${id}`);
+        return { id, name };
+      });
+      setDetailPuesto({ loc: p, items, occupants, loading: false, error: "" });
+    } catch (e: any) {
+      setDetailPuesto({ loc: p, items: [], occupants: [], loading: false, error: e.message || "red" });
+    }
+  }
+
+  async function openPersonById(userId: number) {
+    try {
+      const r = await fetch(`/api/glpi/users?id=${userId}`);
+      const j = await r.json();
+      const u = j.user;
+      if (!r.ok || !u || u.id == null) return;
+      await openPersonDetail({
+        id: Number(u.id),
+        login: u.login ?? null,
+        firstname: u.firstname ?? null,
+        realname: u.realname ?? null,
+        display: u.display || [u.firstname, u.realname].filter(Boolean).join(" ") || u.login || `Usuario ${u.id}`,
+        email: u.email ?? null,
+        phone: u.phone ?? null,
+      }, false);
     } catch {}
   }
 
@@ -576,14 +661,14 @@ export default function Buscar() {
     </div>
   );
 
-  const totals = results ? [results.equipos.total, results.personas.total, results.areas.total, results.correos.total, results.carpetas.total] : [];
+  const totals = results ? [results.equipos.total, results.personas.total, results.puestos?.total || 0, results.areas.total, results.correos.total, results.carpetas.total] : [];
   const sumTotals = totals.reduce((a: number, b: number) => a + (b || 0), 0);
 
   return (
     <div className="grid gap-3 no-hscroll">
       <div className="page-header">
         <h1>Búsqueda</h1>
-        <p>Buscador único: equipos, personas, áreas, correos y carpetas.</p>
+        <p>Buscador único: equipos, personas, puestos, áreas, correos y carpetas.</p>
       </div>
 
       <div className="card p-3 grid gap-2">
@@ -595,7 +680,7 @@ export default function Buscar() {
         >
           <input
             className="input w-full min-w-0"
-            placeholder="Inventario, serie, nombre, persona, área, correo, carpeta…"
+            placeholder="Inventario, serie, nombre, persona, puesto, interno, área…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label="Búsqueda genérica"
@@ -619,7 +704,7 @@ export default function Buscar() {
           />
         )}
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm text-muted" role="status" aria-live="polite">{msg || "Ej. inventario, serie, CTIC."}</p>
+          <p className="text-sm text-muted" role="status" aria-live="polite">{msg || "Ej. inventario, serie, puesto 53, interno 7052, CTIC."}</p>
           {searched && results && !loading && sumTotals > 0 && (
             <span className="badge badge-brand" aria-label={`${sumTotals} resultados en total`}>{sumTotals} en total</span>
           )}
@@ -627,13 +712,14 @@ export default function Buscar() {
       </div>
 
       {loading && (
-        <div className="card p-4"><Spinner label="Buscando en las 5 categorías…" /></div>
+        <div className="card p-4"><Spinner label="Buscando en las 6 categorías…" /></div>
       )}
 
       {searched && results && !loading && (
         <div className="grid gap-2.5">
           {results.equipos.error && <div className="card p-3 text-sm toast-err border" role="alert">Equipos: {results.equipos.error}</div>}
           {results.personas.error && <div className="card p-3 text-sm toast-err border" role="alert">Personas: {results.personas.error}</div>}
+          {results.puestos?.error && <div className="card p-3 text-sm toast-err border" role="alert">Puestos: {results.puestos.error}</div>}
           {CATS.map((c) => {
             const r: any = (results as any)[c.id];
             const isOpen = open.has(c.id);
@@ -702,6 +788,36 @@ export default function Buscar() {
                           ))}
                         </div>
                       </div>
+                    )}
+                    {!r.locked && c.id === "puestos" && (r.items as PuestoHit[]).length > 0 && (
+                      <>
+                        {/* Desktop: tabla compacta */}
+                        <div className="table-scroll hidden md:block" tabIndex={0} aria-label="Resultados de puestos en tabla">
+                          <table className="table-dense min-w-[720px]">
+                            <thead><tr><th scope="col">Puesto</th><th scope="col">Ubicación</th><th scope="col">Interno</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+                            <tbody>
+                              {(r.items as PuestoHit[]).map((p) => {
+                                const d = formatLocationDisplay(p.id, byId as any, p.completename || p.name);
+                                return (
+                                  <tr key={p.id}>
+                                    <td className="min-w-0"><b className="block truncate" title={d.full}>{disp(p.name)}</b><span className="text-xs text-muted tabular-nums">GLPI #{p.id}{p.drawn ? "" : " · sin dibujar"}</span></td>
+                                    <td className="max-w-[240px] min-w-0"><CompactLocation locId={p.id} fallback={p.completename || p.name} byId={byId} /></td>
+                                    <td className="tabular-nums">{p.room ? <span className="badge badge-brand tabular-nums">Int. {disp(p.room)}</span> : <span className="badge">Sin interno</span>}</td>
+                                    <td className="whitespace-nowrap"><span className="inline-flex gap-2"><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openPuestoDetail(p)}>Ver puesto</button><a className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</a></span></td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* Móvil/tablet: tarjetas */}
+                        <div className="grid gap-2 md:hidden">
+                          {(r.items as PuestoHit[]).map((p) => {
+                            const d = formatLocationDisplay(p.id, byId as any, p.completename || p.name);
+                            return <PuestoCard key={p.id} p={p} floorLabel={d.full} onOpen={() => openPuestoDetail(p)} />;
+                          })}
+                        </div>
+                      </>
                     )}
                     {!r.locked && c.id === "areas" && (r.items as any[]).length > 0 && (
                       <>
@@ -783,8 +899,8 @@ export default function Buscar() {
               </section>
             );
           })}
-          {!results.equipos.total && !results.personas.total && !results.areas.total && !results.correos.total && !results.carpetas.total && !loading && (
-            <EmptyState title="Sin resultados" hint="Probá con/sin ceros, por serie, nombre o sigla de área." />
+          {!results.equipos.total && !results.personas.total && !(results.puestos?.total || 0) && !results.areas.total && !results.correos.total && !results.carpetas.total && !loading && (
+            <EmptyState title="Sin resultados" hint="Probá con/sin ceros, por serie, nombre, puesto o interno." />
           )}
         </div>
       )}
@@ -836,6 +952,45 @@ export default function Buscar() {
             canEdit={!!authUser?.canOperate}
             onDirtyChange={(d) => { personDirtyRef.current = d; }}
           />
+        </SidePanel>
+      )}
+
+      {detailPuesto && (
+        <SidePanel
+          title={`Puesto: ${disp(detailPuesto.loc.name)}`}
+          subtitle={`GLPI #${detailPuesto.loc.id}${detailPuesto.loc.room ? ` · Int. ${detailPuesto.loc.room}` : " · Sin interno"}${detailPuesto.loc.floorName ? ` · ${detailPuesto.loc.floorName}` : ""}`}
+          onClose={() => closeDetail(true)}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href={`/mapa?focus=${detailPuesto.loc.id}`}>Ver en mapa →</a><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+        >
+          <div className="grid gap-2 text-sm">
+            <CompactLocation locId={detailPuesto.loc.id} fallback={detailPuesto.loc.completename || detailPuesto.loc.name} byId={byId} wrap />
+            {!detailPuesto.loc.drawn && <span className="badge badge-warning w-fit">Puesto sin dibujar en planos</span>}
+            {detailPuesto.loading && <p className="text-sm text-muted">Cargando ocupante y equipos…</p>}
+            {detailPuesto.error && <p className="text-sm toast-err border card p-3" role="alert">{detailPuesto.error}</p>}
+            {!detailPuesto.loading && !detailPuesto.error && (
+              <>
+                <section aria-label="Ocupante" className="grid gap-1.5">
+                  <h3 className="section-h">Ocupante</h3>
+                  {!detailPuesto.occupants.length && <p className="text-muted">Puesto sin ocupante (sin equipos asignados a una persona).</p>}
+                  {detailPuesto.occupants.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between gap-2 text-sm border border-line rounded-xl bg-white px-3 py-2 min-h-[52px]">
+                      <span className="truncate min-w-0" title={`${o.name} #${o.id}`}><b className="text-ink">{o.name}</b> <span className="text-xs text-muted">#{o.id}</span></span>
+                      <button className="btn btn-secondary text-xs shrink-0" onClick={() => openPersonById(o.id)}>Ver persona</button>
+                    </div>
+                  ))}
+                </section>
+                <section aria-label="Equipos en el puesto" className="grid gap-1.5">
+                  <h3 className="section-h">Equipos ({detailPuesto.items.length})</h3>
+                  {!detailPuesto.items.length && <p className="text-muted">Puesto vacío.</p>}
+                  <ul aria-label={`Equipos en ${detailPuesto.loc.name}`}>
+                    {detailPuesto.items.map((a) => (
+                      <AssetRow key={`${a._type}-${a.id}`} a={a} onOpen={() => openAssetDetail(a)} />
+                    ))}
+                  </ul>
+                </section>
+              </>
+            )}
+          </div>
         </SidePanel>
       )}
 

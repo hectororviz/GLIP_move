@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { canReadAccess, isOperator } from "@/lib/auth";
-import { ASSET_TYPES, clean, enrich, glpiFetch } from "@/lib/glpi";
+import { ASSET_TYPES, clean, enrich, getLocationsCached, glpiFetch } from "@/lib/glpi";
 import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
 import { loadAccess } from "@/lib/access";
+import { loadFloors } from "@/lib/maps";
 import { norm } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
@@ -107,7 +108,77 @@ async function searchPersonas(q: string): Promise<{ items: any[]; error?: string
   return { items: users };
 }
 
-// GET /api/search?q= -> agregador: equipos + personas (público) y áreas/correos/carpetas (operador o viewer).
+async function searchPuestos(q: string): Promise<{ items: any[]; error?: string }> {
+  // Match por puesto (nombre/id/completename) o por interno (Location.room).
+  // Ej.: "53" (puesto) o "7052" (interno). Orden: interno exacto > puesto exacto > contiene.
+  try {
+    const [all, floors] = await Promise.all([
+      getLocationsCached(),
+      loadFloors().catch(() => []),
+    ]);
+    const qTrim = q.trim();
+    const qLower = qTrim.toLowerCase();
+    const nq = norm(qTrim);
+    if (!nq) return { items: [] };
+    const byId = new Map(all.map((l) => [l.id, l]));
+    const floorByGlpi = new Map<number, string>();
+    const drawn = new Set<number>();
+    for (const f of floors || []) {
+      if (f.glpiLocationId != null) floorByGlpi.set(f.glpiLocationId, f.name);
+      for (const p of f.puestos || []) drawn.add(p.glpi_id);
+    }
+    const floorNameOf = (locId: number): string | null => {
+      let cur = byId.get(locId);
+      const seen = new Set<number>();
+      while (cur && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        if (cur.parentId != null && floorByGlpi.has(cur.parentId)) return floorByGlpi.get(cur.parentId)!;
+        if (floorByGlpi.has(cur.id)) return floorByGlpi.get(cur.id)!;
+        cur = cur.parentId != null ? byId.get(cur.parentId) : undefined;
+      }
+      const full = byId.get(locId)?.completename || "";
+      const first = full.split(">").map((s) => s.trim()).filter(Boolean)[0];
+      return first || null;
+    };
+    const scored: { loc: (typeof all)[number]; score: number }[] = [];
+    for (const l of all) {
+      const room = String(l.room || "");
+      const name = String(l.name || "");
+      const comp = String(l.completename || l.name || "");
+      const exactRoom = room.toLowerCase() === qLower;
+      const exactName = name.toLowerCase() === qLower;
+      const exactId = String(l.id) === qTrim;
+      const hasRoom = room.toLowerCase().includes(qLower);
+      const hasName = nq ? norm(name).includes(nq) : false;
+      const hasComp = nq ? norm(comp).includes(nq) : false;
+      const hasId = qTrim ? String(l.id).includes(qTrim) : false;
+      let score = -1;
+      if (exactRoom) score = 0;
+      else if (exactName || exactId) score = 1;
+      else if (hasRoom) score = 2;
+      else if (hasName) score = 3;
+      else if (hasComp) score = 4;
+      else if (hasId && /^\d+$/.test(qTrim)) score = 5;
+      if (score >= 0) scored.push({ loc: l, score });
+    }
+    scored.sort((a, b) => a.score - b.score || String(a.loc.name).localeCompare(String(b.loc.name)));
+    const items = scored.slice(0, LIM).map(({ loc, score }) => ({
+      id: loc.id,
+      name: loc.name,
+      completename: loc.completename,
+      parentId: loc.parentId,
+      room: loc.room,
+      floorName: floorNameOf(loc.id),
+      drawn: drawn.has(loc.id),
+      _match: score === 0 ? "interno" : score === 1 ? (String(loc.id) === qTrim ? "id" : "puesto") : score === 2 ? "interno~" : score <= 4 ? "puesto~" : "id~",
+    }));
+    return { items };
+  } catch (e: any) {
+    return { items: [], error: String(e.message || e).slice(0, 200) };
+  }
+}
+
+// GET /api/search?q= -> agregador: equipos + personas + puestos (público) y áreas/correos/carpetas (operador o viewer).
 export async function GET(req: NextRequest) {
   const q = (new URL(req.url).searchParams.get("q") || "").trim();
   if (!q) return NextResponse.json({ error: "Parámetro: ?q=" }, { status: 400 });
@@ -115,7 +186,7 @@ export async function GET(req: NextRequest) {
   const canSeeAccess = canOperate || canReadAccess(req as any);
   const nq = norm(q);
 
-  const [eq, per] = await Promise.all([searchEquipos(q), searchPersonas(q)]);
+  const [eq, per, pue] = await Promise.all([searchEquipos(q), searchPersonas(q), searchPuestos(q)]);
 
   // Accesos: operador o viewer; si no, acordeones bloqueados sin filtrar nada.
   let areas: any[] = [];
@@ -173,6 +244,7 @@ export async function GET(req: NextRequest) {
     results: {
       equipos: { total: eq.items.length, items: eq.items, error: eq.error },
       personas: { total: per.items.length, items: per.items, error: per.error },
+      puestos: { total: pue.items.length, items: pue.items, error: pue.error },
       areas: canSeeAccess ? { total: areas.length, items: areas, error: accessError } : { locked: true as const, total: 0, items: [] },
       correos: canSeeAccess ? { total: correos.length, items: correos, error: accessError } : { locked: true as const, total: 0, items: [] },
       carpetas: canSeeAccess ? { total: carpetas.length, items: carpetas, error: accessError } : { locked: true as const, total: 0, items: [] },
