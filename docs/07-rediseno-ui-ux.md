@@ -234,6 +234,18 @@ validaciones, exports ni lógica de grants (upsert auto, 409→force).
   área con `SearchCombobox`; `alert()` reemplazados por mensajes inline.
 - Sin avisos de permiso: admin oculto para viewers; backend sigue mandando.
 
+### Despliegue iteración 6
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; CSS con `tabs-scroll`/`check-lg`/`admin-action`;
+  panel accesos con `Administrar accesos`; `/`, `/buscar`, `/mapa`, `/accesos`,
+  `/masivo` → 200 por HTTP y HTTPS.
+- Nota: el deploy local incluye además el botón "Ver en mapa" en la ficha de
+  equipo (Iteración 5, aún sin pushear — ver working tree).
+- Pendiente con GLPI/perfil operador en línea: abrir fichas, navegar entre
+  recursos y persona, agregar/quitar accesos, toggles Envía/Recibe, ABM con
+  guard, eliminaciones con/sin force, exports, anchos 320–1440 físicos.
+
 ### Despliegue iteración 5
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
