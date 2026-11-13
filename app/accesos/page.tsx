@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AuthModal from "@/components/AuthModal";
-import { Spinner, EmptyState, SidePanel, Tabs, AdminSection, SearchCombobox, ConfirmDialog, CopyButton, BusyButton, decodeEntities } from "@/components/ui";
+import { Spinner, EmptyState, SidePanel, Tabs, AdminSection, SearchCombobox, ConfirmDialog, CopyButton, BusyButton, PermBadges, decodeEntities } from "@/components/ui";
 import { IconDownload, IconEye, IconFolder, IconMail, IconPlus, IconUser, IconBuilding } from "@/components/icons";
 
 type Area = { id: string; nombre: string; responsableUserId: number; responsableNombre: string | null; mails: number; shares: number };
@@ -126,16 +126,6 @@ function UserSearch({ value, onPick }: { value: GlpiUser | null; onPick: (u: Glp
         </>
       )}
     </div>
-  );
-}
-
-/* Permisos de correo como texto explícito (nunca solo iconos) */
-function PermBadges({ canSend, canRead }: { canSend: boolean; canRead: boolean }) {
-  return (
-    <span className="inline-flex gap-1 flex-wrap">
-      <span className={`badge ${canSend ? "badge-success" : ""}`} title={canSend ? "Puede enviar correos desde esta cuenta" : "No puede enviar"}>Envía</span>
-      <span className={`badge ${canRead ? "badge-success" : ""}`} title={canRead ? "Puede leer/recibir correos de esta cuenta" : "No puede leer"}>Recibe</span>
-    </span>
   );
 }
 

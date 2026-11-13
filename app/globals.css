@@ -454,6 +454,17 @@ img, table { max-width: 100%; }
 /* Checkboxes táctiles con acento institucional */
 .check-lg { width: 22px; height: 22px; min-width: 22px; min-height: 22px; accent-color: var(--accent); flex-shrink: 0; }
 
+/* Indicadores de permiso (solo lectura, nunca botones): texto + icono + color */
+.perm {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  border-radius: 9999px; padding: 0.2rem 0.6rem;
+  font-size: 0.72rem; font-weight: 600; line-height: 1.35; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.perm-on { background: #e9f7ef; color: #14532d; border-color: #b7e3c6; }
+.perm-off { background: #eef2f8; color: #475569; border-color: #d5dee9; }
+.perm svg { flex-shrink: 0; }
+
 /* Enlace de fila: abre el detalle desde el nombre, sin controles anidados */
 button.rowlink {
   display: block; width: 100%; background: none; border: 0; padding: 0;

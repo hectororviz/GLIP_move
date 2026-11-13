@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
-import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection, decodeEntities } from "@/components/ui";
+import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection, PermBadges, decodeEntities } from "@/components/ui";
 import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
@@ -204,7 +204,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
               {accessMails.map((g) => (
                 <div key={g.accountId} className="text-sm text-muted">
                   <b className="text-ink">{g.nombre || g.accountId}</b> <span className="text-xs tabular-nums break-all">{g.direccion || ""}</span>
-                  <span className="text-xs inline-flex items-center gap-1"> · {g.canSend ? <><IconMail size={11} /> Envía</> : ""}{g.canSend && g.canRead ? " + " : ""}{g.canRead ? <><IconEye size={11} /> Recibe</> : ""} · {g.area || ""}</span>
+                  <span className="flex items-center gap-1.5 flex-wrap mt-0.5"><PermBadges canSend={g.canSend} canRead={g.canRead} /><span className="text-xs">· {g.area || ""}</span></span>
                 </div>
               ))}
               {!accessMails.length && <span className="text-sm text-muted">Sin correos.</span>}
@@ -850,13 +850,12 @@ export default function Buscar() {
             {canSee && detailMail.personas.length > 0 && (
               <div className="table-scroll" tabIndex={0}>
                 <table className="table-dense table-modal-fluid">
-                  <thead><tr><th scope="col">Persona</th><th scope="col">Envía</th><th scope="col">Recibe</th></tr></thead>
+                  <thead><tr><th scope="col">Persona</th><th scope="col">Permisos</th></tr></thead>
                   <tbody>
                     {detailMail.personas.map((g: any) => (
                       <tr key={g.userId}>
                         <td className="min-w-0"><span className="block truncate" title={g.userDisplay || `#${g.userId}`}>{g.userDisplay || `#${g.userId}`} <span className="text-xs text-muted">#{g.userId}</span></span></td>
-                        <td className="text-center text-muted">{g.canSend ? <IconMail size={14} /> : "—"}</td>
-                        <td className="text-center text-muted">{g.canRead ? <IconEye size={14} /> : "—"}</td>
+                        <td><PermBadges canSend={!!g.canSend} canRead={!!g.canRead} /></td>
                       </tr>
                     ))}
                   </tbody>

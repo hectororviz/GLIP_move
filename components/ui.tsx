@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { IconBox, IconDrive, IconGlobe, IconKeyboard, IconMonitor, IconPhone, IconPrinter } from "./icons";
+import { IconBox, IconCheck, IconDrive, IconGlobe, IconKeyboard, IconMonitor, IconPhone, IconPrinter, IconX } from "./icons";
 
 export function Spinner({ label = "Cargando…" }: { label?: string }) {
   return (
@@ -443,6 +443,24 @@ export function AdminSection({
         </div>
       )}
     </section>
+  );
+}
+
+/* Permisos de correo como indicadores de estado explícitos (no controles).
+   Habilitado: verde + check; deshabilitado: gris + X. Nunca depende del color:
+   el texto ("Envía"/"No envía") y el icono también cambian. */
+export function PermBadges({ canSend, canRead }: { canSend: boolean; canRead: boolean }) {
+  return (
+    <span className="inline-flex gap-1 flex-wrap">
+      <span className={`perm ${canSend ? "perm-on" : "perm-off"}`} title={canSend ? "Puede enviar correos desde esta cuenta" : "No puede enviar correos desde esta cuenta"}>
+        {canSend ? <IconCheck size={11} /> : <IconX size={11} />}
+        {canSend ? "Envía" : "No envía"}
+      </span>
+      <span className={`perm ${canRead ? "perm-on" : "perm-off"}`} title={canRead ? "Puede leer/recibir correos de esta cuenta" : "No puede leer ni recibir correos de esta cuenta"}>
+        {canRead ? <IconCheck size={11} /> : <IconX size={11} />}
+        {canRead ? "Recibe" : "No recibe"}
+      </span>
+    </span>
   );
 }
 

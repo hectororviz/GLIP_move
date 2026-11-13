@@ -234,6 +234,26 @@ validaciones, exports ni lógica de grants (upsert auto, 409→force).
   área con `SearchCombobox`; `alert()` reemplazados por mensajes inline.
 - Sin avisos de permiso: admin oculto para viewers; backend sigue mandando.
 
+## Iteración 7 — Badges de permiso Envía/Recibe inconfundibles
+
+Cambio exclusivamente visual. Sin tocar lógica de permisos, endpoints, DB,
+operaciones GLPI ni semántica de los checks de Administrar.
+
+- `PermBadges` único en `components/ui.tsx` (antes duplicado en Accesos;
+  Búsqueda usaba texto/iconos sueltos): habilitado = verde suave + verde
+  oscuro + check + "Envía"/"Recibe"; deshabilitado = gris neutro + gris
+  oscuro + X + "No envía"/"No recibe". El estado nunca depende solo del
+  color (texto e icono también cambian). Son `span`, no parecen botones.
+- Aplicado en: ficha de correo, ficha de persona y filas de ambos paneles de
+  Accesos; ficha de persona y modal de correo de Búsqueda (la tabla
+  `Persona|✉️|👁️` pasó a una columna `Permisos` con badges). Carpetas
+  conservan su badge "Acceso" (no tienen niveles).
+- `.perm-on`/`.perm-off` en `globals.css` (contraste AA, `nowrap`, iconos
+  11 px); las filas conservan `truncate` + `flex-wrap` para no superponerse
+  con nombres largos en móvil. Toggles reales solo en Administrar accesos.
+- Iconos nuevos `IconCheck`/`IconX` en `components/icons.tsx` (mismo estilo
+  stroke del sistema).
+
 ### Despliegue iteración 6
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
