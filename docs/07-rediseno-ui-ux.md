@@ -331,6 +331,18 @@ duplicados, PATCH solo-`location_id`, auditoría y registro en Actividad).
 - Resultados por ítem (movido/fallo con detalle) y resumen con parciales:
   sin cambios, sin éxito anticipado.
 
+### Despliegue iteración 10
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; chunk de masivo servido con "Con usuario",
+  "Confirmar movimiento masivo", "Cambiar" y texto de conservación;
+  `/`, `/buscar`, `/mapa`, `/accesos`, `/masivo`, `/config` → 200 por HTTP
+  y HTTPS.
+- Pendiente en dispositivo con operador en línea: hoja de puestos con teclado
+  virtual, badge en tabla y tarjetas, foco tras Agregar, confirmación con
+  piso/usuarios, limpieza confirmada, anchos físicos. Sin movimientos reales
+  en pruebas.
+
 ### Despliegue iteración 9
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
