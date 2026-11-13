@@ -290,6 +290,18 @@ ni lógica de movimientos/asignaciones.
 - Nombres con entidades decodificadas; estados con la misma clasificación y
   colores (etiquetas siempre presentes, no solo color).
 
+### Despliegue iteración 8
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; CSS con `tabs-scroll`/`check-lg`/`info-card`;
+  chunks con `Administrar puesto y equipos`, `Confirmar movimiento masivo`,
+  `Planos por piso`, `Con cambios sin guardar`; `/`, `/buscar`, `/mapa`,
+  `/accesos`, `/masivo`, `/config` → 200 por HTTP y HTTPS.
+- Pendiente con GLPI/perfiles reales en dispositivo: zoom/pinch y sheet en
+  móvil, ficha de equipo desde puesto, masivo completo (scan + confirmar),
+  ABM de pisos, import ZIP, anchos 320–1440 físicos. Sin operaciones
+  destructivas en pruebas.
+
 ### Masivo (`app/masivo/page.tsx`, flujo de 3 pasos intacto)
 - Destino con piso + `SearchCombobox` de puestos (se cierra al elegir);
   resumen `Destino: piso · puesto (+id)` con **Cambiar**; recálculo de
