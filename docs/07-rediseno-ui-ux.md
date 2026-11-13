@@ -331,6 +331,42 @@ duplicados, PATCH solo-`location_id`, auditoría y registro en Actividad).
 - Resultados por ítem (movido/fallo con detalle) y resumen con parciales:
   sin cambios, sin éxito anticipado.
 
+## Iteración 11 — Refinamiento Config + Masivo
+
+Sin rediseños ni cambios funcionales (mismas validaciones, reglas, endpoints
+y auditoría). Componentes y estilos existentes.
+
+### Configuración (`app/config/page.tsx`)
+- Tabs con prop `fit` (nuevo en `ui.tsx` + `.tabs-fit` solo desktop): al
+  contenido en vez de 1/4 de pantalla; scroll propio en móvil; contenedor más
+  bajo y badge de sesión discreto ("Admin").
+- Conexión: alturas unificadas (`.input`), etiquetas con `gap-1.5`, badges
+  "guardado" inline, Guardar primario vs Probar secundario, `BusyButton` y
+  resultados con `role=status`. Sin tocar tokens ni lógica.
+- Pisos: hint con estado de calibración (`X/Y · Completo` / `X/Y ·
+  N pendiente(s)` / `0/0 · Sin puestos`), texto discreto sin alarmas;
+  miniatura y conteos iguales; eliminar como `admin-action` secundaria con
+  `ConfirmDialog` que aclara alcance + "En GLPI no se borra nada".
+- Reemplazar plano: valida tipo (JPG/PNG/WebP) y tamaño (≤10 MB) antes de
+  subir, y pide confirmación identificando el piso y advirtiendo que las
+  posiciones (%) se conservan pero conviene recalibrar si cambia la
+  distribución. Sin tocar coordenadas.
+- Apariencia: muestras de 44 px con ✓ visible, `aria-pressed` y nombres
+  accesibles; Guardar primario vs Restablecer secundario; Restablecer pide
+  confirmación solo si hay algo que perder (valores ≠ corporativos);
+  confirmación de guardado conservada.
+- Avanzada: checkbox táctil, dirty indicator, backup/confirm/import intactos
+  (la validación profunda del ZIP y la atomicidad siguen siendo del backend;
+  el frontend valida extensión y evita doble envío).
+
+### Masivo (`app/masivo/page.tsx`)
+- Usuario asignado como etiqueta compacta única **"Usuario: nombre"** con
+  icono discreto (tabla y tarjetas), basada en `_userId` real; sin fila si
+  no hay asignación. "Listo" intacto e independiente.
+- Barra de confirmación: `role=region`, `min-w-0`/`max-w-full`, botón de
+  ancho completo en móvil, safe-area y sticky intactos. Diálogo y lógica de
+  confirmación sin cambios.
+
 ### Despliegue iteración 10
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.

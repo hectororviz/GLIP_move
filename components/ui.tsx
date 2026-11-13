@@ -189,11 +189,14 @@ export function Tabs({
   value,
   onChange,
   ariaLabel,
+  fit,
 }: {
   tabs: { id: string; label: string; icon?: React.ReactNode; badge?: React.ReactNode }[];
   value: string;
   onChange: (id: string) => void;
   ariaLabel: string;
+  /** fit: pestañas al contenido en desktop (no estiran todo el ancho) */
+  fit?: boolean;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   function onKey(e: React.KeyboardEvent) {
@@ -210,7 +213,7 @@ export function Tabs({
     }
   }
   return (
-    <div className="tabs rounded-t-xl overflow-hidden" role="tablist" aria-label={ariaLabel} onKeyDown={onKey} ref={listRef}>
+    <div className={`tabs rounded-t-xl overflow-hidden${fit ? " tabs-fit" : ""}`} role="tablist" aria-label={ariaLabel} onKeyDown={onKey} ref={listRef}>
       {tabs.map((t) => (
         <button
           key={t.id}

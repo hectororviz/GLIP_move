@@ -17,7 +17,9 @@ const ACCENTS = ["#0b5ed7", "#0f766e", "#7c3a2d", "#b45309", "#b91c1c", "#1d4ed8
 type ConfirmState =
   | { kind: "delFloor"; id: string; name: string }
   | { kind: "rmIcon" }
-  | { kind: "import"; file: File };
+  | { kind: "import"; file: File }
+  | { kind: "plan"; floor: Floor; file: File }
+  | { kind: "resetLook" };
 
 export default function ConfigPage() {
   const [form, setForm] = useState({ glpiBaseUrl: "", appToken: "", userToken: "", keepUserOnMove: true, appName: "GLPI Move", accentColor: "#0b5ed7", brandIcon: null as string | null });
@@ -205,16 +207,28 @@ export default function ConfigPage() {
     if (r.ok) { setNewFloor(""); refreshFloors(); } else setMsg("Error: " + j.error);
   }
 
+  function requestPlanUpload(floor: Floor, file: File) {
+    const okTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (file.type && !okTypes.includes(file.type)) { setMsg(`Error: ${file.name} no es una imagen válida (JPG/PNG/WebP).`); return; }
+    if (file.size > 10 * 1024 * 1024) { setMsg(`Error: ${file.name} supera los 10 MB.`); return; }
+    setConfirmState({ kind: "plan", floor, file });
+  }
+
   async function upload(floorId: string, file: File) {
     setUploading(floorId);
     const fd = new FormData();
     fd.set("floorId", floorId);
     fd.set("file", file);
-    const r = await fetch("/api/maps/upload", { method: "POST", body: fd });
-    const j = await r.json();
-    setMsg(r.ok ? "Plano subido." : "Error: " + j.error);
-    setUploading(null);
-    refreshFloors();
+    try {
+      const r = await fetch("/api/maps/upload", { method: "POST", body: fd });
+      const j = await r.json();
+      setMsg(r.ok ? "Plano subido." : "Error: " + j.error);
+      if (r.ok) refreshFloors();
+    } catch (e: any) {
+      setMsg("Error: " + (e.message || "red"));
+    } finally {
+      setUploading(null);
+    }
   }
 
   async function setParent(floor: Floor, glpiLocationId: number | null) {
@@ -237,18 +251,19 @@ export default function ConfigPage() {
         <p>Administración de conexión GLPI, planos y personalización de la herramienta.</p>
       </div>
 
-      <div className="card p-3 grid gap-2">
+      <div className="card px-3 py-2 grid gap-1.5">
         <div className="flex items-center gap-2 flex-wrap">
           {adminAuthed ? (
-            <span className="badge badge-success">Sesión admin activa</span>
+            <span className="badge badge-success">Admin</span>
           ) : (
-            <span className="text-sm text-muted">Sin sesión admin</span>
+            <span className="text-xs text-muted">Sin sesión admin</span>
           )}
-          {msg && <span className="text-sm text-muted break-words min-w-0" role="status">{msg}</span>}
+          {msg && <span className="text-xs text-muted break-words min-w-0" role="status">{msg}</span>}
         </div>
         <div className="tabs-scroll -mx-1 px-1" role="presentation">
           <Tabs
             ariaLabel="Secciones de configuración"
+            fit
             value={tab}
             onChange={(id) => setTab(id as typeof tab)}
             tabs={[
@@ -301,11 +316,19 @@ export default function ConfigPage() {
             {floors.map((f) => {
               const kids = f.glpiLocationId != null ? childrenOf.get(f.glpiLocationId) || [] : [];
               const linked = f.glpiLocationId != null;
+              const pending = Math.max(0, kids.length - f.puestos.length);
+              const calHint = !linked
+                ? "Sin ubicación GLPI — vincular para calibrar"
+                : kids.length === 0
+                  ? "0/0 · Sin puestos en GLPI"
+                  : pending === 0
+                    ? `${f.puestos.length}/${kids.length} · Completo`
+                    : `${f.puestos.length}/${kids.length} · ${pending} pendiente${pending === 1 ? "" : "s"}`;
               return (
                 <AdminSection
                   key={f.id}
                   title={f.name}
-                  hint={linked ? `${f.puestos.length}/${kids.length} puestos dibujados` : "Sin ubicación GLPI — vincular para calibrar"}
+                  hint={calHint}
                 >
                   <div className="flex gap-3 items-center text-sm flex-wrap">
                     {f.image ? (
@@ -315,14 +338,12 @@ export default function ConfigPage() {
                       <span className="text-muted text-xs w-32">sin imagen</span>
                     )}
                     <div className="grid gap-1.5 min-w-0 flex-1">
-                      <span className="text-xs text-muted">
-                        {linked ? `${f.puestos.length}/${kids.length} puestos dibujados` : "Sin ubicación padre: vincúlala para calibrar"}
-                      </span>
+                      <span className="text-xs text-muted">{calHint}</span>
                       <span className="flex gap-2 flex-wrap">
                         <label className="btn btn-secondary text-xs cursor-pointer tap-target">
                           {uploading === f.id ? "Subiendo…" : f.image ? "Reemplazar plano" : "Subir plano"}
                           <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={!adminAuthed || !!uploading}
-                            onChange={(e) => { const fl = e.target.files?.[0]; if (fl && adminAuthed) upload(f.id, fl); e.target.value = ""; }} />
+                            onChange={(e) => { const fl = e.target.files?.[0]; if (fl && adminAuthed) requestPlanUpload(f, fl); e.target.value = ""; }} />
                         </label>
                         <a className="btn btn-secondary text-xs tap-target" href={`/mapa?calibrar=1&floor=${f.id}`}>Calibrar puestos →</a>
                       </span>
@@ -332,7 +353,10 @@ export default function ConfigPage() {
                     <span className="text-xs font-semibold text-ink">Ubicación GLPI padre (el piso)</span>
                     <ParentPicker value={f.glpiLocationId} onChange={(id) => adminAuthed && setParent(f, id)} />
                   </div>
-                  <button onClick={() => setConfirmState({ kind: "delFloor", id: f.id, name: f.name })} disabled={!adminAuthed} className="btn btn-danger-outline text-xs w-fit tap-target">Eliminar piso y su plano</button>
+                  <button className="admin-action admin-action-danger" onClick={() => setConfirmState({ kind: "delFloor", id: f.id, name: f.name })} disabled={!adminAuthed}>
+                    <span className="admin-ic" aria-hidden="true">×</span>
+                    <span className="min-w-0 flex-1"><b className="block text-ink">Eliminar piso</b><span className="block text-xs text-muted">Borra plano y calibración</span></span>
+                  </button>
                 </AdminSection>
               );
             })}
@@ -409,7 +433,17 @@ export default function ConfigPage() {
             </div>
             <div className="flex gap-2 flex-wrap">
               <BusyButton className="btn btn-primary text-sm tap-target min-w-[160px]" busy={saveBusy} disabled={!adminAuthed} onClick={save}>Guardar apariencia</BusyButton>
-              <button onClick={() => setForm((f) => ({ ...f, appName: "GLPI Move", accentColor: "#0b5ed7" }))} disabled={!adminAuthed} className="btn btn-secondary text-sm tap-target">Restablecer</button>
+              <button
+                onClick={() => {
+                  const corporate = form.appName === "GLPI Move" && form.accentColor.toLowerCase() === "#0b5ed7";
+                  if (corporate) return;
+                  setConfirmState({ kind: "resetLook" });
+                }}
+                disabled={!adminAuthed}
+                className="btn btn-secondary text-sm tap-target"
+              >
+                Restablecer
+              </button>
             </div>
           </section>
         )}
@@ -450,12 +484,22 @@ export default function ConfigPage() {
       {confirmState?.kind === "delFloor" && (
         <ConfirmDialog
           title="Eliminar piso"
-          body={<><span>Se eliminará el piso <b className="text-ink">{confirmState.name}</b> junto con su plano y todos sus puestos dibujados.</span><span>Esta acción no se puede deshacer.</span></>}
+          body={<><span>Se eliminará el piso <b className="text-ink">{confirmState.name}</b> junto con su plano y todos sus puestos dibujados.</span><span>En GLPI no se borra nada. Esta acción no se puede deshacer.</span></>}
           confirmLabel="Eliminar piso"
           danger
           busy={confirmBusy}
           onClose={() => setConfirmState(null)}
           onConfirm={async () => { setConfirmBusy(true); try { await execDelFloor(confirmState.id); } finally { setConfirmBusy(false); } }}
+        />
+      )}
+      {confirmState?.kind === "plan" && (
+        <ConfirmDialog
+          title={`Reemplazar plano de ${confirmState.floor.name}`}
+          body={<><span>Se reemplazará la imagen del plano del piso <b className="text-ink">{confirmState.floor.name}</b> por <b className="text-ink tabular-nums break-all">{confirmState.file.name}</b>.</span><span>Los puestos conservan sus posiciones relativas (%); si el nuevo plano cambia la distribución, recalibrá los puestos.</span></>}
+          confirmLabel={uploading ? "Subiendo…" : "Reemplazar plano"}
+          busy={!!uploading}
+          onClose={() => !uploading && setConfirmState(null)}
+          onConfirm={() => { const { floor, file } = confirmState; setConfirmState(null); upload(floor.id, file); }}
         />
       )}
       {confirmState?.kind === "rmIcon" && (
@@ -467,6 +511,15 @@ export default function ConfigPage() {
           busy={iconBusy}
           onClose={() => setConfirmState(null)}
           onConfirm={execRemoveIcon}
+        />
+      )}
+      {confirmState?.kind === "resetLook" && (
+        <ConfirmDialog
+          title="Restablecer apariencia"
+          body={<span>Se restablecerán el nombre y el color a los valores corporativos (se perderán los cambios sin guardar, si los hay).</span>}
+          confirmLabel="Restablecer"
+          onClose={() => setConfirmState(null)}
+          onConfirm={() => { setForm((f) => ({ ...f, appName: "GLPI Move", accentColor: "#0b5ed7" })); setConfirmState(null); }}
         />
       )}
       {confirmState?.kind === "import" && (

@@ -459,6 +459,11 @@ img, table { max-width: 100%; }
 .tabs-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: thin; }
 .tabs-scroll .tabs { min-width: max-content; border-bottom: 1px solid var(--line, #dbe4f0); border-radius: 0; }
 .tabs-scroll .tabs [role="tab"] { flex: 1 0 auto; padding-left: 0.9rem; padding-right: 0.9rem; white-space: nowrap; }
+/* Pestañas al contenido en escritorio (no estiran todo el ancho) */
+@media (min-width: 768px) {
+  .tabs-fit[role="tablist"] { min-width: 0; }
+  .tabs-fit [role="tab"] { flex: 0 0 auto; }
+}
 
 /* Checkboxes táctiles con acento institucional */
 .check-lg { width: 22px; height: 22px; min-width: 22px; min-height: 22px; accent-color: var(--accent); flex-shrink: 0; }

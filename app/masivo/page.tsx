@@ -568,9 +568,10 @@ export default function Masivo() {
                             {a ? disp(a.name) : "—"}
                           </span>
                           {a?._userId != null && (
-                            <span className="inline-flex items-center gap-1 mt-0.5 min-w-0" title={`Con usuario asignado: ${a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}`}>
-                              <span className="badge badge-success shrink-0"><span className="inline-flex items-center gap-1"><IconUser size={11} /> Con usuario</span></span>
-                              <span className="truncate text-xs text-muted">{a._userName && a._userName !== "—" ? disp(a._userName) : `Usuario #${a._userId}`}</span>
+                            <span className="inline-flex items-center gap-1 mt-0.5 min-w-0 text-xs" title={`Usuario asignado: ${a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}`}>
+                              <IconUser size={11} aria-hidden="true" />
+                              <span className="text-muted shrink-0">Usuario:</span>
+                              <b className="truncate text-ink font-medium">{a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}</b>
                             </span>
                           )}
                         </td>
@@ -630,9 +631,10 @@ export default function Masivo() {
                       )}
                     </div>
                       {a?._userId != null && (
-                        <span className="pl-11 inline-flex items-center gap-1.5 min-w-0" title={`Con usuario asignado: ${a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}`}>
-                          <span className="badge badge-success shrink-0"><span className="inline-flex items-center gap-1"><IconUser size={11} /> Con usuario</span></span>
-                          <span className="text-xs text-muted truncate">{a._userName && a._userName !== "—" ? disp(a._userName) : `Usuario #${a._userId}`}</span>
+                        <span className="pl-11 inline-flex items-center gap-1 min-w-0 text-xs" title={`Usuario asignado: ${a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}`}>
+                          <IconUser size={11} aria-hidden="true" />
+                          <span className="text-muted shrink-0">Usuario:</span>
+                          <b className="truncate text-ink font-medium">{a._userName && a._userName !== "—" ? disp(a._userName) : `#${a._userId}`}</b>
                         </span>
                       )}
                   </article>
@@ -664,8 +666,8 @@ export default function Masivo() {
       </section>
 
       {/* Footer sticky confirmar */}
-      <div className="sticky z-10 card p-3 flex items-center gap-2 flex-wrap shadow-lift" style={{ bottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
-        <span className="text-sm text-muted tabular-nums min-w-0">
+      <div className="sticky z-10 card p-2.5 sm:p-3 flex items-center gap-2 flex-wrap shadow-lift min-w-0 max-w-full" style={{ bottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }} role="region" aria-label="Confirmación del movimiento">
+        <span className="text-sm text-muted tabular-nums min-w-0 break-words">
           {readyRows.length} listo(s) {destName ? <span className="text-ink font-semibold">→ {destName}</span> : "· sin destino"}
         </span>
         <span className="ml-auto inline-flex gap-2 flex-wrap">
@@ -674,7 +676,7 @@ export default function Masivo() {
               Nuevo lote
             </button>
           )}
-          <button className="btn btn-primary text-sm tap-target min-w-[200px]" disabled={confirmDisabled} onClick={() => requireEdit(() => setConfirmState({ kind: "move" }))}>
+          <button className="btn btn-primary text-sm tap-target sm:min-w-[220px] flex-1 sm:flex-none justify-center" disabled={confirmDisabled} onClick={() => requireEdit(() => setConfirmState({ kind: "move" }))}>
             {busy ? "Moviendo…" : `Confirmar movimiento (${readyRows.length})`}
           </button>
         </span>
