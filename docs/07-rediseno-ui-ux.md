@@ -206,6 +206,34 @@ lógica de búsqueda, escaneo, movimientos ni navegación principal.
   { outline: none }`. Anillo visible de 2 px solo con teclado.
 - **Pie del panel**: body `py-3`, footer `pt-2`; botón Volver consistente.
 
+## Iteración 6 — Rediseño de Accesos (información primero)
+
+Misma filosofía que Búsqueda, sin tocar Control/Masivo/Config/Inicio.
+Sin cambios de endpoints, contratos, auth, roles, reglas de negocio,
+validaciones, exports ni lógica de grants (upsert auto, 409→force).
+
+### Listados (`app/accesos/page.tsx`)
+- Tabs accesibles con contadores (Áreas/Correos/Carpetas) y scroll horizontal
+  propio en móvil (`.tabs-scroll`); filtro de texto client-side + filtro por
+  área; tablas densas desktop y tarjetas móvil (mismo patrón que Búsqueda).
+- Encabezados con etiquetas (`Correos`, `Carpetas`, `Permisos` como texto
+  "N envían · M reciben" con tooltip/`aria-label`); "Sin responsable" en vez
+  de `— #0`; nombre como botón `rowlink` + **Ver detalle** explícito.
+- Sin botones rojos en listados; Descargar todo + Nuevo por pestaña.
+
+### Fichas (`SidePanel` + pila de navegación)
+- Área (responsable, correos/carpetas navegables), correo (dirección con
+  copiar, área enlazada, personas con `PermBadges` textuales Envía/Recibe,
+  clic a ficha de persona), carpeta (ruta con copiar, personas, badge
+  Acceso), persona (correos/carpetas por filas navegables).
+- `AdminSection` colapsada y solo-operador: agregar (submodal z-60),
+  toggles `check-lg` con guardado inmediato (semántica intacta), quitar con
+  confirmación, editar, exportar, eliminar protegida con `ConfirmDialog`
+  (alcance real: área solo vacía; `force=1` con mensaje del servidor).
+- ABM en `Modal` z-70 con `guard` anti-pérdida, `BusyButton`, errores inline,
+  área con `SearchCombobox`; `alert()` reemplazados por mensajes inline.
+- Sin avisos de permiso: admin oculto para viewers; backend sigue mandando.
+
 ### Despliegue iteración 5
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.

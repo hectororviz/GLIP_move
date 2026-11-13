@@ -446,6 +446,14 @@ img, table { max-width: 100%; }
 .copy-btn[data-ok="true"] { color: #15803d; }
 @media (max-width: 767px) { .copy-btn { width: 36px; height: 36px; min-width: 36px; } }
 
+/* Barra de pestañas con scroll horizontal propio (sin scroll de página) */
+.tabs-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.tabs-scroll .tabs { min-width: max-content; border-bottom: 1px solid var(--line, #dbe4f0); border-radius: 0; }
+.tabs-scroll .tabs [role="tab"] { flex: 1 0 auto; padding-left: 0.9rem; padding-right: 0.9rem; white-space: nowrap; }
+
+/* Checkboxes táctiles con acento institucional */
+.check-lg { width: 22px; height: 22px; min-width: 22px; min-height: 22px; accent-color: var(--accent); flex-shrink: 0; }
+
 /* Enlace de fila: abre el detalle desde el nombre, sin controles anidados */
 button.rowlink {
   display: block; width: 100%; background: none; border: 0; padding: 0;
