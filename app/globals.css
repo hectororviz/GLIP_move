@@ -409,6 +409,29 @@ img, table { max-width: 100%; }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; border-radius: 0.75rem; }
 .table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Ficha de información: filas etiqueta/valor compactas y unificadas */
+.info-card { background: #fff; border: 1px solid var(--line, #dbe4f0); border-radius: 0.9rem; padding: 0.15rem 0.9rem; }
+.info-card-highlight { background: var(--accent-soft, #eef4ff); border-color: color-mix(in srgb, var(--accent) 30%, #fff); }
+.info-row { display: grid; grid-template-columns: 118px 1fr; gap: 0.6rem; padding: 0.45rem 0; border-bottom: 1px solid #edf1f7; font-size: 0.875rem; align-items: baseline; }
+.info-row:last-child { border-bottom: 0; }
+.info-row > dt { color: #4b5b76; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.info-row > dd { margin: 0; color: #0f1f38; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 359px) { .info-row { grid-template-columns: 1fr; gap: 0.1rem; } }
+.section-h { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #4b5b76; margin: 0; }
+
+/* Acciones administrativas secundarias: filas sutiles, sin protagonismo */
+.admin-action {
+  display: flex; align-items: center; gap: 0.7rem; width: 100%; text-align: left;
+  background: #fff; border: 1px solid var(--line, #dbe4f0); border-radius: 0.8rem;
+  padding: 0.6rem 0.8rem; min-height: 52px; font-size: 0.875rem; touch-action: manipulation;
+}
+.admin-action:hover { background: #f3f6fb; }
+.admin-action .admin-ic { display: inline-flex; align-items: center; justify-content: center; height: 2rem; width: 2rem; flex-shrink: 0; border-radius: 0.6rem; background: #eef2f8; color: #4b5b76; }
+.admin-action-danger .admin-ic { background: #fef2f2; color: #b91c1c; }
+
+/* Cierre del panel: foco claramente visible, sin borde permanente */
+.sidepanel-header .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+
 /* Utilidades */
 .sticky-actions { position: sticky; bottom: 0; }
 .tap-target { min-width: var(--tap); min-height: var(--tap); }

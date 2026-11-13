@@ -137,6 +137,48 @@ reglas de negocio ni lógica GLPI. Sin dependencias nuevas.
   Operaciones Mover/Desvincular/Asignar/Quitar no se mezclan ni tocan campos
   ajenos; validaciones originales intactas.
 
+## Iteración 4 — Panel consulta-primero (adiós tabs Ubicación/Usuario)
+
+La edición pasa a segundo plano sin perder funcionalidad. Sin cambios de
+endpoints, contratos, auth, roles ni lógica GLPI; sin dependencias nuevas.
+
+### Panel de equipo (`components/AssetEditModal.tsx`)
+- Fuera pestañas: orden **Información general** (`dl.info-card`: tipo,
+  nombre, inventario, serie + modelo/fabricante/`states_id` solo si GLPI los
+  devuelve) → **Ubicación actual** destacada (`.info-card-highlight`) →
+  **Usuario asignado** (nombre + `user_id`, o "Sin asignar").
+- Se eliminó la duplicación de inventario/serie (subtítulo del panel +
+  resumen + ficha); ahora cada dato aparece una sola vez.
+- **Administrar equipo**: `AdminSection` (acordeón cerrado por defecto, solo
+  `canOperate`). Menú de 4 filas (`.admin-action`, sin protagonismo visual):
+  Cambiar ubicación / Modificar usuario / Desvincular del puesto / Quitar
+  usuario, cada una con su consecuencia ("Conserva el usuario"/"Conserva el
+  puesto"). Mover y Asignar abren su formulario inline con "← Volver a
+  opciones"; desvinculaciones van directo a `ConfirmDialog`. Mismo combobox,
+  debounce (450 ms), validaciones y guards de cambios sin guardar.
+- Sin permiso: sin formularios deshabilitados ni pestañas vacías; la sección
+  se oculta y queda un único aviso ("La edición requiere perfil operador").
+- "Ver ficha →" abre la persona vía `GET /api/glpi/users?id=` con retorno.
+
+### Panel de persona (`app/buscar/page.tsx`)
+- Equipos como `AssetRow` (icono, tipo, nombre, inventario truncado + "Ver
+  equipo" de 44 px): sin tablas horizontales ni texto corrido; abre el equipo
+  con "← Volver a la persona" al cerrar (navegación de un nivel con
+  `returnTarget`, conserva scroll y búsqueda; guards de dirty en ambos
+  sentidos).
+- **Administrar asignaciones**: acordeón cerrado, solo operadores (asignar por
+  inventario/serie/URL + scan, y "Quitar del puesto" por ubicación). Sin
+  permiso: oculto + aviso único. Se eliminó `requireEdit` (innecesario: la
+  sección ya está gateada; el backend sigue siendo la autoridad).
+
+### Sistema (`components/ui.tsx`, `app/globals.css`)
+- Nuevo `AdminSection` (botón + región, `aria-expanded/controls`, 52 px).
+- `.info-card` + `.info-row` (dl con etiqueta/valor, apilado <360 px),
+  `.section-h`, `.admin-action(-danger)`; foco del ✕ del panel con anillo
+  visible solo por teclado, sin bordes azules permanentes; gaps y botones
+  secundarios en admin (menos protagonismo).
+- Botones táctiles 44 px en filas de equipo y escáner del admin.
+
 ## Verificación
 - `npm run build` OK (15 rutas), `docker compose build && up -d` OK,
   `/mapa`, `/buscar`, `/` → 200; `/api/dashboard.estados` con 230 puestos

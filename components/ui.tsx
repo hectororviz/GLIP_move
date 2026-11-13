@@ -344,6 +344,44 @@ export function ConfirmDialog({
   );
 }
 
+/* ---------- Sección administrativa colapsable (cerrada por defecto) ---------- */
+export function AdminSection({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  return (
+    <section aria-label={title} className="rounded-xl border border-line bg-white overflow-hidden">
+      <h3 className="m-0">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="w-full flex items-center gap-2.5 px-3 py-3 text-left transition hover:bg-canvas min-h-[52px]"
+        >
+          <span aria-hidden="true" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-canvas border border-line text-muted text-sm font-bold">⚙</span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-ink text-[0.9rem]">{title}</b>
+            {hint && <span className="block text-xs text-muted truncate">{hint}</span>}
+          </span>
+          <span className="text-muted text-sm w-6 text-center shrink-0" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        </button>
+      </h3>
+      {open && (
+        <div id={panelId} role="region" aria-label={`${title} opciones`} className="border-t border-line px-3 py-3 grid gap-2 bg-canvas/40">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ---------- Botón con estado de carga ---------- */
 export function BusyButton({
   busy,

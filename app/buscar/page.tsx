@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
-import { Spinner, EmptyState, TypeIcon, SidePanel } from "@/components/ui";
+import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection } from "@/components/ui";
 import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
@@ -31,21 +31,45 @@ const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
 type AccessMail = { accountId: string; nombre?: string; direccion?: string; area?: string; canSend: boolean; canRead: boolean };
 type AccessShare = { shareId: string; nombre?: string; ruta?: string; area?: string };
 
-function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessMails, accessShares, canSeeAccess }: {
+/* Fila compacta de equipo: tipo + nombre + inventario + consulta de detalle */
+function AssetRow({ a, onOpen }: { a: Asset; onOpen: () => void }) {
+  return (
+    <li className="flex items-center gap-2.5 min-w-0 py-1.5 border-b border-line last:border-0">
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-canvas border border-line" aria-hidden="true">
+        <TypeIcon type={a._type} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-ink text-[0.85rem]" title={disp(a.name)}>{disp(a.name)}</span>
+        <span className="block text-xs text-muted truncate">{a._type} · Inv <span className="tabular-nums">{disp(a.otherserial)}</span></span>
+      </span>
+      <button className="btn btn-secondary text-xs shrink-0 !min-h-[44px]" onClick={onOpen}>Ver equipo</button>
+    </li>
+  );
+}
+
+type PersonDetail = { p: Person; groups: PersonGroup[]; unlocated: Asset[]; mails: AccessMail[]; shares: AccessShare[] };
+type ReturnTarget = { kind: "person"; detail: PersonDetail } | { kind: "asset"; asset: Asset };
+
+function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenAsset, accessMails, accessShares, canSeeAccess, canEdit, onDirtyChange }: {
   p: Person;
   groups: PersonGroup[];
   unlocated: Asset[];
   byId: Map<number, any>;
   onQuitar: (group: PersonGroup) => void;
   onRefresh: () => void;
+  onOpenAsset: (a: Asset) => void;
   accessMails: AccessMail[];
   accessShares: AccessShare[];
   canSeeAccess: boolean;
+  canEdit: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [assignInv, setAssignInv] = useState("");
   const [assignMsg, setAssignMsg] = useState("");
   const [assignScan, setAssignScan] = useState(false);
   const [assignBusy, setAssignBusy] = useState(false);
+  const dirty = assignInv !== "";
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   async function assignToPerson(inv: string) {
     if (!inv.trim()) return;
@@ -92,66 +116,81 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, accessM
         <span className="badge badge-brand shrink-0">{groups.length} puesto(s)</span>
       </div>
 
-      <div className="grid gap-2 border-t pt-3">
-        <div className="text-sm font-semibold">Asignar equipo a esta persona</div>
-        <div className="flex gap-2">
-          <input
-            className="input flex-1 text-sm min-w-0"
-            placeholder="Inventario, serie o URL GLPI…"
-            value={assignInv}
-            onChange={(e) => setAssignInv(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && assignInv && assignToPerson(assignInv)}
-            aria-label="Inventario a asignar"
-          />
-          <button onClick={() => assignInv && assignToPerson(assignInv)} className="btn btn-primary text-xs tap-target shrink-0" disabled={assignBusy}>OK</button>
-          <button onClick={() => setAssignScan(!assignScan)} className="btn btn-secondary tap-target shrink-0" aria-label="Escanear inventario"><IconCamera size={16} /></button>
-        </div>
-        {assignMsg && <p className="text-xs text-muted" role="status">{assignMsg}</p>}
-      </div>
-      {assignScan && (
-        <ScanModal
-          title={`Asignar equipo a ${p.display}`}
-          onClose={() => setAssignScan(false)}
-          onResult={(v) => { setAssignScan(false); assignToPerson(v); }}
-        />
-      )}
-
-      {groups.map((g) => {
-        const d = formatLocationDisplay(g.location_id, byId as any, g.items[0]?._locationName || null);
-        const locName = d.isFloorOnly ? `${d.primary} (sin puesto)` : d.primary;
-        return (
-          <div key={g.location_id} className="card p-3 grid gap-2">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <b className="text-ink min-w-0 truncate" title={d.full}>{locName}</b>
-              <div className="flex gap-2 flex-wrap">
-                <a className="btn btn-secondary text-xs tap-target" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
-                <button className="btn btn-danger-outline text-xs tap-target" onClick={() => onQuitar(g)}>Quitar del puesto</button>
+      <section aria-label="Equipos asignados" className="grid gap-1.5">
+        <h3 className="section-h">Equipos asignados</h3>
+        {groups.map((g) => {
+          const d = formatLocationDisplay(g.location_id, byId as any, g.items[0]?._locationName || null);
+          const locName = d.isFloorOnly ? `${d.primary} (sin puesto)` : d.primary;
+          return (
+            <div key={g.location_id} className="card p-3 grid gap-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <b className="text-ink text-sm min-w-0 truncate" title={d.full}>{locName}</b>
+                <a className="btn btn-secondary text-xs" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
               </div>
+              <ul aria-label={`Equipos en ${locName}`}>
+                {g.items.map((a) => (
+                  <AssetRow key={`${a._type}-${a.id}`} a={a} onOpen={() => onOpenAsset(a)} />
+                ))}
+              </ul>
             </div>
-            <ul className="grid gap-1 text-muted">
-              {g.items.map((a) => (
-                <li key={`${a._type}-${a.id}`}>
-                  {a._type}: <b className="text-ink">{disp(a.name)}</b> · Inv <span className="tabular-nums">{disp(a.otherserial)}</span>
-                </li>
+          );
+        })}
+
+        {unlocated.length > 0 && (
+          <div className="card p-3 grid gap-1">
+            <b className="text-ink text-sm">Asignados directos (sin puesto)</b>
+            <ul aria-label="Equipos asignados directos">
+              {unlocated.map((a) => (
+                <AssetRow key={`${a._type}-${a.id}`} a={a} onOpen={() => onOpenAsset(a)} />
               ))}
             </ul>
           </div>
-        );
-      })}
+        )}
 
-      {unlocated.length > 0 && (
-        <div className="card p-3 grid gap-1">
-          <b className="text-ink">Asignados directos (sin puesto)</b>
-          <ul className="grid gap-1 text-muted">
-            {unlocated.map((a) => (
-              <li key={`${a._type}-${a.id}`}>{a._type}: <b className="text-ink">{disp(a.name)}</b></li>
-            ))}
-          </ul>
-        </div>
-      )}
+        {!groups.length && !unlocated.length && (
+          <p className="text-muted">Esta persona no tiene equipos asignados en GLPI.</p>
+        )}
+      </section>
 
-      {!groups.length && !unlocated.length && (
-        <p className="text-muted">Esta persona no tiene equipos asignados en GLPI.</p>
+      {canEdit ? (
+        <AdminSection title="Administrar asignaciones" hint="Asignar y desvincular equipos">
+          <div className="grid gap-1.5">
+            <label className="text-xs font-semibold text-ink" htmlFor="person-assign">Asignar equipo a esta persona</label>
+            <div className="flex gap-2">
+              <input
+                id="person-assign"
+                className="input flex-1 text-sm min-w-0"
+                placeholder="Inventario, serie o URL GLPI…"
+                value={assignInv}
+                onChange={(e) => setAssignInv(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && assignInv && assignToPerson(assignInv)}
+                aria-label="Inventario a asignar"
+              />
+              <button onClick={() => assignInv && assignToPerson(assignInv)} className="btn btn-secondary text-xs shrink-0" disabled={assignBusy}>OK</button>
+              <button onClick={() => setAssignScan(!assignScan)} className="btn btn-secondary icon-btn tap-target shrink-0" aria-label="Escanear inventario"><IconCamera size={16} /></button>
+            </div>
+            {assignMsg && <p className="text-xs text-muted" role="status">{assignMsg}</p>}
+          </div>
+          {assignScan && (
+            <ScanModal
+              title={`Asignar equipo a ${p.display}`}
+              onClose={() => setAssignScan(false)}
+              onResult={(v) => { setAssignScan(false); assignToPerson(v); }}
+            />
+          )}
+          {groups.map((g) => {
+            const d = formatLocationDisplay(g.location_id, byId as any, g.items[0]?._locationName || null);
+            const locName = d.isFloorOnly ? `${d.primary} (sin puesto)` : d.primary;
+            return (
+              <div key={g.location_id} className="flex items-center justify-between gap-2 text-sm border border-line rounded-xl bg-white px-3 py-2 min-h-[52px]">
+                <span className="truncate min-w-0" title={d.full}>{locName} <span className="text-xs text-muted">· {g.items.length} equipo(s)</span></span>
+                <button className="btn btn-danger-outline text-xs shrink-0" onClick={() => onQuitar(g)}>Quitar del puesto</button>
+              </div>
+            );
+          })}
+        </AdminSection>
+      ) : (
+        <p className="text-xs text-muted">La edición requiere perfil operador.</p>
       )}
 
       {canSeeAccess && (
@@ -282,10 +321,12 @@ export default function Buscar() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRestore = useRef(0);
   const dirtyRef = useRef(false);
+  const personDirtyRef = useRef(false);
 
-  // detalle en panel lateral
+  // detalle en panel lateral + retorno de navegación equipo↔persona
+  const [returnTarget, setReturnTarget] = useState<ReturnTarget | null>(null);
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
-  const [detailPerson, setDetailPerson] = useState<null | { p: Person; groups: PersonGroup[]; unlocated: Asset[]; mails: AccessMail[]; shares: AccessShare[] }>(null);
+  const [detailPerson, setDetailPerson] = useState<null | PersonDetail>(null);
   const [detailMail, setDetailMail] = useState<null | { mail: any; personas: any[] }>(null);
   const [detailShare, setDetailShare] = useState<null | { share: any; personas: any[] }>(null);
   const [detailArea, setDetailArea] = useState<null | { area: any; mails: any[]; shares: any[] }>(null);
@@ -300,12 +341,34 @@ export default function Buscar() {
     setDetailMail(null);
     setDetailShare(null);
     setDetailArea(null);
+    setReturnTarget(null);
     dirtyRef.current = false;
+    personDirtyRef.current = false;
     if (restore) requestAnimationFrame(() => window.scrollTo({ top: scrollRestore.current }));
   }
-  function guardedClose() {
+  function closeAsset() {
     if (dirtyRef.current && !confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")) return;
-    closeDetail(true);
+    const rt = returnTarget;
+    setReturnTarget(null);
+    dirtyRef.current = false;
+    if (rt?.kind === "person") {
+      setDetailAsset(null);
+      setDetailPerson(rt.detail);
+    } else {
+      closeDetail(true);
+    }
+  }
+  function closePerson() {
+    if (personDirtyRef.current && !confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")) return;
+    const rt = returnTarget;
+    setReturnTarget(null);
+    personDirtyRef.current = false;
+    if (rt?.kind === "asset") {
+      setDetailPerson(null);
+      setDetailAsset(rt.asset);
+    } else {
+      closeDetail(true);
+    }
   }
 
   async function downloadExport(scope: "area" | "mail" | "share", id: string) {
@@ -362,12 +425,6 @@ export default function Buscar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const requireEdit = (action: () => void) => {
-    if (authUser?.canOperate) { action(); return; }
-    pendingAction.current = action;
-    setAuthOpen(true);
-  };
-
   async function search(v?: string) {
     const query = (v ?? q).trim();
     if (!query) return;
@@ -407,8 +464,8 @@ export default function Buscar() {
 
   const toggle = (c: Cat) => setOpen((s) => { const n = new Set(s); if (n.has(c)) n.delete(c); else n.add(c); return n; });
 
-  async function openPersonDetail(p: Person) {
-    openDetail(true);
+  async function openPersonDetail(p: Person, saveScroll = true) {
+    if (saveScroll) openDetail(true);
     setDetailPerson({ p, groups: [], unlocated: [], mails: [], shares: [] });
     try {
       const [ra, rg] = await Promise.all([
@@ -455,10 +512,42 @@ export default function Buscar() {
     } catch {}
   }
 
-  function openAssetDetail(a: Asset) {
-    openDetail(true);
+  function openAssetDetail(a: Asset, fromPerson?: PersonDetail) {
+    if (fromPerson) {
+      setReturnTarget({ kind: "person", detail: fromPerson });
+      setDetailPerson(null);
+    } else {
+      openDetail(true);
+    }
     dirtyRef.current = false;
     setDetailAsset(a);
+  }
+
+  // Desde el equipo: abrir la ficha de su usuario asignado (con retorno)
+  async function openPersonFromAsset(userId: number): Promise<boolean> {
+    if (!detailAsset) return false;
+    try {
+      const r = await fetch(`/api/glpi/users?id=${userId}`);
+      const j = await r.json();
+      const u = j.user;
+      if (!r.ok || !u || u.id == null) return false;
+      const p: Person = {
+        id: Number(u.id),
+        login: u.login ?? null,
+        firstname: u.firstname ?? null,
+        realname: u.realname ?? null,
+        display: u.display || [u.firstname, u.realname].filter(Boolean).join(" ") || u.login || `Usuario ${u.id}`,
+        email: u.email ?? null,
+        phone: u.phone ?? null,
+      };
+      setReturnTarget({ kind: "asset", asset: detailAsset });
+      setDetailAsset(null);
+      dirtyRef.current = false;
+      await openPersonDetail(p, false);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function quitarDelPuesto(g: PersonGroup) {
@@ -699,11 +788,12 @@ export default function Buscar() {
       {detailAsset && (
         <SidePanel
           title={`${detailAsset._type} · ${disp(detailAsset.name)}`}
-          subtitle={`Inv. ${disp(detailAsset.otherserial)} · Serie ${disp(detailAsset.serial)}`}
-          onClose={guardedClose}
+          onClose={closeAsset}
           footer={
             <div className="flex gap-2 justify-end">
-              <button className="btn btn-secondary text-sm tap-target" onClick={guardedClose}>Volver a resultados</button>
+              <button className="btn btn-secondary text-sm tap-target" onClick={closeAsset}>
+                {returnTarget?.kind === "person" ? "← Volver a la persona" : "Volver a resultados"}
+              </button>
             </div>
           }
         >
@@ -713,13 +803,10 @@ export default function Buscar() {
             byId={byId}
             childrenOf={childrenOf}
             canEdit={!!authUser?.canOperate}
-            onClose={() => closeDetail(true)}
             onSaved={() => { search(); }}
             onDirtyChange={(d) => { dirtyRef.current = d; }}
+            onOpenUser={openPersonFromAsset}
           />
-          {!authUser?.canOperate && (
-            <p className="text-xs text-muted mt-3">Solo lectura — <button className="underline font-semibold" onClick={() => setAuthOpen(true)}>iniciar sesión como operador para editar</button>.</p>
-          )}
         </SidePanel>
       )}
 
@@ -727,19 +814,22 @@ export default function Buscar() {
         <SidePanel
           title={`Persona: ${detailPerson.p.display}`}
           subtitle={`GLPI #${detailPerson.p.id}${detailPerson.p.login ? ` · ${detailPerson.p.login}` : ""}`}
-          onClose={() => closeDetail(true)}
-          footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={() => closeDetail(true)}>Volver a resultados</button></div>}
+          onClose={closePerson}
+          footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={closePerson}>{returnTarget?.kind === "asset" ? "← Volver al equipo" : "Volver a resultados"}</button></div>}
         >
           <FichaPersona
             p={detailPerson.p}
             groups={detailPerson.groups}
             unlocated={detailPerson.unlocated}
             byId={byId}
-            onQuitar={(g) => requireEdit(() => quitarDelPuesto(g))}
+            onQuitar={(g) => quitarDelPuesto(g)}
             onRefresh={() => openPersonDetail(detailPerson.p)}
+            onOpenAsset={(a) => openAssetDetail(a, detailPerson)}
             accessMails={detailPerson.mails}
             accessShares={detailPerson.shares}
             canSeeAccess={canSee}
+            canEdit={!!authUser?.canOperate}
+            onDirtyChange={(d) => { personDirtyRef.current = d; }}
           />
         </SidePanel>
       )}
