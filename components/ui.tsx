@@ -478,6 +478,26 @@ export function PermBadges({ canSend, canRead }: { canSend: boolean; canRead: bo
   );
 }
 
+/* ---------- Metadato secundario expandible (compacto, sin truncado permanente) ----------
+   Muestra el valor en una línea; al tocarlo se expande con wrap. No navega:
+   úsese para modelo/serie/dirección/ruta junto a un botón de detalle aparte. */
+export function ExpandableMeta({ text, label }: { text: string; label: string }) {
+  const [open, setOpen] = useState(false);
+  if (!text || text === "—") return <span className="block text-xs text-muted">—</span>;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+      aria-expanded={open}
+      aria-label={label}
+      title={open ? undefined : `${text} (tocar para ver completo)`}
+      className={`block text-xs text-muted text-left max-w-full ${open ? "whitespace-normal break-words" : "truncate"}`}
+    >
+      {text} <span aria-hidden="true" className="underline text-[11px]">{open ? "(menos)" : "(más)"}</span>
+    </button>
+  );
+}
+
 /* ---------- Botón con estado de carga ---------- */
 export function BusyButton({
   busy,

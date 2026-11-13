@@ -383,7 +383,7 @@ export default function Masivo() {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 no-hscroll">
       <div className="page-header">
         <h1>Movimiento masivo</h1>
         <p>Elegí el puesto destino, escaneá etiquetas en ráfaga (la cámara no se cierra) y confirmá todo junto al pie.</p>
@@ -449,7 +449,7 @@ export default function Masivo() {
       </section>
 
       {/* Escaneo */}
-      <section aria-label="Escaneo en ráfaga" className="card p-3 sm:p-4 grid gap-2.5">
+      <section aria-label="Escaneo en ráfaga" className="card p-3 sm:p-4 grid gap-2">
         <h2 className="font-bold text-ink">2 · Escaneá en ráfaga</h2>
         <div className="flex gap-2 flex-wrap items-center">
           <button className="btn btn-primary text-sm tap-target min-w-[160px]" disabled={busy} onClick={() => setScanOpen(true)}>
@@ -469,10 +469,11 @@ export default function Masivo() {
           <input
             ref={manualRef}
             className="input flex-1 text-sm min-w-0"
-            placeholder="Inventario manual o QR: 0000012865, A 0001-0537, URL GLPI…"
+            placeholder="Escanear o ingresar inventario"
             value={manual}
             disabled={busy}
-            aria-label="Inventario manual, QR o URL GLPI"
+            aria-label="Escanear o ingresar inventario"
+            aria-describedby="masivo-formatos"
             enterKeyHint="done"
             onChange={(e) => setManual(e.target.value)}
             onKeyDown={(e) => {
@@ -494,6 +495,7 @@ export default function Masivo() {
             Agregar
           </button>
         </div>
+        <p id="masivo-formatos" className="text-[11px] text-muted">Formatos: inventario (0000012865), letra-serie (A 0001-0537), URL GLPI o QR.</p>
         {msg && (
           <p className="text-xs text-muted" role="status">
             {msg}

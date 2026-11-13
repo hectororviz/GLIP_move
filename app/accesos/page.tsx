@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AuthModal from "@/components/AuthModal";
-import { Spinner, EmptyState, SidePanel, Tabs, AdminSection, SearchCombobox, ConfirmDialog, CopyButton, BusyButton, PermBadges, decodeEntities } from "@/components/ui";
+import { Spinner, EmptyState, SidePanel, Tabs, AdminSection, SearchCombobox, ConfirmDialog, CopyButton, BusyButton, PermBadges, ExpandableMeta, decodeEntities } from "@/components/ui";
 import { IconDownload, IconEye, IconFolder, IconMail, IconPlus, IconUser, IconBuilding } from "@/components/icons";
 
 type Area = { id: string; nombre: string; responsableUserId: number; responsableNombre: string | null; mails: number; shares: number };
@@ -136,7 +136,7 @@ function PersonRow({ display, userId, onOpen, right }: { display: string; userId
         <IconUser size={15} />
       </span>
       <span className="min-w-0 flex-1">
-        <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${display} — abrir ficha`} onClick={onOpen}>{display}</button>
+        <button type="button" className="rowlink font-medium text-ink text-[0.85rem] clamp-2" title={`${display} — abrir ficha`} onClick={onOpen}>{display}</button>
         <span className="block text-xs text-muted tabular-nums">GLPI #{userId}</span>
       </span>
       <span className="shrink-0">{right}</span>
@@ -1073,8 +1073,8 @@ function AreaPanel({ area, mails, shares, canEdit, busyOp, onOpenMail, onOpenSha
               <li key={m.id} className="flex items-center gap-2.5 min-w-0 py-1.5 border-b border-line last:border-0">
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-canvas border border-line text-muted" aria-hidden="true"><IconMail size={15} /></span>
                 <span className="min-w-0 flex-1">
-                  <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${m.nombre} — abrir ficha`} onClick={() => onOpenMail(m)}>{decodeEntities(m.nombre)}</button>
-                  <span className="block text-xs text-muted truncate tabular-nums">{m.direccion} · {m.personas} pers.</span>
+                  <button type="button" className="rowlink font-medium text-ink text-[0.85rem] clamp-2" title={`${m.nombre} — abrir ficha`} onClick={() => onOpenMail(m)}>{decodeEntities(m.nombre)}</button>
+                  <ExpandableMeta label={`Dirección y personas de ${m.nombre}`} text={`${m.direccion} · ${m.personas} pers.`} />
                 </span>
               </li>
             ))}
@@ -1090,8 +1090,8 @@ function AreaPanel({ area, mails, shares, canEdit, busyOp, onOpenMail, onOpenSha
               <li key={s.id} className="flex items-center gap-2.5 min-w-0 py-1.5 border-b border-line last:border-0">
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-canvas border border-line text-muted" aria-hidden="true"><IconFolder size={15} /></span>
                 <span className="min-w-0 flex-1">
-                  <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${s.nombre} — abrir ficha`} onClick={() => onOpenShare(s)}>{decodeEntities(s.nombre)}</button>
-                  <span className="block text-xs text-muted truncate tabular-nums" title={s.ruta}>{s.ruta} · {s.personas} pers.</span>
+                  <button type="button" className="rowlink font-medium text-ink text-[0.85rem] clamp-2" title={`${s.nombre} — abrir ficha`} onClick={() => onOpenShare(s)}>{decodeEntities(s.nombre)}</button>
+                  <ExpandableMeta label={`Ruta y personas de ${s.nombre}`} text={`${s.ruta} · ${s.personas} pers.`} />
                 </span>
               </li>
             ))}
@@ -1311,8 +1311,8 @@ function PersonPanel({ user, mails, shares, canEdit, onOpenMail, onOpenShare, on
               <li key={g.accountId} className="flex items-center gap-2.5 min-w-0 py-1.5 border-b border-line last:border-0">
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-canvas border border-line text-muted" aria-hidden="true"><IconMail size={15} /></span>
                 <span className="min-w-0 flex-1">
-                  <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${g.nombre} — abrir ficha`} onClick={() => onOpenMail(g)}>{decodeEntities(g.nombre || g.accountId)}</button>
-                  <span className="block text-xs text-muted truncate tabular-nums">{g.direccion} · {g.area}</span>
+                  <button type="button" className="rowlink font-medium text-ink text-[0.85rem] clamp-2" title={`${g.nombre} — abrir ficha`} onClick={() => onOpenMail(g)}>{decodeEntities(g.nombre || g.accountId)}</button>
+                  <ExpandableMeta label={`Dirección y área de ${g.nombre}`} text={`${g.direccion} · ${g.area}`} />
                 </span>
                 <span className="shrink-0"><PermBadges canSend={g.canSend} canRead={g.canRead} /></span>
               </li>
@@ -1329,8 +1329,8 @@ function PersonPanel({ user, mails, shares, canEdit, onOpenMail, onOpenShare, on
               <li key={g.shareId} className="flex items-center gap-2.5 min-w-0 py-1.5 border-b border-line last:border-0">
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-canvas border border-line text-muted" aria-hidden="true"><IconFolder size={15} /></span>
                 <span className="min-w-0 flex-1">
-                  <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${g.nombre} — abrir ficha`} onClick={() => onOpenShare(g)}>{decodeEntities(g.nombre || g.shareId)}</button>
-                  <span className="block text-xs text-muted truncate tabular-nums" title={g.ruta}>{g.ruta} · {g.area}</span>
+                  <button type="button" className="rowlink font-medium text-ink text-[0.85rem] clamp-2" title={`${g.nombre} — abrir ficha`} onClick={() => onOpenShare(g)}>{decodeEntities(g.nombre || g.shareId)}</button>
+                  <ExpandableMeta label={`Ruta y área de ${g.nombre}`} text={`${g.ruta} · ${g.area}`} />
                 </span>
               </li>
             ))}

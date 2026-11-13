@@ -185,6 +185,14 @@ body {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .break-anywhere { overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
 .nowrap-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
@@ -338,9 +346,8 @@ img, table { max-width: 100%; }
 .acc-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* Tarjetas de equipo móvil */
-.asset-card { display: grid; gap: 0.35rem; padding: 0.8rem 0.9rem; border-radius: 0.9rem; }
+.asset-card { display: grid; gap: 0.35rem; padding: 0.7rem 0.8rem; border-radius: 0.9rem; }
 .asset-card:active { background: #f3f6fb; }
-@media (min-width: 768px) { .asset-card { padding: 0.7rem 0.8rem; } }
 
 /* SidePanel: drawer derecho desktop / fullscreen móvil */
 .sidepanel-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(15,31,56,0.5); animation: fade-in 160ms ease; }
@@ -486,6 +493,7 @@ button.rowlink {
   border-radius: 0.3rem;
 }
 button.rowlink:hover { color: var(--accent-700, #0a3fa8); text-decoration: underline; }
+button.rowlink.clamp-2, button.rowlink.clamp-3 { display: -webkit-box; width: 100%; }
 
 /* Utilidades */
 .sticky-actions { position: sticky; bottom: 0; }

@@ -7,7 +7,7 @@ import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants, editFormOf, parseGlpiUrl } from "@/lib/inventory";
 import { clasificarPuesto, ESTADO_META, type EstadoPuesto } from "@/lib/puesto-state";
 import { formatFloorName } from "@/lib/location-display";
-import { Spinner, SidePanel, AdminSection, TypeIcon, decodeEntities } from "./ui";
+import { Spinner, SidePanel, AdminSection, TypeIcon, ExpandableMeta, decodeEntities } from "./ui";
 import AssetEditModal from "./AssetEditModal";
 
 type Puesto = { glpi_id: number; x: number; y: number; w: number; h: number };
@@ -71,7 +71,20 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transformRef = useRef<any>(null);
   const puestoRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const tapStart = useRef<{ x: number; y: number } | null>(null);
   const focusEpoch = useRef(0);
+
+  function recordTap(e: React.PointerEvent) {
+    tapStart.current = { x: e.clientX, y: e.clientY };
+  }
+  // Ignora el "clic" si el dedo se desplazó (era un pan, no un tap): evita
+  // selecciones accidentales al desplazar el plano en pantallas táctiles.
+  function isTap(e: React.MouseEvent): boolean {
+    const s = tapStart.current;
+    tapStart.current = null;
+    if (!s) return true;
+    return Math.hypot(e.clientX - s.x, e.clientY - s.y) < 12;
+  }
   const floorsRef = useRef(floors);
   const floorIdRef = useRef(floorId);
   const floorRef = useRef<Floor | null>(null);
@@ -752,7 +765,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                         setCtxMenu({ x: e.clientX, y: e.clientY, kind: "new", rect: pending });
                       }
                     }}
-                    style={{ touchAction: panDisabled ? "none" : undefined, cursor: calibrar && tool === "draw" ? "crosshair" : undefined }}>
+                    style={{ touchAction: calibrar ? (panDisabled ? "none" : undefined) : "none", cursor: calibrar && tool === "draw" ? "crosshair" : undefined }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[58vh] lg:max-h-[66vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, focusEpoch.current, 0); }} />
                 {showPuestos && puestos.map((p) => {
@@ -768,9 +781,10 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     tabIndex={calibrar ? undefined : 0}
                     aria-label={calibrar ? undefined : label}
                     aria-selected={calibrar ? undefined : sel?.glpi_id === p.glpi_id}
-                    onClick={() => { if (!calibrar) { setFlashId(p.glpi_id); openPuesto(p); } }}
+                    onClick={(e) => { if (!calibrar && isTap(e)) { setFlashId(p.glpi_id); openPuesto(p); } }}
                     onKeyDown={(e) => { if (!calibrar && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setFlashId(p.glpi_id); openPuesto(p); } }}
                     onPointerDown={(e) => {
+                      recordTap(e);
                       if (!calibrar) return;
                       e.stopPropagation();
                       const q = toPct(e.clientX, e.clientY);
@@ -925,7 +939,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                   </span>
                   <span className="min-w-0 flex-1">
                     <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${title} — abrir ficha`} onClick={() => openAssetDetail(a)}>{disp(a.name)}</button>
-                    <span className="block text-xs text-muted truncate">{a._type} · Inv <span className="tabular-nums">{disp(a.otherserial)}</span>{a._model ? ` · Mod. ${disp(a._model)}` : ""}{a.serial ? <> · Serie <span className="tabular-nums">{disp(a.serial)}</span></> : null}</span>
+                    <ExpandableMeta label={`Datos técnicos de ${disp(a.name)}`} text={`${a._type} · Inv ${disp(a.otherserial)}${a._model ? ` · Mod. ${disp(a._model)}` : ""}${a.serial ? ` · Serie ${disp(a.serial)}` : ""}`} />
                   </span>
                 </li>
                 );

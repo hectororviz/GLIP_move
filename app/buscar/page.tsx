@@ -3,21 +3,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ScanModal from "@/components/ScanModal";
 import AuthModal from "@/components/AuthModal";
 import { useLocations } from "@/components/Places";
-import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection, PermBadges, decodeEntities } from "@/components/ui";
+import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection, PermBadges, ExpandableMeta, decodeEntities } from "@/components/ui";
 import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
 
-function CompactLocation({ locId, fallback, byId }: { locId: number | null | undefined; fallback: any; byId: Map<number, any> }) {
+function CompactLocation({ locId, fallback, byId, wrap }: { locId: number | null | undefined; fallback: any; byId: Map<number, any>; wrap?: boolean }) {
   if (locId == null) return <span className="badge badge-warning">Sin ubicación</span>;
   const d = formatLocationDisplay(locId, byId as any, fallback != null ? String(fallback) : null);
+  const line = wrap ? "block break-words font-medium text-ink" : "block truncate font-medium text-ink";
+  const sub = wrap ? "block break-words text-xs text-muted" : "block truncate text-xs text-muted";
   return (
     <span className="block min-w-0" title={d.full}>
-      <span className="block truncate font-medium text-ink">{d.primary}</span>
+      <span className={line}>{d.primary}</span>
       {d.isFloorOnly
         ? <span className="badge badge-warning mt-0.5 w-fit">Sin puesto</span>
-        : d.secondary && <span className="block truncate text-xs text-muted">{d.secondary}</span>}
-      {d.isFloorOnly && d.secondary && <span className="block truncate text-xs text-muted">{d.secondary}</span>}
+        : d.secondary && <span className={sub}>{d.secondary}</span>}
+      {d.isFloorOnly && d.secondary && <span className={sub}>{d.secondary}</span>}
     </span>
   );
 }
@@ -40,7 +42,7 @@ function AssetRow({ a, onOpen }: { a: Asset; onOpen: () => void }) {
       </span>
       <span className="min-w-0 flex-1">
         <button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${disp(a.name)} — abrir ficha`} onClick={onOpen}>{disp(a.name)}</button>
-        <span className="block text-xs text-muted truncate">{a._type} · Inv <span className="tabular-nums">{disp(a.otherserial)}</span></span>
+        <ExpandableMeta label={`Datos técnicos de ${disp(a.name)}`} text={`${a._type} · Inv ${disp(a.otherserial)}${a._model ? ` · Mod. ${disp(a._model)}` : ""}${a.serial ? ` · Serie ${disp(a.serial)}` : ""}`} />
       </span>
       <button className="btn btn-secondary text-xs shrink-0 !min-h-[44px]" onClick={onOpen}>Ver equipo</button>
     </li>
@@ -258,13 +260,13 @@ function AssetCard({ a, byId, onOpen }: { a: Asset; byId: Map<number, any>; onOp
               <b className="text-ink truncate text-[0.95rem]">{disp(a.name)}</b>
               <span className="tabular-nums text-[0.8rem] font-bold text-ink shrink-0">#{disp(a.otherserial)}</span>
             </span>
-            <span className="block text-xs text-muted truncate">{a._type}{a._model ? ` · ${disp(a._model)}` : ""}</span>
+            <span className="block text-xs text-muted break-words">{a._type}{a._model ? ` · ${disp(a._model)}` : ""}</span>
           </span>
         </span>
         <span className="min-w-0 pl-11">
-          <CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} />
+          <CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} wrap />
         </span>
-        <span className="flex items-center gap-2 pl-11 min-w-0">
+        <span className="flex items-center gap-2 pl-11 min-w-0 flex-wrap">
           {hasUser
             ? <span className="badge badge-success max-w-full truncate" title={String(a._userName && a._userName !== "—" ? a._userName : `Usuario #${a._userId}`)}>{String(a._userName && a._userName !== "—" ? a._userName : `Usuario #${a._userId}`)}</span>
             : <span className="badge">Sin asignar</span>}
@@ -669,7 +671,7 @@ export default function Buscar() {
                               {(r.items as any[]).map((a) => (
                                 <tr key={`${a._type}-${a.id}`}>
                                   <td><span className="inline-flex items-center gap-1.5 whitespace-nowrap"><TypeIcon type={a._type} /><b>{a._type}</b></span></td>
-                                  <td className="max-w-[220px]"><span className="block truncate font-medium" title={disp(a.name)}>{disp(a.name)}</span><span className="text-xs text-muted tabular-nums">S. {disp(a.serial)}</span></td>
+                                  <td className="max-w-[220px]"><span className="block truncate font-medium" title={disp(a.name)}>{disp(a.name)}</span>          <span className="text-xs text-muted tabular-nums break-all min-w-0">S. {disp(a.serial)}</span></td>
                                   <td className="tabular-nums font-semibold">{disp(a.otherserial)}</td>
                                   <td className="max-w-[240px] min-w-0"><CompactLocation locId={a._locationId} fallback={a._locationName} byId={byId} />{(a._userName && a._userName !== "—") || a._userId != null ? <span className="badge badge-success mt-1 w-fit max-w-full truncate" title={a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}><span className="inline-flex items-center gap-1 truncate"><IconUser size={11} /> {a._userName && a._userName !== "—" ? String(a._userName) : `Usuario #${a._userId}`}</span></span> : <span className="badge mt-1 w-fit">Sin asignar</span>}</td>
                                   <td><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openAssetDetail(a)}>Ver detalle</button></td>

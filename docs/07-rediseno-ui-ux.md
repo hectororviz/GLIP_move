@@ -393,6 +393,31 @@ Sin rediseño ni cambios de datos/cálculos/endpoints. Solo presentación.
 - **Accesos rápidos**: `min-h` uniforme y área táctil completa; permisos y
   visibilidad intactos.
 
+## Iteración 13 — Optimización móvil final
+
+Sin rediseños ni cambios funcionales. Solo táctil y legibilidad.
+
+- **Mapa táctil** (`FloorMap`): `touch-action: none` fuera de calibración para
+  que pan/pinch no peleen con el scroll de página; guardia tap-vs-pan (12 px)
+  que ignora el clic si el dedo se desplazó (sin selecciones accidentales);
+  teclado y calibración intactos; foco y panel sin cambios.
+- **Escáneres** (`ScanModal`, `BatchScanModal`): foco inicial al contenedor
+  (sin anillo), botones ✕/Cerrar de 44 px, `max-h-92dvh` + safe-area,
+  `role=dialog` con nombre.
+- **`ExpandableMeta`** (nuevo en `ui.tsx`): metadato secundario en una línea
+  con toggle accesible (`aria-expanded`, "(más)/(menos)") a wrap completo;
+  usado en filas de Búsqueda, Accesos (direcciones/rutas) y Control
+  (modelo/serie). Sin controles anidados (hermano del botón de detalle).
+- **Listas**: nombres de persona y recursos con `clamp-2` (hasta 2 líneas) +
+  título + ficha al tocar; `.clamp-3` agregado; tarjetas compactas
+  (`AssetCard` 0.7/0.8 rem, ubicación y serie con wrap, sin truncado
+  permanente).
+- **Masivo**: placeholder corto "Escanear o ingresar inventario" + ayuda de
+  formatos (`aria-describedby`); foco devuelto al campo tras Agregar;
+  `no-hscroll` en la raíz; barra intacta (sticky + safe-area + wrap).
+- **Accesos móvil**: ya cumplía (badges no superpuestos, PermBadges
+  diferenciados, listas compactas); solo se sumó clamp-2/expandibles.
+
 ### Despliegue iteración 12
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
