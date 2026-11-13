@@ -2,6 +2,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SegmentedBar, Spinner } from "@/components/ui";
+import { formatFloorName } from "@/lib/location-display";
+
+const RECENT_VISIBLE = 8;
 
 type TypeStat = { type: string; total: number; truncated: boolean; unlocated: number; assigned: number };
 type FloorStat = { id: string; name: string; hasMap: boolean; puestos: number; withItems: number; occupied: number; enUso: number; disponible: number; incompleto: number; inconsistente: number; top: { id: number; name: string; items: number; users: number }[] };
@@ -23,6 +26,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [canOperate, setCanOperate] = useState(false);
+  const [showAllRec, setShowAllRec] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,19 +97,30 @@ export default function Home() {
       )}
 
       {/* KPIs principales */}
-      <section aria-label="Indicadores principales" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <section aria-label="Indicadores principales" className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { label: "Equipos en GLPI", value: dash ? String(dash.stats.total) + (dash.stats.truncated ? "+" : "") : "…", sub: dash?.stats.truncated ? "conteo parcial (límite GLPI 1000/tipo)" : "6 tipos de bienes" },
             { label: "Asignados directos a usuario", value: dash ? String(dash.stats.assigned) : "…", sub: dash ? `${Math.round((dash.stats.assigned / Math.max(1, dash.stats.total)) * 100)}% del total · estén o no en puesto` : "" },
             { label: "Sin ubicación", value: dash ? String(dash.stats.unlocated) : "…", sub: "locations_id = 0 (no cuenta no dibujados)" },
-            { label: "Puestos dibujados", value: dash ? String(dash.puestos.drawn) : "…", sub: dash ? `${dash.puestos.withItems} equipados · ${dash.puestos.occupied} con usuario` : "" },
-          ].map((k) => (
-            <div key={k.label} className="card p-4 grid gap-1 min-h-[118px] content-start">
-              <span className="text-xs text-muted uppercase tracking-wide font-semibold leading-snug">{k.label}</span>
-              <span className="text-3xl font-bold tabular-nums leading-none">{loading && !dash ? <Spinner label="" /> : k.value}</span>
-              <span className="text-xs text-muted leading-snug break-words">{k.sub}</span>
-            </div>
-          ))}
+            { label: "Puestos dibujados", value: dash ? String(dash.puestos.drawn) : "…", sub: dash ? `${dash.puestos.withItems} equipados · ${dash.puestos.occupied} con usuario` : "", href: "/mapa" },
+          ].map((k) => {
+            const body = (
+              <>
+                <span className="text-xs text-muted uppercase tracking-wide font-semibold leading-snug">{k.label}{"href" in k && k.href ? <span aria-hidden="true"> →</span> : null}</span>
+                <span className="text-3xl font-bold tabular-nums leading-none">{loading && !dash ? <Spinner label="" /> : k.value}</span>
+                <span className="text-xs text-muted leading-snug break-words">{k.sub}</span>
+              </>
+            );
+            return "href" in k && k.href ? (
+              <Link key={k.label} href={k.href} className="card p-4 grid gap-1 min-h-[118px] content-start hover:-translate-y-0.5 transition" aria-label={`${k.label}: ver plano`}>
+                {body}
+              </Link>
+            ) : (
+              <div key={k.label} className="card p-4 grid gap-1 min-h-[118px] content-start">
+                {body}
+              </div>
+            );
+          })}
       </section>
 
       {/* Estados de puestos */}
@@ -128,6 +143,7 @@ export default function Home() {
               <span><b className="tabular-nums" style={{ color: "#b45309" }}>{dash.puestos.incompleto}</b> <span className="text-muted">Incompletos (sin bien ni usuario)</span></span>
               <span><b className="tabular-nums" style={{ color: "#dc2626" }}>{dash.puestos.inconsistente}</b> <span className="text-muted">Inconsistentes (usuario sin bien) ⚠</span></span>
             </div>
+            <p className="text-xs text-muted">Total <b className="tabular-nums text-ink">{dash.puestos.enUso + dash.puestos.disponible + dash.puestos.incompleto + dash.puestos.inconsistente}</b> puestos dibujados · mismos colores y nombres que en Control.</p>
           </>
         )}
       </section>
@@ -163,7 +179,7 @@ export default function Home() {
               {dash.floors.map((f) => (
                 <div key={f.id} className="grid gap-1">
                   <div className="flex justify-between text-sm gap-2 flex-wrap">
-                    <Link href={`/mapa?floor=${f.id}`} className="font-medium underline">{f.name}</Link>
+                    <Link href={`/mapa?floor=${f.id}`} className="font-medium underline min-w-0 truncate" title={`Abrir plano de ${f.name}`}>{formatFloorName(f.name)}</Link>
                     <span className="tabular-nums text-muted text-xs">{f.puestos} puestos · {f.enUso} uso · {f.disponible} disp. · {f.incompleto} inc.{f.inconsistente ? ` · ${f.inconsistente} ⚠` : ""}{f.hasMap ? "" : " · sin plano"}</span>
                   </div>
                   <SegmentedBar parts={[
@@ -185,20 +201,27 @@ export default function Home() {
       </div>
 
       {/* Actividad + salud */}
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid lg:grid-cols-2 gap-4 items-start">
         <section aria-label="Actividad reciente" className="card p-4 grid gap-3">
-          <h2 className="font-bold">Actividad reciente</h2>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="font-bold">Actividad reciente</h2>
+            {dash && dash.recent.length > RECENT_VISIBLE && (
+              <button className="btn btn-secondary text-xs" onClick={() => setShowAllRec((v) => !v)} aria-expanded={showAllRec}>
+                {showAllRec ? "Ver menos" : `Ver más (${dash.recent.length - RECENT_VISIBLE})`}
+              </button>
+            )}
+          </div>
           {!dash ? <p className="text-sm text-muted">{loading ? <Spinner /> : "Sin datos."}</p> : dash.recent.length === 0 ? (
             <p className="text-sm text-muted">Aún no hay movimientos registrados desde la app.</p>
           ) : (
-            <ul className="grid gap-2 text-sm">
-              {dash.recent.map((a, i) => (
-                <li key={`${a.ts}-${i}`} className="flex justify-between gap-2 flex-wrap border-b border-line pb-1.5 last:border-0">
-                  <span className="min-w-0 break-words">
-                    <b>{a.actor}</b> {a.action} <span className="text-muted break-all">{a.type} #{a.id}</span>
+            <ul className="grid gap-0 text-sm">
+              {(showAllRec ? dash.recent : dash.recent.slice(0, RECENT_VISIBLE)).map((a, i) => (
+                <li key={`${a.ts}-${i}`} className="flex justify-between gap-x-3 gap-y-0.5 flex-wrap border-b border-line py-1.5 last:border-0">
+                  <span className="min-w-0 break-words flex-1 basis-48">
+                    <b>{a.actor}</b> <span className="text-ink">{a.action}</span> <span className="text-muted break-all">{a.type} #{a.id}</span>
                   </span>
-                  <span className="text-xs text-muted tabular-nums shrink-0">
-                    {new Date(a.ts).toLocaleString()}
+                  <span className="text-xs text-muted tabular-nums shrink-0" title={new Date(a.ts).toLocaleString()}>
+                    {new Date(a.ts).toLocaleDateString()} {new Date(a.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </li>
               ))}
@@ -237,7 +260,7 @@ export default function Home() {
                 key={c.href}
                 aria-disabled="true"
                 title="Requiere sesión con perfil operador para movimientos masivos"
-                className="card p-4 grid gap-1 text-muted/60 select-none"
+                className="card p-4 grid gap-1 text-muted/60 select-none min-h-[104px] content-start"
               >
                 <span className="flex items-center gap-2">
                   <span className="text-xl" aria-hidden="true">{c.icon}</span>
@@ -247,8 +270,8 @@ export default function Home() {
               </span>
             );
           }
-          return (
-            <Link key={c.href} href={c.href} className="card p-4 grid gap-1 hover:-translate-y-0.5 transition">
+            return (
+              <Link key={c.href} href={c.href} className="card p-4 grid gap-1 min-h-[104px] content-start hover:-translate-y-0.5 transition tap-target">
               <span className="flex items-center gap-2">
                 <span className="text-xl" aria-hidden="true">{c.icon}</span>
                 <span className="font-bold text-ink">{c.title}</span>

@@ -17,6 +17,19 @@ export function isPisoName(name: string | null | undefined): boolean {
   return PISO_RE.test(norm(name).replace(/[\u0300-\u036f]/g, "")) || PISO_RE.test(String(name));
 }
 
+/**
+ * Nombre de piso para mostrar, unificado y solo visual (no toca IDs ni datos):
+ * "1° piso"/"1º"/"1." → "1.º piso"; "PB"/"planta baja" → "PB". El resto igual.
+ */
+export function formatFloorName(name: string): string {
+  const t = String(name || "").trim();
+  if (!t) return t;
+  if (/^(pb|planta\s*baja)$/i.test(t)) return "PB";
+  const m = t.match(/^(\d+)\s*\.?\s*[°º]?\s*(piso)?\.?$/i);
+  if (m) return `${m[1]}.º piso`;
+  return t;
+}
+
 /** Orden de pisos: PB primero, luego por número inicial (1°, 2°, ...), resto alfabético. */
 export function comparePisos(a: string, b: string): number {
   const na = norm(a);

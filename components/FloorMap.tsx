@@ -6,6 +6,7 @@ import AuthModal from "./AuthModal";
 import { PlacesTree, useLocations } from "./Places";
 import { inventoryVariants, editFormOf, parseGlpiUrl } from "@/lib/inventory";
 import { clasificarPuesto, ESTADO_META, type EstadoPuesto } from "@/lib/puesto-state";
+import { formatFloorName } from "@/lib/location-display";
 import { Spinner, SidePanel, AdminSection, TypeIcon, decodeEntities } from "./ui";
 import AssetEditModal from "./AssetEditModal";
 
@@ -644,7 +645,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     <div className="grid gap-3">
       <div className="min-w-0 overflow-hidden lg:sticky lg:top-20">
         <div className="flex gap-2 items-center mb-1.5 flex-wrap">
-          <h1 className="text-lg font-bold">Control {floor ? `· ${floor.name}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
+          <h1 className="text-lg font-bold">Control {floor ? `· ${formatFloorName(floor.name)}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
           {dashLoading && !calibrar && <Spinner label="Estados…" />}
           {floors.length > 1 && floors.length <= MAX_FLOOR_BUTTONS && (
             <div className="flex gap-1 flex-wrap" role="tablist" aria-label="Pisos">
@@ -658,8 +659,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     onClick={() => { setFloorId(f.id); setSel(null); setItems([]); setMapResults([]); }}
                     className={`px-3 py-1.5 rounded-lg text-sm font-medium transition min-h-[36px] ${active ? "text-white" : "bg-white text-muted border border-line hover:text-ink"}`}
                     style={active ? { background: "var(--accent)" } : undefined}
+                    title={f.name}
                   >
-                    {f.name}
+                    {formatFloorName(f.name)}
                   </button>
                 );
               })}

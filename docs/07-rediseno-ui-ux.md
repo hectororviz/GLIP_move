@@ -367,6 +367,32 @@ y auditoría). Componentes y estilos existentes.
   ancho completo en móvil, safe-area y sticky intactos. Diálogo y lógica de
   confirmación sin cambios.
 
+## Iteración 12 — Pulido final de Inicio
+
+Sin rediseño ni cambios de datos/cálculos/endpoints. Solo presentación.
+
+- **Salud del sistema**: la fila Actividad+Salud usa `items-start` para que la
+  tarjeta no se estire artificialmente; contenido ya compacto (badge de
+  conexión, latencia con tooltip, sync, pendientes con link a Calibrar).
+- **Actividad reciente**: filas con mejor separación (`py-1.5`), actor +
+  operación + equipo diferenciados, fecha corta + hora con tooltip completo,
+  "Ver más (N) / Ver menos" inicial en 8 registros. Sin link a ficha: con
+  solo tipo+id no hay ruta compatible (Búsqueda indexa por inventario/nombre).
+- **KPIs**: 1 columna bajo 420 px, 2 hasta desktop, 4 en desktop, alturas
+  uniformes; "Puestos dibujados" navega a `/mapa` (única con ruta compatible;
+  no se inventan filtros).
+- **Puestos por estado**: caption con total + "mismos colores y nombres que
+  en Control"; clasificación y colores intactos, valores siempre con texto.
+- **Equipos por tipo**: caption de escala relativa conservada; filas con
+  `truncate` y cantidades sin compresión.
+- **Distribución por piso**: nombres unificados solo-visual con
+  `formatFloorName` (`lib/location-display.ts`: "1°/1º" → "1.º piso",
+  "PB"/"planta baja" → "PB"; resto intacto, IDs y valores sin tocar),
+  aplicado en Inicio y en el selector/título de Control. Link al plano
+  intacto.
+- **Accesos rápidos**: `min-h` uniforme y área táctil completa; permisos y
+  visibilidad intactos.
+
 ### Despliegue iteración 11
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
