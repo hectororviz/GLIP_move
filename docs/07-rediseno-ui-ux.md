@@ -393,6 +393,16 @@ Sin rediseño ni cambios de datos/cálculos/endpoints. Solo presentación.
 - **Accesos rápidos**: `min-h` uniforme y área táctil completa; permisos y
   visibilidad intactos.
 
+### Despliegue iteración 12
+- `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
+  (reemplazo completo de `/app/.next`), contenedor recreado.
+- BUILD_ID igual al del host; chunk de inicio servido con toggle Ver más,
+  caption de total y link de Puestos dibujados; `/`, `/buscar`, `/mapa`,
+  `/accesos`, `/masivo`, `/config` → 200 por HTTP y HTTPS.
+- Pendiente en dispositivo real con GLPI en línea: KPIs a 320–430, Ver más,
+  barras y distribución por piso, actividad/salud, anchos físicos. Sin
+  operaciones destructivas en pruebas.
+
 ### Despliegue iteración 11
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.
