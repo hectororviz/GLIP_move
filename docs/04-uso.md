@@ -11,15 +11,18 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
    tooltips, controles de zoom táctiles (44 px). Búsqueda en plano, capas
    (puestos/números/estados) y filtro por estado dentro de Herramientas.
 2. Selector de piso (botones hasta 5 pisos, desplegable si hay más) + panel
-   **Lugares**: árbol Polo → pisos → puestos.
+   **Lugares**: árbol Polo → pisos → puestos (dentro de Herramientas).
    - Piso con mapa lleva badge `mapa` y contador `X/Y puestos`; clic → abre su plano.
    - Puesto dibujado → clic abre su ficha aunque esté en otro piso (cambia de plano solo).
    - `(sin dibujar)` = hijo de GLPI aún no calibrado.
-3. En el plano: zoom rueda/pinch, clic en un puesto → ficha consulta-primero
-   (nombre, estado, piso, ubicación GLPI, interno; ocupante; bienes con tipo,
-   nombre, inventario, modelo/serie). En móvil la ficha es hoja inferior que
-   se cierra sin mover el zoom. La etiqueta muestra el número corto y centrado
-   (`Puesto 23` → `23`); el nombre completo queda en el tooltip.
+3. En el plano: zoom rueda/pinch, clic en un puesto → **panel lateral
+   superpuesto** (drawer, igual que Búsqueda/Accesos; pantalla completa en
+   móvil) con ficha consulta-primero: nombre y estado en el encabezado,
+   Información general (piso, interno, estado — sin fila de ubicación GLPI),
+   ocupante y bienes con tipo, nombre, inventario, modelo/serie. Cerrar con X
+   o Escape conserva posición, zoom y puesto seleccionado. La etiqueta muestra
+   el número corto y centrado (`Puesto 23` → `23`); el nombre completo queda
+   en el tooltip.
 4. Por equipo: el nombre abre su **ficha del componente de Búsqueda**
    (conservar/retornar al puesto); **Editar en GLPI** (pestaña nueva),
    **Reemplazar (scan)** y **Desvincular** (deja `locations_id=0`, pide

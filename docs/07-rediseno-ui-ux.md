@@ -290,6 +290,21 @@ ni lógica de movimientos/asignaciones.
 - Nombres con entidades decodificadas; estados con la misma clasificación y
   colores (etiquetas siempre presentes, no solo color).
 
+## Iteración 9 — Control usa el drawer compartido
+
+- La columna fija del aside desaparece: el plano ocupa todo el ancho y la
+  ficha del puesto abre el `SidePanel` compartido (mismo estilo, ancho,
+  header, ✕, backdrop, Escape, fullscreen móvil y `← Volver al plano`).
+  Cerrar conserva posición, zoom y puesto seleccionado (se mantiene `sel`).
+- **Eliminada la fila "Ubicación GLPI"** de Información general (dato, IDs y
+  relaciones intactos; piso e interno siguen visibles). Info: Piso, Interno,
+  Estado. Encabezado: nombre + badge de estado (sin duplicar lo de abajo).
+- Lugares (árbol GLPI) se mudó a la tarjeta de Herramientas (colapsable en
+  móvil). Sin columna estrecha en móvil: drawer fullscreen en lugar de hoja.
+- `ScanModal` y la ficha de equipo (`AssetEditModal`) se renderizan después
+  de los paneles para quedar por encima (mismo z-index, orden de DOM).
+  Calibración 100 % intacta (se excluye `calibrar` del drawer).
+
 ### Despliegue iteración 8
 - `npm run build` OK (17 rutas). Imagen reconstruida con `/tmp/Dockerfile.local`
   (reemplazo completo de `/app/.next`), contenedor recreado.

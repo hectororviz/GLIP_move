@@ -339,12 +339,12 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     return map;
   }
 
-  function clearSel() {
-    setSel(null); setItems([]);
-    setOccOpen(false); setOccQuery(""); setOccResults([]);
-    setRoomOpen(false); setRoomMsg(""); setRoomVal("");
-    setScanMode(null); setReplaceTarget(null);
-    setDetailAsset(null); assetDirtyRef.current = false;
+  const [puestoPanel, setPuestoPanel] = useState(false);
+  function closePuestoPanel() {
+    if (assetDirtyRef.current && !confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")) return;
+    assetDirtyRef.current = false;
+    setDetailAsset(null);
+    setPuestoPanel(false);
   }
 
   function openAssetDetail(a: Asset) {
@@ -362,6 +362,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     setRoomOpen(false); setRoomMsg("");
     setPersonalByUser({});
     setDetailAsset(null); assetDirtyRef.current = false;
+    setPuestoPanel(true);
     const r = await fetch(`/api/glpi?location_id=${p.glpi_id}`);
     const j = await r.json();
     if (!r.ok) { setMsg("Error: " + j.error); setItems([]); return; }
@@ -640,7 +641,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   }
 
   return (
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-4 overflow-x-clip items-start">
+    <div className="grid gap-3">
       <div className="min-w-0 overflow-hidden lg:sticky lg:top-20">
         <div className="flex gap-2 items-center mb-1.5 flex-wrap">
           <h1 className="text-lg font-bold">Control {floor ? `· ${floor.name}` : ""} {calibrar && <span className="badge badge-warning ml-2">Calibración</span>}</h1>
@@ -719,6 +720,12 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                 </select>
               </label>
             </div>
+            <details>
+              <summary className="text-xs font-bold cursor-pointer py-1.5 text-ink">Lugares (árbol GLPI)</summary>
+              <div className="mt-1 max-h-[30vh] overflow-auto">
+                <PlacesTree floors={floors} occByLoc={occByLoc} onPuesto={(id) => openById(id)} onPiso={(f) => { setFloorId(f.id); setSel(null); setItems([]); }} />
+              </div>
+            </details>
           </div>
         )}
         {!floor ? (
@@ -866,41 +873,17 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
         )}
       </div>
 
-      <aside className={`card p-0 min-w-0 overflow-hidden flex-col ${sel && !calibrar ? "flex fixed inset-x-0 bottom-0 z-40 rounded-t-2xl border-t max-h-[72dvh]" : "hidden"} md:flex lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:rounded-xl`} aria-label="Panel del puesto">
-        <div className="md:hidden px-4 pt-2 pb-1 shrink-0 bg-white grid gap-0.5 border-b border-line">
-          <span aria-hidden="true" className="mx-auto h-1 w-10 rounded-full" style={{ background: "#dbe4f0" }} />
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            <b className="text-sm truncate">{sel ? decodeEntities(nameOf(sel.glpi_id)) : "Puesto"}</b>
-            <button className="btn btn-secondary icon-btn shrink-0" onClick={clearSel} aria-label="Cerrar panel del puesto">✕</button>
-          </div>
-        </div>
-        <div className="p-4 pb-3 border-b border-line grid gap-3 bg-white sticky top-0 z-10">
-        <details>
-          <summary className="text-sm font-bold cursor-pointer py-2">Lugares (árbol GLPI)</summary>
-          <div className="mt-2 max-h-[30vh] md:max-h-none overflow-auto">
-            <PlacesTree floors={floors} occByLoc={occByLoc} onPuesto={(id) => openById(id)} onPiso={(f) => { setFloorId(f.id); setSel(null); setItems([]); }} />
-          </div>
-        </details>
-        </div>
-        <div className="p-4 pt-3 grid gap-3 overflow-y-auto overflow-x-hidden min-w-0 max-w-full">
-        {!sel ? <p className="text-sm text-muted">Selecciona un puesto en el mapa o en Lugares.</p> : (
-          <>
-            <div className="grid gap-1">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-ink min-w-0 flex-1 truncate" title={nameOf(sel.glpi_id)}>{decodeEntities(nameOf(sel.glpi_id))}</span>
-                <button className="btn btn-secondary icon-btn shrink-0 hidden md:inline-flex" onClick={clearSel} aria-label="Cerrar panel del puesto">✕</button>
-              </div>
-              <div className="text-xs text-muted flex items-center gap-1.5 flex-wrap">
-                {(() => { const e = estadoOf(sel.glpi_id); return <span className="badge shrink-0" title={`Estado: ${ESTADO_META[e].label}`} style={{ background: e === "en-uso" ? "#ecfdf5" : e === "disponible" ? "#eef4ff" : e === "incompleto" ? "#fffbeb" : "#fef2f2", color: ESTADO_META[e].color, border: `1px solid ${ESTADO_META[e].color}55` }}>● {ESTADO_META[e].label}</span>; })()}
-                <span className="min-w-0">{floor?.name} · GLPI loc {sel.glpi_id} · {items.length} bien(es) · {occupants.length} usuario(s)</span>
-                {byId.get(sel.glpi_id)?.room && <span className="badge badge-brand shrink-0">Int. {byId.get(sel.glpi_id)?.room}</span>}
-              </div>
-            </div>
+      {sel && !calibrar && puestoPanel && (
+        <SidePanel
+          title={<span className="flex items-center gap-2 flex-wrap min-w-0"><span className="truncate">{decodeEntities(nameOf(sel.glpi_id))}</span>{(() => { const e = estadoOf(sel.glpi_id); return <span className="badge shrink-0" title={`Estado: ${ESTADO_META[e].label}`} style={{ background: e === "en-uso" ? "#ecfdf5" : e === "disponible" ? "#eef4ff" : e === "incompleto" ? "#fffbeb" : "#fef2f2", color: ESTADO_META[e].color, border: `1px solid ${ESTADO_META[e].color}55` }}>● {ESTADO_META[e].label}</span>; })()}</span>}
+          onClose={closePuestoPanel}
+          footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={closePuestoPanel}>← Volver al plano</button></div>}
+        >
+          <div className="grid gap-3">
             <section aria-label="Información del puesto" className="grid gap-1.5">
               <h3 className="section-h">Información general</h3>
               <dl className="info-card">
                 <div className="info-row"><dt>Piso</dt><dd>{floor?.name || "—"}</dd></div>
-                <div className="info-row"><dt>Ubicación GLPI</dt><dd className="break-words">{decodeEntities(byId.get(sel.glpi_id)?.completename || nameOf(sel.glpi_id))} <span className="text-xs text-muted tabular-nums">#{sel.glpi_id}</span></dd></div>
                 <div className="info-row"><dt>Interno</dt><dd>{byId.get(sel.glpi_id)?.room || <span className="text-muted">Sin interno</span>}</dd></div>
                 <div className="info-row"><dt>Estado</dt><dd>{ESTADO_META[estadoOf(sel.glpi_id)].label}</dd></div>
               </dl>
@@ -1090,10 +1073,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                 />
               </SidePanel>
             )}
-          </>
-        )}
-        </div>
-       </aside>
+          </div>
+        </SidePanel>
+      )}
       {ctxMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
