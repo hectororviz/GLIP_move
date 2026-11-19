@@ -27,6 +27,7 @@
 | QR GLPI no resuelve | URL con tipo desconocido o id inexistente | Caen al flujo normal; verificar `…/front/<tipo>.form.php?id=` y que el bien exista |
 | “Ver en mapa” no centra | Piso distinto / imagen cargando / móvil lento | Reintenta solo hasta ~6 s (cambio de piso + carga de imagen); si persiste, anotar consola (F12) |
 | Scroll interior en sidebar | Layout viejo en caché | Ctrl+F5: el layout actual usa un solo scroll de página con mapa fijo |
+| Cambié algo en GLPI (baja, asignación) y la app muestra lo viejo | Data Cache de Next por URL (el `force-dynamic` no lo evitaba) | Corregido: `glpiFetch` usa `cache: "no-store"`. Si reaparece, anotar endpoint exacto + hora y revisar `lib/glpi.ts` |
 | Al tipear en un modal se pierde el foco | Efecto con deps inestables re-enfocaba el contenedor/panel de atrás | Corregido: overlays (`SidePanel`, modales, `ConfirmDialog`, escáneres) usan callback en `ref` y efecto solo al montar/desmontar; si reaparece, anotar qué modal y campo exacto |
 | Import ZIP falla | ZIP sin `floors.json` válido o >50 MB | Revisar mensaje exacto; los datos actuales quedan intactos. `access.json` es opcional (backups viejos importan igual) |
 | Logo no aparece en header | `brandIcon` no refrescado / caché | Recargar (Ctrl+F5); el header re-lee config al enfocar; quitar caché del icono es `no-store` |

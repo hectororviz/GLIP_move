@@ -62,6 +62,9 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 `clean()` normaliza display: decodifica entidades HTML (`&#62;`→`>`) y trata
 `&nbsp;`/`"0"`/vacío como nulo. `enrich()` agrega `_type`, `_locationId`,
 `_locationName`, `_userId`, `_userName`, `_manufacturer`, `_model`.
+Todo `fetch` a GLPI lleva `cache: "no-store"` (`lib/glpi.ts`): el Data Cache de
+Next retenía respuestas por URL (el `force-dynamic` de las rutas no lo evita)
+y mostraba bajas/asignaciones viejas.
 
 ## Inventarios (`lib/inventory.ts`)
 

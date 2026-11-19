@@ -19,7 +19,9 @@ async function initSession(): Promise<string> {
   if (!userToken) {
     throw new Error("Falta el User token (clave de acceso remoto del usuario). Cárgalo en /config.");
   }
+  // no-store: initSession crea sesión en GLPI, jamás debe salir del caché de Next.
   const r = await fetch(`${apiBase(cfg.glpiBaseUrl)}/initSession`, {
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       Authorization: `user_token ${userToken}`,
@@ -50,8 +52,11 @@ export async function glpiFetch(p: string, init: RequestInit = {}, retry = true,
   const cfg = await loadConfig();
   // sesión de servicio (user_token) por defecto; si se pasa sessionToken, úsalo tal cual
   const token = sessionToken || await getSession();
+  // no-store: GLPI es la fuente de verdad operativa; servir del Data Cache de
+  // Next mostraría bajas/asignaciones viejas (force-dynamic de las rutas no lo evita).
   const r = await fetch(`${apiBase(cfg.glpiBaseUrl)}${p}`, {
     ...init,
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       "Session-Token": token,
