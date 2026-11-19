@@ -20,7 +20,14 @@ function personOf(u: any) {
   const firstname = clean(u?.firstname);
   const realname = clean(u?.realname);
   const display = [firstname, realname].filter(Boolean).join(" ") || login || `Usuario ${id}`;
-  return { id, login, firstname, realname, display, email: clean(u?.email), phone: clean(u?.phone || u?.mobile) };
+  return { id, login, firstname, realname, display, email: clean(u?.email), phone: clean(u?.phone || u?.mobile), isActive: u?.is_active == null ? true : Number(u.is_active) !== 0, isDeleted: String(u?.is_deleted).startsWith("1") };
+}
+
+function isUsableUser(u: any) {
+  if (!u || u.id == null) return false;
+  if (String(u.is_deleted).startsWith("1")) return false;
+  if (u.is_active != null && Number(u.is_active) === 0) return false;
+  return true;
 }
 
 async function searchEquipos(q: string): Promise<{ items: any[]; error?: string }> {
@@ -96,7 +103,7 @@ async function searchPersonas(q: string): Promise<{ items: any[]; error?: string
   const seen = new Set<number>();
   const users = settled
     .flat()
-    .filter((u) => u && u.id != null && !String(u.is_deleted).startsWith("1"))
+    .filter(isUsableUser)
     .map(personOf)
     .filter((u) => {
       if (seen.has(u.id)) return false;

@@ -25,7 +25,7 @@ function CompactLocation({ locId, fallback, byId, wrap }: { locId: number | null
 }
 
 type Asset = any;
-type Person = { id: number; login: string | null; firstname: string | null; realname: string | null; display: string; email: string | null; phone: string | null };
+type Person = { id: number; login: string | null; firstname: string | null; realname: string | null; display: string; email: string | null; phone: string | null; isActive?: boolean; isDeleted?: boolean };
 type PersonGroup = { location_id: number; items: Asset[] };
 type AuthUser = { login: string; name: string; profiles: string[]; canOperate: boolean };
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
@@ -287,7 +287,7 @@ function PersonCard({ p, onOpen }: { p: Person; onOpen: () => void }) {
       <button onClick={onOpen} className="flex items-center gap-3 text-left min-w-0" aria-label={`Ver detalle de ${p.display}`}>
         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-canvas border border-line" aria-hidden="true"><IconUser size={16} /></span>
         <span className="min-w-0 flex-1">
-          <b className="block text-ink truncate">{p.display}</b>
+          <b className="block text-ink truncate">{p.display} {p.isActive === false && <span className="badge badge-warning ml-1">Inactivo</span>}</b>
           <span className="block text-xs text-muted truncate">GLPI #{p.id}{p.login ? ` · ${p.login}` : ""}</span>
         </span>
         <span className="text-sm font-semibold shrink-0" style={{ color: "var(--accent)" }} aria-hidden="true">›</span>
@@ -565,11 +565,13 @@ export default function Buscar() {
       const items: Asset[] = j.items || [];
       const ids = [...new Set(items.map((a) => a._userId).filter((id) => id != null))] as number[];
       const occMap = new Map<number, string>();
+      const inactiveIds = new Set<number>();
       await Promise.all(ids.map(async (id) => {
         try {
           const ur = await fetch(`/api/glpi/users?id=${id}`);
           const uj = await ur.json();
-          if (ur.ok && uj.user?.display) occMap.set(id, uj.user.display);
+          if (ur.ok && uj.user?.display && uj.user.isActive !== false && !uj.user.isDeleted) occMap.set(id, uj.user.display);
+          else if (ur.ok && (uj.user?.isActive === false || uj.user?.isDeleted)) inactiveIds.add(id);
         } catch {}
       }));
       try {
@@ -578,13 +580,14 @@ export default function Buscar() {
         if (lr.ok && Array.isArray(lj.users)) for (const u of lj.users) if (u?.id != null && !occMap.has(u.id)) occMap.set(u.id, u.display || `Usuario #${u.id}`);
       } catch {}
       const allIds = [...occMap.keys()];
-      // incluir ids de bienes aunque falle el lookup de nombre
-      for (const id of ids) if (!occMap.has(id)) occMap.set(id, `Usuario #${id}`);
-      const occupants = allIds.map((id) => {
-        const fromItems = items.find((a) => a._userId === id);
-        const name = occMap.get(id) || (fromItems?._userName && fromItems._userName !== "—" ? String(fromItems._userName) : `Usuario #${id}`);
-        return { id, name };
-      });
+      // incluir ids de bienes aunque falle el lookup de nombre (nunca inactivos)
+      for (const id of ids) if (!occMap.has(id) && !inactiveIds.has(id)) occMap.set(id, `Usuario #${id}`);
+      const occupants = allIds
+        .filter((id) => occMap.has(id))
+        .map((id) => {
+          const name = occMap.get(id) || `Usuario #${id}`;
+          return { id, name };
+        });
       setDetailPuesto({ loc: p, items, occupants, loading: false, error: "" });
     } catch (e: any) {
       setDetailPuesto({ loc: p, items: [], occupants: [], loading: false, error: e.message || "red" });
@@ -605,6 +608,8 @@ export default function Buscar() {
         display: u.display || [u.firstname, u.realname].filter(Boolean).join(" ") || u.login || `Usuario ${u.id}`,
         email: u.email ?? null,
         phone: u.phone ?? null,
+        isActive: u.isActive ?? true,
+        isDeleted: u.isDeleted ?? false,
       }, false);
     } catch {}
   }
@@ -636,6 +641,8 @@ export default function Buscar() {
         display: u.display || [u.firstname, u.realname].filter(Boolean).join(" ") || u.login || `Usuario ${u.id}`,
         email: u.email ?? null,
         phone: u.phone ?? null,
+        isActive: u.isActive ?? true,
+        isDeleted: u.isDeleted ?? false,
       };
       setReturnTarget({ kind: "asset", asset: detailAsset });
       setDetailAsset(null);
@@ -941,7 +948,7 @@ export default function Buscar() {
 
       {detailPerson && (
         <SidePanel
-          title={`Persona: ${detailPerson.p.display}`}
+          title={`Persona: ${detailPerson.p.display}${detailPerson.p.isActive === false ? " (inactivo)" : ""}`}
           subtitle={`GLPI #${detailPerson.p.id}${detailPerson.p.login ? ` · ${detailPerson.p.login}` : ""}`}
           onClose={closePerson}
           footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={closePerson}>{returnTarget?.kind === "asset" ? "← Volver al equipo" : "Volver a resultados"}</button></div>}

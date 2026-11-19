@@ -15,7 +15,17 @@ function personOf(u: any) {
     display,
     email: clean(u?.email),
     phone: clean(u?.phone || u?.mobile),
+    isActive: u?.is_active == null ? true : Number(u.is_active) !== 0,
+    isDeleted: String(u?.is_deleted).startsWith("1"),
   };
+}
+
+function isUsable(u: any) {
+  if (!u || u.id == null) return false;
+  if (String(u.is_deleted).startsWith("1")) return false;
+  // is_active 0 = desactivado (ej. *-old migrados). null/undefined se trata como activo.
+  if (u.is_active != null && Number(u.is_active) === 0) return false;
+  return true;
 }
 
 // GET /api/glpi/users?q=ana -> usuarios GLPI (solo campos seguros)
@@ -38,7 +48,7 @@ export async function GET(req: Request) {
       const params = new URLSearchParams({ "searchText[locations_id]": String(byLoc), range: "0-20" }).toString();
       const list = await glpiFetch(`/User/?${params}`);
       const users = (Array.isArray(list) ? list : [])
-        .filter((u) => u && u.id != null && !String(u.is_deleted).startsWith("1"))
+        .filter(isUsable)
         .map(personOf);
       return NextResponse.json({ users });
     } catch (e: any) {
@@ -65,7 +75,7 @@ export async function GET(req: Request) {
     const seen = new Set<number>();
     const users = settled
       .flat()
-      .filter((u) => u && u.id != null && !String(u.is_deleted).startsWith("1"))
+      .filter(isUsable)
       .map(personOf)
       .filter((u) => {
         if (seen.has(u.id)) return false;

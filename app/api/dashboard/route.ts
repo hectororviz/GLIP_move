@@ -77,6 +77,9 @@ export async function GET() {
     if (Array.isArray(users)) {
       for (const u of users) {
         if (u?.id == null) continue;
+        // Ocultar inactivos/borrados (ej. *-old migrados) del mapa y conteos.
+        if (String(u?.is_deleted).startsWith("1")) continue;
+        if (u?.is_active != null && Number(u.is_active) === 0) continue;
         const uid = Number(u.id);
         if (!userById.has(uid)) userById.set(uid, dispUser(u));
         const loc = Number(u?.locations_id) || 0;
@@ -88,6 +91,11 @@ export async function GET() {
       }
     }
   } catch {}
+
+  // Podar ocupantes inactivos/borrados que aún figuren en bienes (no deben aparecer ni contar).
+  for (const [, e] of byLoc) {
+    for (const uid of [...e.users]) if (!userById.has(uid)) e.users.delete(uid);
+  }
 
   const total = byType.reduce((a, b) => a + b.total, 0);
   const unlocated = byType.reduce((a, b) => a + b.unlocated, 0);

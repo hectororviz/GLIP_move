@@ -30,7 +30,9 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
    solo operadores). (La asignación a persona se hace desde Búsqueda.)
 5. **Ocupante**: asignar/cambiar con buscador de usuarios GLPI (confirma
    cantidad de equipos afectados) o quitar (solo limpia `users_id`, conserva
-   el puesto), todo dentro de Administrar. La ocupación se deriva de
+   el puesto), todo dentro de Administrar. Solo usuarios vigentes
+   (`is_active!=0`, `is_deleted!=1`): los `-old` desactivados no aparecen ni se
+   pueden asignar (el `PATCH` los rechaza). La ocupación se deriva de
    `users_id` en GLPI: sin directorio local duplicado. Regla general:
    asignar/quitar usuario nunca mueve ni saca del puesto; mover/sacar del
    puesto nunca toca el usuario. Debajo de cada ocupante aparecen sus
@@ -53,7 +55,7 @@ Buscador único con 6 acordeones colapsables: **🖥️ Equipos, 👤 Personas, 
 Una sola caja (ej. `CTIC`, `0000012865`, `53`, `7052`, `ventas@`, `\\srv`): muestra el conteo por categoría y el total; la primera categoría con resultados se auto-expande (si la búsqueda es numérica y hay puestos, se auto-expande **Puestos**). En escritorio los resultados son **tablas compactas**; en móvil son **tarjetas táctiles** (equipo: icono + nombre + inventario, ubicación, usuario, serie + Detalle ›; puesto: nombre + badge `Int. XXXX`, piso/ubicación + Detalle ›). Abrir un resultado muestra un **panel lateral**: drawer derecho de 600–720 px en escritorio, pantalla completa en móvil. Al volver se conserva búsqueda, categoría expandida y posición de scroll.
 Panel de equipo = consulta primero: nombre destacado + tipo como badge, **Información general** (tipo, nombre, inventario, serie con copiado rápido, modelo/fabricante/estado si GLPI los devuelve, con entidades HTML decodificadas), **Ubicación actual** destacada y **Usuario asignado** (con "Ver ficha →" que abre la persona y permite volver). Las opciones de edición viven en **Administrar equipo** (acordeón cerrado, solo operadores): Cambiar ubicación, Modificar usuario, Desvincular del puesto, Quitar usuario; sin permiso la sección se oculta sin avisos. Toda acción destructiva pide confirmación y muestra su estado; cerrar con cambios sin aplicar también confirma. Panel de persona = datos + **Equipos asignados** como lista estructurada por puesto (icono, nombre clicable, inventario + "Ver equipo", con retorno), accesos si corresponde y **Administrar asignaciones** (acordeón cerrado, solo operadores). Panel de puesto = ubicación + interno + **Ocupante** (derivado de `users_id` de los equipos en ese puesto, con botón "Ver persona") + **Equipos** del puesto + **Ver en mapa →** (`/mapa?focus=`). Correo/carpeta/área: datos + personas/recursos + link a `/accesos` + botón Excel.
 
-- Equipos, Personas y Puestos: lectura libre (editar exige login, como antes). Orden equipos: URL GLPI directa → inventario (con/sin ceros, letra-serie) → nombre → serie. Orden puestos: interno exacto (ej. `7052`) → puesto exacto por nombre/id (ej. `53`) → contiene en interno/nombre/completename. 📷 escanea y busca directo. `?q=` linkeable.
+- Equipos, Personas y Puestos: lectura libre (editar exige login, como antes). Personas solo vigentes (inactivos/borrados no listan; la ficha por ID muestra badge “inactivo”). Orden equipos: URL GLPI directa → inventario (con/sin ceros, letra-serie) → nombre → serie. Orden puestos: interno exacto (ej. `7052`) → puesto exacto por nombre/id (ej. `53`) → contiene en interno/nombre/completename. 📷 escanea y busca directo. `?q=` linkeable.
 - Áreas/Correos/Carpetas: **🔒 solo operador** (sin login muestran candado + botón Iniciar sesión; el backend `GET /api/search` solo los incluye con `isOperator()`). Match contiene-insensible (tildes, mayúsculas) en nombre/dirección/ruta/área/responsable.
 
 ## Calibración de puestos (`/mapa?calibrar=1[&floor=...]`)

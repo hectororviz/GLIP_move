@@ -43,7 +43,7 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 | `GET /api/glpi?q=&type=` | `GET /{Type}/?searchText[otherserial\|name\|serial]=…&expand_dropdowns=true` (fan-out 6 tipos; variantes de inventario) |
 | `GET /api/glpi?location_id=` | `GET /{Type}/?searchText[locations_id]=…` × 6 tipos |
 | `GET /api/glpi?type=&id=` | `GET /{Type}/{id}?expand_dropdowns=true` + `_locationId`/`_userId` del `links` hateoas |
-| `GET /api/glpi/users?q=\|?id=` | `GET /User/?searchText[name\|firstname\|realname]=…` (solo campos seguros) o `/User/{id}` |
+| `GET /api/glpi/users?q=\|?id=\|?location_id=` | `GET /User/?searchText[…]=…` (solo campos seguros) o `/User/{id}`; listas (`?q=`, `?location_id=`) excluyen `is_deleted==1` e `is_active==0` (ej. `*-old`); `?id=` devuelve flags `isActive/isDeleted` para badge |
 | `GET /api/glpi/user-assets?user_id=` | `GET /{Type}/?searchText[users_id]=…` × 6 tipos, agrupado por ubicación |
 | `GET /api/search?q=` | Agregador: equipos + personas (público) y áreas/correos/carpetas (solo `isOperator()`, si no `{locked:true}`); equipos/personas con la misma lógica de arriba; accesos filtrados en memoria con `lib/search.ts:norm()`; tope 20/categoría |
 | `GET /api/access/{areas,mails,shares}[?area=&q=]` | Lectura de DB propia (`access.json`) con conteos; `q` contiene-insensible en nombre/dirección/ruta/área/responsable |
@@ -51,7 +51,7 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 | `GET/POST/DELETE /api/access/grants` | Otorgar/quitar: `?user_id=` (ficha) \| `?accountId=` \| `?shareId=`; mail upsert con `canSend/canRead` (≥1 true) |
 | `GET /api/access/overview?area=` | Correos+carpetas de cada área (o de una) |
 | `GET /api/access/export?scope=area\|mail\|share&id=` | XLSX real (`lib/access-export.ts` + dep `xlsx`, JS puro): área = 2 hojas, correo/carpeta = 1 hoja; `401/403` sin operador |
-| `PATCH /api/glpi` (protegido) | `PUT /{Type}/{id} {"input":{...}}` parcial (+`session_write=true` + `GET` verificación): solo el campo definido (`locations_id` si `location_id!==undefined`, `users_id` si `user_id!==undefined`; `null`→`0`). Asignar/quitar usuario conserva puesto; mover/sacar conserva usuario |
+| `PATCH /api/glpi` (protegido) | `PUT /{Type}/{id} {"input":{...}}` parcial (+`session_write=true` + `GET` verificación): solo el campo definido (`locations_id` si `location_id!==undefined`, `users_id` si `user_id!==undefined`; `null`→`0`). Rechaza `user_id` inactivo/borrado (`400`). Asignar/quitar usuario conserva puesto; mover/sacar conserva usuario |
 | `GET /api/glpi/locations[?parent=]` | `GET /Location/?range=…` paginado, cache 5 min; `locations_id` numérico = padre |
 | `GET /api/config/test` (admin) | `initSession` + `getMyProfiles` |
 | `GET/POST /api/backup` (admin) | ZIP `floors.json` + `access.json` + `maps/` (sin secretos); import valida y reemplaza (ignora backups viejos sin `access.json`) |

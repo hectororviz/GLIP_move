@@ -353,7 +353,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       try {
         const r = await fetch(`/api/glpi/users?id=${id}`);
         const j = await r.json();
-        if (j.user?.display) map[id] = j.user.display;
+        // Ocultar inactivos/borrados (ej. *-old): no entran al mapa ni a la ficha.
+        if (j.user?.display && j.user.isActive !== false && !j.user.isDeleted) map[id] = j.user.display;
       } catch {}
     }));
     if (Object.keys(map).length) setUserNames((m) => ({ ...m, ...map }));
@@ -390,8 +391,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     const loaded: Asset[] = j.items || [];
     setItems(loaded);
     const resolved = await resolveUserNames(loaded);
-    const fullName = (a: Asset) => resolved[a._userId] || userNames[a._userId] || a._userName || `Usuario ${a._userId}`;
-    const assetNames = new Map(loaded.filter((a) => a._userId != null).map((a) => [a._userId, fullName(a)] as const));
+    // Solo ocupantes vigentes: si no resolvió nombre activo, no mostrar (ni _userName de un -old).
+    const assetNames = new Map<number, string>();
+    for (const a of loaded) {
+      if (a._userId == null) continue;
+      const nm = resolved[a._userId] || userNames[a._userId];
+      if (nm) assetNames.set(a._userId, nm);
+    }
     // Personas ubicadas en el puesto (User.locations_id) aunque no tengan bienes
     try {
       const ur = await fetch(`/api/glpi/users?location_id=${p.glpi_id}`);
@@ -409,8 +415,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     setCountByLoc((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers } }));
     setDashEstados((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers, estado: clasificarPuesto(loaded.length, nUsers) } }));
     setMsg(loaded.length || names.length ? "" : "Puesto vacío");
-    // Bienes personales de cada ocupante (asignados a ella, sin puesto). No bloquea.
-    const userIds = [...new Set(loaded.map((a) => a._userId).filter((id) => id != null))] as number[];
+    // Bienes personales de cada ocupante vigente (sin puesto). No bloquea.
+    const userIds = [...assetNames.keys()];
     if (userIds.length) {
       const myToken = ++openToken.current;
       Promise.all(userIds.map(async (id): Promise<[number, Asset[]]> => {

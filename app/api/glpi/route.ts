@@ -128,6 +128,17 @@ export async function PATCH(req: NextRequest) {
     if (user_id !== undefined) {
       const n = user_id == null ? 0 : Number(user_id);
       if (user_id != null && !Number.isFinite(n)) return NextResponse.json({ error: "user_id inválido" }, { status: 400 });
+      // No asignar usuarios inactivos/borrados (ej. *-old migrados).
+      if (n) {
+        try {
+          const u = await glpiFetch(`/User/${n}`, {}, true, sessionToken);
+          if (String(u?.is_deleted).startsWith("1") || (u?.is_active != null && Number(u.is_active) === 0)) {
+            return NextResponse.json({ error: "Usuario inactivo: elegí un usuario vigente." }, { status: 400 });
+          }
+        } catch (e: any) {
+          return NextResponse.json({ error: `Usuario inexistente (#${n}).` }, { status: 400 });
+        }
+      }
       input.users_id = n;
     }
     const r = await glpiFetch(`/${type}/${id}?session_write=true`, {
