@@ -142,10 +142,12 @@ export async function GET() {
   const countEstado = (e: string) => Object.values(estados).filter((s) => s.estado === e).length;
 
   // Nombres de ocupantes por puesto dibujado (máx 3 + conteo) para precarga masiva.
+  // Solo puestos con al menos un ocupante (evita "occ" vacíos que ensucian búsqueda/estado).
   const occ: Record<number, string> = {};
   const occNames: Record<number, string[]> = {};
   for (const [id, e] of byLoc) {
-    const names = [...e.users].map((uid) => userById.get(uid) || `Usuario ${uid}`).sort((a, b) => a.localeCompare(b));
+    const names = [...e.users].map((uid) => userById.get(uid) || `Usuario ${uid}`).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    if (!names.length) continue;
     occNames[id] = names;
     occ[id] = names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3}` : "");
   }
