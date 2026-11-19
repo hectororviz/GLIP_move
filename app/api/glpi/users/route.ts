@@ -20,6 +20,7 @@ function personOf(u: any) {
 
 // GET /api/glpi/users?q=ana -> usuarios GLPI (solo campos seguros)
 // GET /api/glpi/users?id=12 -> un usuario GLPI por ID
+// GET /api/glpi/users?location_id=362 -> usuarios con locations_id = puesto (aunque sin bienes)
 export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const byId = Number(sp.get("id"));
@@ -31,8 +32,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: e.message }, { status: 502 });
     }
   }
+  const byLoc = Number(sp.get("location_id"));
+  if (byLoc) {
+    try {
+      const params = new URLSearchParams({ "searchText[locations_id]": String(byLoc), range: "0-20" }).toString();
+      const list = await glpiFetch(`/User/?${params}`);
+      const users = (Array.isArray(list) ? list : [])
+        .filter((u) => u && u.id != null && !String(u.is_deleted).startsWith("1"))
+        .map(personOf);
+      return NextResponse.json({ users });
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message }, { status: 502 });
+    }
+  }
   const q = sp.get("q")?.trim();
-  if (!q) return NextResponse.json({ error: "Parámetros: ?q= | ?id=" }, { status: 400 });
+  if (!q) return NextResponse.json({ error: "Parámetros: ?q= | ?id= | ?location_id=" }, { status: 400 });
   try {
     const fields = ["name", "firstname", "realname"];
     const errors: string[] = [];

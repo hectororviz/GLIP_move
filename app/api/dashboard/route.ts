@@ -63,6 +63,32 @@ export async function GET() {
     byType.push({ type: s.t, total: s.list.length, truncated: s.list.length >= PAGE, unlocated, assigned });
   }
 
+  // Personas ubicadas (User.locations_id) aunque el puesto esté libre (sin bienes).
+  // Aportan ocupante para el detalle y pasan a "inconsistente (usuario sin bienes)".
+  // Además se devuelven nombres (occ) para precargar el mapa sin N× llamadas.
+  const userById = new Map<number, string>();
+  const dispUser = (u: any) => {
+    const fn = String(u?.firstname || "").trim();
+    const rn = String(u?.realname || "").trim();
+    return [fn, rn].filter(Boolean).join(" ") || String(u?.name || "").trim() || `Usuario ${u?.id}`;
+  };
+  try {
+    const users = await glpiFetch(`/User/?range=0-1000`);
+    if (Array.isArray(users)) {
+      for (const u of users) {
+        if (u?.id == null) continue;
+        const uid = Number(u.id);
+        if (!userById.has(uid)) userById.set(uid, dispUser(u));
+        const loc = Number(u?.locations_id) || 0;
+        if (loc && drawn.has(loc)) {
+          let e = byLoc.get(loc);
+          if (!e) { e = { items: 0, users: new Set<number>() }; byLoc.set(loc, e); }
+          e.users.add(uid);
+        }
+      }
+    }
+  } catch {}
+
   const total = byType.reduce((a, b) => a + b.total, 0);
   const unlocated = byType.reduce((a, b) => a + b.unlocated, 0);
   const assigned = byType.reduce((a, b) => a + b.assigned, 0);
@@ -115,6 +141,15 @@ export async function GET() {
 
   const countEstado = (e: string) => Object.values(estados).filter((s) => s.estado === e).length;
 
+  // Nombres de ocupantes por puesto dibujado (máx 3 + conteo) para precarga masiva.
+  const occ: Record<number, string> = {};
+  const occNames: Record<number, string[]> = {};
+  for (const [id, e] of byLoc) {
+    const names = [...e.users].map((uid) => userById.get(uid) || `Usuario ${uid}`).sort((a, b) => a.localeCompare(b));
+    occNames[id] = names;
+    occ[id] = names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3}` : "");
+  }
+
   const cfg = await loadConfig();
   const data = {
     stats: { total, unlocated, assigned, truncated, byType },
@@ -129,6 +164,9 @@ export async function GET() {
       inconsistente: countEstado("inconsistente"),
     },
     estados,
+    occ,
+    occNames,
+    userNames: Object.fromEntries([...byLoc.values()].flatMap((e) => [...e.users]).filter((v, i, a) => a.indexOf(v) === i).map((uid) => [uid, userById.get(uid) || `Usuario ${uid}`])),
     recent: await readActivity(10),
     health: {
       glpiOk,

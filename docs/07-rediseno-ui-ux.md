@@ -23,6 +23,11 @@ producto existente, sin reescribirlo. Complementa `AUDITORIA_UI_UX.md`,
   `estados[locId] = { items, users, estado }` + conteos `enUso/disponible/
   incompleto/inconsistente` por piso y global. TTL 5 min, truncado 1000/tipo
   señalizado con “+”.
+- Carga masiva de ocupantes (opción C): el dashboard además devuelve
+  `occ[locId] = "Nombre1, Nombre2"` (+`occNames` y `userNames`) combinando
+  `users_id` en bienes y `User.locations_id` (incluye puestos libres).
+  `FloorMap` precarga `occByLoc/userNames` desde el dashboard; `openPuesto`
+  sigue trayendo el detalle completo bajo demanda y pisa el valor precargado.
 - Leyenda con conteos del piso; puestos `role=button`, teclado Enter/Espacio,
   tooltip propio (estado + bienes + usuarios + interno), capas
   (puestos/números/estados) + filtro por estado (solo visibilidad).

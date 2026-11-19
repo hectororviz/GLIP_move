@@ -572,7 +572,15 @@ export default function Buscar() {
           if (ur.ok && uj.user?.display) occMap.set(id, uj.user.display);
         } catch {}
       }));
-      const occupants = ids.map((id) => {
+      try {
+        const lr = await fetch(`/api/glpi/users?location_id=${p.id}`);
+        const lj = await lr.json();
+        if (lr.ok && Array.isArray(lj.users)) for (const u of lj.users) if (u?.id != null && !occMap.has(u.id)) occMap.set(u.id, u.display || `Usuario #${u.id}`);
+      } catch {}
+      const allIds = [...occMap.keys()];
+      // incluir ids de bienes aunque falle el lookup de nombre
+      for (const id of ids) if (!occMap.has(id)) occMap.set(id, `Usuario #${id}`);
+      const occupants = allIds.map((id) => {
         const fromItems = items.find((a) => a._userId === id);
         const name = occMap.get(id) || (fromItems?._userName && fromItems._userName !== "—" ? String(fromItems._userName) : `Usuario #${id}`);
         return { id, name };

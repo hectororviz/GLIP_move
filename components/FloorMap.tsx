@@ -167,19 +167,26 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     }).catch(() => setMsg("No se pudieron cargar los pisos. Créelos en /config."));
   }, [floorParam]);
 
-  // Estados A/B/C desde el agregado del dashboard (una sola llamada, sin N×6).
+  // Estados + ocupantes masivos desde el agregado del dashboard (una sola llamada, sin N×).
+  // occ/userNames precargan nombres sin tener que abrir cada puesto; openPuesto detalla bajo demanda.
   useEffect(() => {
     if (calibrar) return;
     setDashLoading(true);
     fetch("/api/dashboard", { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
-        if (j.estados) setDashEstados(j.estados);
-        if (j.byLoc) {
+        if (j.estados) {
+          setDashEstados(j.estados);
+          const m: Record<number, { items: number; users: number }> = {};
+          for (const [k, v] of Object.entries<any>(j.estados)) m[Number(k)] = { items: v.items || 0, users: v.users || 0 };
+          setCountByLoc(m);
+        } else if (j.byLoc) {
           const m: Record<number, { items: number; users: number }> = {};
           for (const [k, v] of Object.entries<any>(j.byLoc)) m[Number(k)] = { items: v.items || 0, users: v.users?.length ?? v.users ?? 0 };
           setCountByLoc(m);
         }
+        if (j.occ) setOccByLoc((prev) => ({ ...j.occ, ...prev }));
+        if (j.userNames) setUserNames((prev) => ({ ...j.userNames, ...prev }));
       })
       .catch(() => {})
       .finally(() => setDashLoading(false));
@@ -384,12 +391,24 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     setItems(loaded);
     const resolved = await resolveUserNames(loaded);
     const fullName = (a: Asset) => resolved[a._userId] || userNames[a._userId] || a._userName || `Usuario ${a._userId}`;
-    const names = [...new Map(loaded.filter((a) => a._userId != null).map((a) => [a._userId, fullName(a)] as const)).values()];
+    const assetNames = new Map(loaded.filter((a) => a._userId != null).map((a) => [a._userId, fullName(a)] as const));
+    // Personas ubicadas en el puesto (User.locations_id) aunque no tengan bienes
+    try {
+      const ur = await fetch(`/api/glpi/users?location_id=${p.glpi_id}`);
+      const uj = await ur.json();
+      if (ur.ok && Array.isArray(uj.users)) {
+        for (const u of uj.users) {
+          if (u?.id != null && !assetNames.has(u.id)) assetNames.set(u.id, u.display || `Usuario ${u.id}`);
+        }
+        if (uj.users.length) setUserNames((m) => ({ ...m, ...Object.fromEntries(uj.users.map((u: any) => [u.id, u.display])) }));
+      }
+    } catch {}
+    const names = [...assetNames.values()];
     setOccByLoc((m) => ({ ...m, [p.glpi_id]: names.join(", ") }));
-    const nUsers = new Set(loaded.map((a) => a._userId).filter((v) => v != null)).size;
+    const nUsers = assetNames.size;
     setCountByLoc((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers } }));
     setDashEstados((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers, estado: clasificarPuesto(loaded.length, nUsers) } }));
-    setMsg(loaded.length ? "" : "Puesto vacío");
+    setMsg(loaded.length || names.length ? "" : "Puesto vacío");
     // Bienes personales de cada ocupante (asignados a ella, sin puesto). No bloquea.
     const userIds = [...new Set(loaded.map((a) => a._userId).filter((id) => id != null))] as number[];
     if (userIds.length) {
