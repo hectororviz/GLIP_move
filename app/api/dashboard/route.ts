@@ -63,8 +63,20 @@ export async function GET() {
     byType.push({ type: s.t, total: s.list.length, truncated: s.list.length >= PAGE, unlocated, assigned });
   }
 
+  // Bienes por usuario en todo GLPI (aunque estén loc=0 o fuera de dibujados):
+  // un puesto libre cuyo ocupante tiene bienes personales cuenta como en-uso.
+  const userHasAssets = new Set<number>();
+  for (const s of settled) {
+    if (!s.list) continue;
+    for (const it of s.list) {
+      const usr = Number(it?.users_id) || 0;
+      if (usr) userHasAssets.add(usr);
+    }
+  }
+  const assetsTruncated = settled.some((s) => s.list && s.list.length >= PAGE);
+
   // Personas ubicadas (User.locations_id) aunque el puesto esté libre (sin bienes).
-  // Aportan ocupante para el detalle y pasan a "inconsistente (usuario sin bienes)".
+  // Puesto libre + ocupante con bienes personales = en-uso (consistente, sin mover bienes).
   // Además se devuelven nombres (occ) para precargar el mapa sin N× llamadas.
   const userById = new Map<number, string>();
   const dispUser = (u: any) => {
@@ -116,12 +128,22 @@ export async function GET() {
     }
   } catch {}
 
-  const estadoDe = (items: number, users: number) =>
-    items > 0 && users > 0 ? "en-uso" : items > 0 ? "disponible" : items === 0 && users === 0 ? "incompleto" : "inconsistente";
+  // Libre con ocupante que tiene bienes personales (aunque loc=0) = en-uso.
+  // Si el listado de bienes vino truncado no se puede asegurar: se deja inconsistente.
+  const estadoDe = (items: number, users: number, userIds: number[] = []) => {
+    if (items > 0 && users > 0) return "en-uso";
+    if (items > 0) return "disponible";
+    if (items === 0 && users === 0) return "incompleto";
+    if (!assetsTruncated && userIds.length > 0 && userIds.every((uid) => userHasAssets.has(uid))) return "en-uso";
+    return "inconsistente";
+  };
 
   // Mapa locId -> { items, users, estado } (solo dibujados).
   const estados: Record<number, { items: number; users: number; estado: string }> = {};
-  for (const [id, e] of byLoc) estados[id] = { items: e.items, users: e.users.size, estado: estadoDe(e.items, e.users.size) };
+  for (const [id, e] of byLoc) {
+    const uids = [...e.users];
+    estados[id] = { items: e.items, users: e.users.size, estado: estadoDe(e.items, e.users.size, uids) };
+  }
   // Incluir dibujados sin bienes ni usuarios como incompletos.
   for (const id of drawn) if (!estados[id]) estados[id] = { items: 0, users: 0, estado: "incompleto" };
 

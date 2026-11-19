@@ -416,6 +416,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     setDashEstados((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers, estado: clasificarPuesto(loaded.length, nUsers) } }));
     setMsg(loaded.length || names.length ? "" : "Puesto vacío");
     // Bienes personales de cada ocupante vigente (sin puesto). No bloquea.
+    // Si el puesto está libre pero el ocupante tiene bienes personales, el estado
+    // se corrige a en-uso (consistente) sin mover ningún bien.
     const userIds = [...assetNames.keys()];
     if (userIds.length) {
       const myToken = ++openToken.current;
@@ -436,6 +438,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           for (const [id, list] of entries) next[id] = list;
           return next;
         });
+        if (!loaded.length && entries.some(([, list]) => list.length > 0)) {
+          setDashEstados((m) => ({ ...m, [p.glpi_id]: { items: 0, users: nUsers, estado: clasificarPuesto(0, nUsers, true) } }));
+        }
       });
     }
   }

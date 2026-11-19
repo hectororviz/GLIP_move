@@ -14,9 +14,10 @@ producto existente, sin reescribirlo. Complementa `AUDITORIA_UI_UX.md`,
   `.segbar`, `.clamp-2`, `.break-anywhere`, `.icon-btn(-sm)`.
 - `prefers-reduced-motion`, focos visibles, targets táctiles ≥ 28-32 px.
 - `ui.tsx`: `Spinner`, `EmptyState`, `SegmentedBar`, `TypeIcon`.
-- `puesto-state.ts`: `clasificarPuesto(items, users)` →
+- `puesto-state.ts`: `clasificarPuesto(items, users, hasPersonalAssets=false)` →
   `en-uso | disponible | incompleto | inconsistente` (dato real GLPI, sin inferir
-  ocupantes desde bienes asignados a personas).
+  ocupantes desde bienes asignados a personas; puesto libre cuyo ocupante tiene
+  bienes personales `loc=0` = `en-uso`, sin mover bienes).
 
 ### Control (`components/FloorMap.tsx`, `app/api/dashboard/route.ts`)
 - `GET /api/dashboard` extendido (misma llamada, sin N×6): mapa

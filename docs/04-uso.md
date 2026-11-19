@@ -37,7 +37,9 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
    asignar/quitar usuario nunca mueve ni saca del puesto; mover/sacar del
    puesto nunca toca el usuario. Debajo de cada ocupante aparecen sus
    **bienes personales** (asignados a ella, sin puesto), clicables hacia su
-   ficha.
+   ficha. Un puesto libre (`0 bienes`) cuyo ocupante tiene bienes personales
+   figura **En uso** (consistente); los bienes personales conservan
+   `locations_id=0`, no se mueven al puesto.
 6. **Agregar por inventario** (en Administrar): tipear `0000012865`, `12865`,
    `A 0001-0537` o pegar URL de QR GLPI (Enter u OK), o botón 📷 para escanear
    (modal centrado). También vale lector Bluetooth (escribe en el campo como
