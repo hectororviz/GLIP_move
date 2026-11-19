@@ -39,7 +39,10 @@ acción pendiente se ejecuta sola. La barra lateral muestra el usuario y “Sali
    **bienes personales** (asignados a ella, sin puesto), clicables hacia su
    ficha. Un puesto libre (`0 bienes`) cuyo ocupante tiene bienes personales
    figura **En uso** (consistente); los bienes personales conservan
-   `locations_id=0`, no se mueven al puesto.
+   `locations_id=0`, no se mueven al puesto. La ficha muestra al ocupante
+   ubicado (`User.locations_id`) aunque no haya bienes; asignar en un vacío
+   marca el puesto en la persona y quitar lo deja sin puesto (todo con
+   confirmación, sin tocar bienes).
 6. **Agregar por inventario** (en Administrar): tipear `0000012865`, `12865`,
    `A 0001-0537` o pegar URL de QR GLPI (Enter u OK), o botón 📷 para escanear
    (modal centrado). También vale lector Bluetooth (escribe en el campo como

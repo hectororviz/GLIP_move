@@ -64,6 +64,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const pendingAction = useRef<(() => void) | null>(null);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
   const [personalByUser, setPersonalByUser] = useState<Record<number, Asset[]>>({});
+  const [selOccupants, setSelOccupants] = useState<{ id: number; name: string; count: number }[]>([]);
   const openToken = useRef(0);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -383,6 +384,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     setSel(p); setMsg("Cargando equipos..."); setScanMode(null);
     setRoomOpen(false); setRoomMsg("");
     setPersonalByUser({});
+    setSelOccupants([]);
     setDetailAsset(null); assetDirtyRef.current = false;
     setPuestoPanel(true);
     const r = await fetch(`/api/glpi?location_id=${p.glpi_id}`);
@@ -412,6 +414,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     const names = [...assetNames.values()];
     setOccByLoc((m) => ({ ...m, [p.glpi_id]: names.join(", ") }));
     const nUsers = assetNames.size;
+    setSelOccupants([...assetNames.entries()].map(([id, name]) => ({ id, name, count: loaded.filter((a) => a._userId === id).length })));
     setCountByLoc((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers } }));
     setDashEstados((m) => ({ ...m, [p.glpi_id]: { items: loaded.length, users: nUsers, estado: clasificarPuesto(loaded.length, nUsers) } }));
     setMsg(loaded.length || names.length ? "" : "Puesto vacío");
@@ -487,17 +490,6 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (r.ok && sel) openPuesto(sel);
   }
 
-  const occupants = useMemo(() => {
-    const m = new Map<number, { id: number; name: string; count: number }>();
-    for (const a of items) {
-      if (a._userId == null) continue;
-      const cur = m.get(a._userId) || { id: a._userId, name: userNames[a._userId] || a._userName || `Usuario ${a._userId}`, count: 0 };
-      cur.count += 1;
-      m.set(a._userId, cur);
-    }
-    return [...m.values()].sort((a, b) => b.count - a.count);
-  }, [items, userNames]);
-
   async function searchOccupants() {
     if (!occQuery.trim()) return;
     setMsg("Buscando personas...");
@@ -509,18 +501,34 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   }
 
   async function assignOccupant(u: { id: number; display: string }) {
-    if (!sel || !items.length) return;
-    if (!confirm(`Asignar a ${u.display} como ocupante de ${nameOf(sel.glpi_id)}? Se actualizará el usuario en ${items.length} equipo(s) (conservan el puesto).`)) return;
-    setMsg("Asignando ocupante...");
-    for (const a of items) {
-      const r = await fetch("/api/glpi", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: a._type, id: a.id, user_id: u.id }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
+    if (!sel) return;
+    // Puesto con equipos: se pisa users_id en cada bien (conserva puesto).
+    // Puesto vacío: se marca el puesto en la persona (no se mueven bienes).
+    if (items.length) {
+      if (!confirm(`Asignar a ${u.display} como ocupante de ${nameOf(sel.glpi_id)}? Se actualizará el usuario en ${items.length} equipo(s) (conservan el puesto).`)) return;
+      setMsg("Asignando ocupante...");
+      for (const a of items) {
+        const r = await fetch("/api/glpi", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: a._type, id: a.id, user_id: u.id }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
+      }
+      setOccOpen(false); setOccQuery(""); setOccResults([]);
+      openPuesto(sel);
+      return;
     }
+    if (!confirm(`Asignar a ${u.display} en ${nameOf(sel.glpi_id)}? No se mueve ningún bien, solo queda marcada en el puesto.`)) return;
+    setMsg("Asignando ocupante...");
+    const r = await fetch("/api/glpi/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: u.id, location_id: sel.glpi_id }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
     setOccOpen(false); setOccQuery(""); setOccResults([]);
     openPuesto(sel);
   }
@@ -528,18 +536,31 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   async function removeOccupant(id: number, name: string) {
     if (!sel) return;
     const mine = items.filter((a) => a._userId === id);
-    if (!mine.length) return;
-    if (!confirm(`Quitar a ${name} del puesto? Se quitará como usuario de ${mine.length} equipo(s) (conservan el puesto).`)) return;
-    setMsg("Quitando ocupante...");
-    for (const a of mine) {
-      const r = await fetch("/api/glpi", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: a._type, id: a.id, user_id: null }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
+    if (mine.length) {
+      if (!confirm(`Quitar a ${name} del puesto? Se quitará como usuario de ${mine.length} equipo(s) (conservan el puesto).`)) return;
+      setMsg("Quitando ocupante...");
+      for (const a of mine) {
+        const r = await fetch("/api/glpi", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: a._type, id: a.id, user_id: null }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
+      }
+      openPuesto(sel);
+      return;
     }
+    // Ocupante solo ubicado (puesto vacío): se deja sin puesto, sin tocar bienes.
+    if (!confirm(`Quitar a ${name} de ${nameOf(sel.glpi_id)}? Quedará sin puesto (no se tocan bienes).`)) return;
+    setMsg("Quitando ocupante...");
+    const r = await fetch("/api/glpi/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, location_id: 0 }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setMsg(`Error: ${j.error || r.status}`); return; }
     openPuesto(sel);
   }
 
@@ -937,9 +958,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
             <section aria-label="Ocupante del puesto" className="grid gap-1.5">
               <h3 className="section-h">Ocupante</h3>
               <div className="info-card grid gap-1.5 py-2.5">
-                {occupants.length ? (
+                {selOccupants.length ? (
                   <ul className="grid gap-2 text-sm min-w-0">
-                    {occupants.map((o) => (
+                    {selOccupants.map((o) => (
                       <li key={o.id} className="grid gap-1 min-w-0">
                         <b className="break-words text-ink" title={`${o.name} (#${o.id})`}>{decodeEntities(o.name)} <span className="text-xs text-muted font-normal tabular-nums">#{o.id} · {o.count} equipo(s)</span></b>
                         {(personalByUser[o.id] || []).map((pa) => (
@@ -983,11 +1004,11 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
               <div className="grid gap-1.5 border border-line rounded-xl bg-white p-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-sm font-semibold">Ocupante</span>
-                  <button className="btn btn-secondary text-xs" onClick={() => setOccOpen(!occOpen)}>{occOpen ? "Cerrar" : occupants.length ? "Cambiar" : "Asignar"}</button>
+                  <button className="btn btn-secondary text-xs" onClick={() => setOccOpen(!occOpen)}>{occOpen ? "Cerrar" : selOccupants.length ? "Cambiar" : "Asignar"}</button>
                 </div>
-                {occupants.length > 0 && (
+                {selOccupants.length > 0 && (
                   <div className="grid gap-1.5">
-                    {occupants.map((o) => (
+                    {selOccupants.map((o) => (
                       <div key={o.id} className="flex items-center justify-between gap-2 text-sm border border-line rounded-xl px-3 py-2 min-h-[52px]">
                         <span className="truncate min-w-0" title={o.name}>{decodeEntities(o.name)} <span className="text-xs text-muted">#{o.id}</span></span>
                         <button className="btn btn-danger-outline text-xs shrink-0" onClick={() => requireEdit(() => removeOccupant(o.id, o.name))}>Quitar</button>

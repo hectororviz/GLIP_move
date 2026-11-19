@@ -44,6 +44,7 @@ El navegador **nunca** habla con GLPI ni ve los tokens. Rutas internas:
 | `GET /api/glpi?location_id=` | `GET /{Type}/?searchText[locations_id]=…` × 6 tipos |
 | `GET /api/glpi?type=&id=` | `GET /{Type}/{id}?expand_dropdowns=true` + `_locationId`/`_userId` del `links` hateoas |
 | `GET /api/glpi/users?q=\|?id=\|?location_id=` | `GET /User/?searchText[…]=…` (solo campos seguros) o `/User/{id}`; listas (`?q=`, `?location_id=`) excluyen `is_deleted==1` e `is_active==0` (ej. `*-old`); `?id=` devuelve flags `isActive/isDeleted` para badge |
+| `PATCH /api/glpi/users` (operador) | `PUT /User/{id} {"input":{"locations_id":…}}` (+`session_write=true` + `GET` verificación): asigna puesto dibujado a persona (`0`=sin puesto); no mueve bienes; rechaza inactivos |
 | `GET /api/glpi/user-assets?user_id=` | `GET /{Type}/?searchText[users_id]=…` × 6 tipos, agrupado por ubicación |
 | `GET /api/search?q=` | Agregador: equipos + personas (público) y áreas/correos/carpetas (solo `isOperator()`, si no `{locked:true}`); equipos/personas con la misma lógica de arriba; accesos filtrados en memoria con `lib/search.ts:norm()`; tope 20/categoría |
 | `GET /api/access/{areas,mails,shares}[?area=&q=]` | Lectura de DB propia (`access.json`) con conteos; `q` contiene-insensible en nombre/dirección/ruta/área/responsable |
