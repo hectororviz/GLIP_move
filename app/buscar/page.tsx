@@ -25,7 +25,7 @@ function CompactLocation({ locId, fallback, byId, wrap }: { locId: number | null
 }
 
 type Asset = any;
-type Person = { id: number; login: string | null; firstname: string | null; realname: string | null; display: string; email: string | null; phone: string | null; isActive?: boolean; isDeleted?: boolean };
+type Person = { id: number; login: string | null; firstname: string | null; realname: string | null; display: string; email: string | null; phone: string | null; isActive?: boolean; isDeleted?: boolean; locationId?: number | null };
 type PersonGroup = { location_id: number; items: Asset[] };
 type AuthUser = { login: string; name: string; profiles: string[]; canOperate: boolean };
 const disp = (v: any) => (v == null || v === "" ? "—" : String(v));
@@ -72,6 +72,67 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
   const [assignBusy, setAssignBusy] = useState(false);
   const dirty = assignInv !== "";
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+
+  // Baja de persona: bienes del puesto quedan allí (solo se desasignan);
+  // el resto va a GUARDA CTIC (492); puesto libre, accesos quitados, inactiva.
+  const GUARDA_ID = 492;
+  const [bajaOpen, setBajaOpen] = useState(false);
+  const [bajaBusy, setBajaBusy] = useState(false);
+  const [bajaMsg, setBajaMsg] = useState("");
+  const [bajaDone, setBajaDone] = useState(false);
+  const bajaAssets = [...groups.flatMap((g) => g.items), ...unlocated];
+  const bajaStay = bajaAssets.filter((a) => p.locationId && a._locationId === p.locationId);
+  const bajaMove = bajaAssets.filter((a) => !(p.locationId && a._locationId === p.locationId));
+  const bajaPuestoName = (() => {
+    if (!p.locationId) return null;
+    try {
+      const d = formatLocationDisplay(p.locationId, byId as any, null);
+      return d.isFloorOnly ? `${d.primary} (sin puesto)` : d.primary;
+    } catch { return `GLPI #${p.locationId}`; }
+  })();
+
+  async function aplicarBaja() {
+    if (!confirm(`Dar de baja a ${p.display}? ${bajaStay.length} equipo(s) quedan en su puesto (se desasignan), ${bajaMove.length} van a Guarda CTIC, se quita el puesto${accessMails.length + accessShares.length ? ` y ${accessMails.length + accessShares.length} acceso(s)` : ""}, y se inactiva. Se verifica cada paso.`)) return;
+    setBajaBusy(true);
+    setBajaMsg("Aplicando baja...");
+    try {
+      for (const a of bajaStay) {
+        const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, user_id: null }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(`Bien ${a._type} ${a.id}: ${j.error || r.status}`);
+      }
+      for (const a of bajaMove) {
+        const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, user_id: null, location_id: GUARDA_ID }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(`Bien ${a._type} ${a.id} → Guarda: ${j.error || r.status}`);
+      }
+      for (const g of accessMails) {
+        const r = await fetch(`/api/access/grants?scope=mail&accountId=${encodeURIComponent(g.accountId)}&userId=${p.id}`, { method: "DELETE" });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(`Correo ${g.nombre || g.accountId}: ${j.error || r.status}`); }
+      }
+      for (const g of accessShares) {
+        const r = await fetch(`/api/access/grants?scope=share&shareId=${encodeURIComponent(g.shareId)}&userId=${p.id}`, { method: "DELETE" });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(`Carpeta ${g.nombre || g.shareId}: ${j.error || r.status}`); }
+      }
+      if (p.locationId) {
+        const r = await fetch("/api/glpi/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, location_id: 0 }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(`Puesto: ${j.error || r.status}`);
+      }
+      {
+        const r = await fetch("/api/glpi/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, is_active: 0 }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(`Inactivar: ${j.error || r.status}`);
+      }
+      setBajaMsg(`Baja aplicada: ${bajaStay.length} en puesto, ${bajaMove.length} a Guarda, ${accessMails.length + accessShares.length} accesos quitados, puesto libre e inactiva.`);
+      setBajaDone(true);
+      onRefresh();
+    } catch (e: any) {
+      setBajaMsg(`Error: ${e.message || e}. Revisá lo aplicado y reintentá.`);
+    } finally {
+      setBajaBusy(false);
+    }
+  }
 
   async function assignToPerson(inv: string) {
     if (!inv.trim()) return;
@@ -194,6 +255,32 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
               </div>
             );
           })}
+          <div className="grid gap-1.5 border border-line rounded-xl bg-white p-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-sm font-semibold">Baja de persona</span>
+              {p.isActive === false
+                ? <span className="badge badge-warning">Inactiva</span>
+                : <button className="btn btn-danger-outline text-xs shrink-0" onClick={() => { setBajaMsg(""); setBajaDone(false); setBajaOpen(!bajaOpen); }}>{bajaOpen ? "Cerrar" : "Dar de baja…"}</button>}
+            </div>
+            {p.isActive !== false && bajaOpen && (
+              <div className="grid gap-1.5 text-sm">
+                <p className="text-xs text-muted">Vista previa (no se tocó nada todavía):</p>
+                <ul className="grid gap-1 text-xs">
+                  <li>· Puesto actual: <b className="text-ink">{bajaPuestoName || "sin puesto"}</b> → quedará libre.</li>
+                  <li>· Quedan en el puesto (solo se desasignan): <b className="text-ink">{bajaStay.length}</b>{bajaStay.length > 0 && <span className="text-muted"> ({bajaStay.slice(0, 4).map((a) => `${a._type} ${a.otherserial || a.name}`).join(", ")}{bajaStay.length > 4 ? "…" : ""})</span>}</li>
+                  <li>· Van a Guarda CTIC (492): <b className="text-ink">{bajaMove.length}</b>{bajaMove.length > 0 && <span className="text-muted"> ({bajaMove.slice(0, 4).map((a) => `${a._type} ${a.otherserial || a.name}`).join(", ")}{bajaMove.length > 4 ? "…" : ""})</span>}</li>
+                  <li>· Accesos a quitar: <b className="text-ink">{accessMails.length + accessShares.length}</b> ({accessMails.length} correos, {accessShares.length} carpetas).</li>
+                  <li>· Usuario: <b className="text-ink">se inactiva</b> (reversible, no se borra).</li>
+                </ul>
+                <div className="flex gap-2 justify-end flex-wrap">
+                  <button className="btn btn-secondary text-xs" onClick={() => setBajaOpen(false)} disabled={bajaBusy}>Cancelar</button>
+                  <button className="btn btn-danger text-xs min-w-[140px]" onClick={aplicarBaja} disabled={bajaBusy}>{bajaBusy ? "Aplicando…" : "Confirmar baja"}</button>
+                </div>
+                {bajaMsg && <p className="text-xs text-muted" role="status">{bajaMsg}</p>}
+              </div>
+            )}
+            {bajaMsg && !bajaOpen && <p className="text-xs text-muted" role="status">{bajaMsg}</p>}
+          </div>
         </AdminSection>
       )}
 
@@ -509,7 +596,27 @@ export default function Buscar() {
 
   async function openPersonDetail(p: Person, saveScroll = true) {
     if (saveScroll) openDetail(true);
-    setDetailPerson({ p, groups: [], unlocated: [], mails: [], shares: [] });
+    // Refrescar encabezado (puesto/estado) por si cambió en otra gestión.
+    let head = p;
+    try {
+      const ur = await fetch(`/api/glpi/users?id=${p.id}`);
+      const uj = await ur.json();
+      if (ur.ok && uj.user?.id != null) {
+        head = {
+          ...p,
+          display: uj.user.display || p.display,
+          login: uj.user.login ?? p.login,
+          firstname: uj.user.firstname ?? p.firstname,
+          realname: uj.user.realname ?? p.realname,
+          email: uj.user.email ?? p.email,
+          phone: uj.user.phone ?? p.phone,
+          isActive: uj.user.isActive ?? p.isActive ?? true,
+          isDeleted: uj.user.isDeleted ?? p.isDeleted ?? false,
+          locationId: uj.user.locationId ?? null,
+        };
+      }
+    } catch {}
+    setDetailPerson({ p: head, groups: [], unlocated: [], mails: [], shares: [] });
     try {
       const [ra, rg] = await Promise.all([
         fetch(`/api/glpi/user-assets?user_id=${p.id}`).then((r) => r.json()),
@@ -517,7 +624,7 @@ export default function Buscar() {
           ? fetch(`/api/access/grants?user_id=${p.id}`).then((r) => (r.ok ? r.json() : { mails: [], shares: [] })).catch(() => ({ mails: [], shares: [] }))
           : Promise.resolve({ mails: [], shares: [] }),
       ]);
-      setDetailPerson({ p, groups: ra.groups || [], unlocated: ra.unlocated || [], mails: rg.mails || [], shares: rg.shares || [] });
+      setDetailPerson({ p: head, groups: ra.groups || [], unlocated: ra.unlocated || [], mails: rg.mails || [], shares: rg.shares || [] });
     } catch {}
   }
 
@@ -610,6 +717,7 @@ export default function Buscar() {
         phone: u.phone ?? null,
         isActive: u.isActive ?? true,
         isDeleted: u.isDeleted ?? false,
+        locationId: u.locationId ?? null,
       }, false);
     } catch {}
   }
@@ -643,6 +751,7 @@ export default function Buscar() {
         phone: u.phone ?? null,
         isActive: u.isActive ?? true,
         isDeleted: u.isDeleted ?? false,
+        locationId: u.locationId ?? null,
       };
       setReturnTarget({ kind: "asset", asset: detailAsset });
       setDetailAsset(null);

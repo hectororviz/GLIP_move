@@ -25,14 +25,22 @@ type ConfirmState =
   | { kind: "rmShare"; g: ShareGrant };
 
 function Modal({ title, onClose, children, guard }: { title: string; onClose: () => void; children: React.ReactNode; guard?: string | null }) {
+  // Refs estables: el padre se re-renderiza por tecla y el efecto debe correr
+  // solo al montar/desmontar; si no, el churn de listeners/overflow acompaña
+  // al robo de foco del SidePanel de atrás.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const guardRef = useRef(guard);
+  guardRef.current = guard;
   useEffect(() => {
-    const tryClose = () => { if (guard && !confirm(guard)) return; onClose(); };
+    const tryClose = () => { const g = guardRef.current; if (g && !confirm(g)) return; onCloseRef.current(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") tryClose(); };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
-  }, [onClose, guard]);
-  const tryClose = () => { if (guard && !confirm(guard)) return; onClose(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const tryClose = () => { const g = guardRef.current; if (g && !confirm(g)) return; onCloseRef.current(); };
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-ink/50" onClick={tryClose} aria-hidden="true" />
@@ -48,11 +56,14 @@ function Modal({ title, onClose, children, guard }: { title: string; onClose: ()
 }
 
 function SubModal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-ink/50" onClick={onClose} aria-hidden="true" />

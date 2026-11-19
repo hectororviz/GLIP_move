@@ -129,6 +129,10 @@ export function SidePanel({
   const titleId = useId();
   const panelRef = useRef<HTMLElement>(null);
   const prevFocus = useRef<Element | null>(null);
+  // Ref estable: los padres re-renderizan por tecla (inline onClose) y el efecto
+  // debe correr solo al montar/desmontar; si no, roba el foco del campo activo.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     prevFocus.current = document.activeElement;
@@ -136,7 +140,7 @@ export function SidePanel({
     // el ✕ solo muestra foco con navegación real de teclado.
     panelRef.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); onClose(); }
+      if (e.key === "Escape") { e.stopPropagation(); onCloseRef.current(); }
     };
     document.addEventListener("keydown", onKey, true);
     const prevOverflow = document.body.style.overflow;
@@ -146,7 +150,8 @@ export function SidePanel({
       document.body.style.overflow = prevOverflow;
       (prevFocus.current as HTMLElement | null)?.focus?.();
     };
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
@@ -395,12 +400,15 @@ export function ConfirmDialog({
   onClose: () => void;
 }) {
   const okRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     okRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="confirm-backdrop" role="dialog" aria-modal="true" aria-label={title}>
       <div className="confirm-card card p-4 grid gap-3" role="document">

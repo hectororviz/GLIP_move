@@ -20,7 +20,8 @@ function personOf(u: any) {
   const firstname = clean(u?.firstname);
   const realname = clean(u?.realname);
   const display = [firstname, realname].filter(Boolean).join(" ") || login || `Usuario ${id}`;
-  return { id, login, firstname, realname, display, email: clean(u?.email), phone: clean(u?.phone || u?.mobile), isActive: u?.is_active == null ? true : Number(u.is_active) !== 0, isDeleted: String(u?.is_deleted).startsWith("1") };
+  const loc = u?.locations_id == null ? null : Number(u.locations_id) || 0;
+  return { id, login, firstname, realname, display, email: clean(u?.email), phone: clean(u?.phone || u?.mobile), isActive: u?.is_active == null ? true : Number(u.is_active) !== 0, isDeleted: String(u?.is_deleted).startsWith("1"), locationId: loc };
 }
 
 function isUsableUser(u: any) {

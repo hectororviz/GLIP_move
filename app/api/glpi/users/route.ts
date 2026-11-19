@@ -10,6 +10,7 @@ function personOf(u: any) {
   const firstname = clean(u?.firstname);
   const realname = clean(u?.realname);
   const display = [firstname, realname].filter(Boolean).join(" ") || login || `Usuario ${id}`;
+  const loc = u?.locations_id == null ? null : Number(u.locations_id) || 0;
   return {
     id,
     login,
@@ -20,6 +21,7 @@ function personOf(u: any) {
     phone: clean(u?.phone || u?.mobile),
     isActive: u?.is_active == null ? true : Number(u.is_active) !== 0,
     isDeleted: String(u?.is_deleted).startsWith("1"),
+    locationId: loc,
   };
 }
 
@@ -95,9 +97,11 @@ export async function GET(req: Request) {
   }
 }
 
-// PATCH /api/glpi/users { id, location_id } -> fija el puesto de la persona.
-// location_id: glpi_id de puesto dibujado, o null/0 para dejarla sin puesto.
-// No mueve bienes. Solo operador. Rechaza usuarios inactivos/borrados.
+// PATCH /api/glpi/users { id, location_id?, is_active? } -> puesto y/o estado.
+// location_id: glpi_id de puesto dibujado, o null/0 = sin puesto. No mueve bienes.
+// is_active: 0 = dar de baja (no borra), 1 = reactivar. Salvo reactivación,
+// rechaza operar sobre inactivos/borrados. Solo operador.
+const GUARDA_CTIC_GLPID = 492;
 export async function PATCH(req: NextRequest) {
   const auth = getAuth(req);
   if (auth.kind === "none") return NextResponse.json({ error: "Inicia sesión para editar." }, { status: 401 });
@@ -107,30 +111,42 @@ export async function PATCH(req: NextRequest) {
     const b = await req.json();
     const id = Number(b?.id);
     if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
-    const locRaw = b?.location_id;
-    const loc = locRaw == null ? 0 : Number(locRaw);
-    if (locRaw != null && !Number.isFinite(loc)) return NextResponse.json({ error: "location_id inválido" }, { status: 400 });
+    const hasLoc = b?.location_id !== undefined;
+    const hasActive = b?.is_active !== undefined;
+    if (!hasLoc && !hasActive) return NextResponse.json({ error: "nada para actualizar (location_id/is_active ausentes)" }, { status: 400 });
+    const loc = b?.location_id == null ? 0 : Number(b.location_id);
+    if (hasLoc && !Number.isFinite(loc)) return NextResponse.json({ error: "location_id inválido" }, { status: 400 });
     if (loc) {
       const floors = await loadFloors();
       const drawn = new Set(floors.flatMap((f) => f.puestos.map((p) => p.glpi_id)));
-      if (!drawn.has(loc)) return NextResponse.json({ error: "Solo se puede asignar a puestos dibujados." }, { status: 400 });
+      if (!drawn.has(loc) && loc !== GUARDA_CTIC_GLPID) return NextResponse.json({ error: "Solo se puede asignar a puestos dibujados." }, { status: 400 });
     }
+    const act = hasActive ? Number(b.is_active) ? 1 : 0 : null;
+    if (hasActive && act !== 0 && act !== 1) return NextResponse.json({ error: "is_active inválido" }, { status: 400 });
     const cur = await glpiFetch(`/User/${id}`, {}, true, sessionToken);
     if (!cur || cur.id == null) return NextResponse.json({ error: `Usuario inexistente (#${id}).` }, { status: 400 });
-    if (String(cur.is_deleted).startsWith("1") || (cur.is_active != null && Number(cur.is_active) === 0)) {
+    const curInactive = String(cur.is_deleted).startsWith("1") || (cur.is_active != null && Number(cur.is_active) === 0);
+    if (curInactive && act !== 1) {
       return NextResponse.json({ error: "Usuario inactivo: elegí un usuario vigente." }, { status: 400 });
     }
+    const input: Record<string, number> = {};
+    if (hasLoc) input.locations_id = loc;
+    if (hasActive && act != null) input.is_active = act;
     await glpiFetch(`/User/${id}?session_write=true`, {
       method: "PUT",
-      body: JSON.stringify({ input: { locations_id: loc } }),
+      body: JSON.stringify({ input }),
     }, true, sessionToken);
     const fresh = await glpiFetch(`/User/${id}`, {}, true, sessionToken);
-    if (Number(fresh?.locations_id) !== loc) {
+    if (hasLoc && Number(fresh?.locations_id) !== loc) {
       return NextResponse.json({ error: "GLPI no aplicó el puesto de la persona." }, { status: 502 });
     }
+    if (hasActive && Number(fresh?.is_active) !== act) {
+      return NextResponse.json({ error: "GLPI no aplicó el estado de la persona." }, { status: 502 });
+    }
     const actor = auth.kind === "admin" ? "admin" : auth.session?.login || "?";
-    await appendActivity({ ts: Date.now(), actor, action: loc ? "asignó puesto a persona" : "quitó puesto a persona", type: "User", id, location_id: loc || null, user_id: id });
-    return NextResponse.json({ ok: true, userId: id, location_id: loc });
+    const action = hasActive && act === 0 ? "dio de baja a persona" : hasLoc ? (loc ? "asignó puesto a persona" : "quitó puesto a persona") : "reactivó a persona";
+    await appendActivity({ ts: Date.now(), actor, action, type: "User", id, location_id: hasLoc ? (loc || null) : null, user_id: id });
+    return NextResponse.json({ ok: true, userId: id, location_id: hasLoc ? loc : undefined, is_active: hasActive ? act : undefined });
   } catch (e: any) {
     const msg = String(e.message || "");
     const status = /no right|RIGHT/i.test(msg) ? 403 : 502;
