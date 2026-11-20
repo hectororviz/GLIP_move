@@ -820,7 +820,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
                     }}
                     style={{ touchAction: calibrar ? (panDisabled ? "none" : undefined) : "none", cursor: calibrar && tool === "draw" ? "crosshair" : undefined }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/maps/${floor.id}/image`} alt={`Plano ${floor.name}`} className="max-w-none max-h-[58vh] lg:max-h-[66vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, focusEpoch.current, 0); }} />
+                <img src={withBase(`/api/maps/${floor.id}/image`)} alt={`Plano ${floor.name}`} className="max-w-none max-h-[58vh] lg:max-h-[66vh]" draggable={false} onLoad={() => { if (pendingFocus.current != null) centerWithRetry(pendingFocus.current, focusEpoch.current, 0); }} />
                 {showPuestos && puestos.map((p) => {
                   const est = showEstados && !calibrar ? estadoOf(p.glpi_id) : null;
                   const dim = !calibrar && filtro !== "todos" && est !== filtro;

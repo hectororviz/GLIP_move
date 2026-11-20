@@ -335,7 +335,7 @@ export default function ConfigPage() {
                   <div className="flex gap-3 items-center text-sm flex-wrap">
                     {f.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/api/maps/${f.id}/image`} alt={`Plano de ${f.name}`} className="w-32 h-20 object-cover rounded-lg border border-line" loading="lazy" />
+                      <img src={withBase(`/api/maps/${f.id}/image`)} alt={`Plano de ${f.name}`} className="w-32 h-20 object-cover rounded-lg border border-line" loading="lazy" />
                     ) : (
                       <span className="text-muted text-xs w-32">sin imagen</span>
                     )}
