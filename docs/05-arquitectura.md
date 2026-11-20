@@ -17,15 +17,23 @@ estado local React + `@zxing/browser@0.1.5` (cámara) +
 
 ## Auth y roles (`lib/auth.ts`, `app/api/auth/`)
 
+- Todo exige sesión: sin login no hay lectura ni escritura. `AppShell` muestra
+  un muro de login a pantalla completa (fondo blureado) y no monta la app
+  hasta autenticar, por lo que ningún `fetch` de página corre anónimo.
 - Sesiones GLPI por usuario en memoria server-side (cookie `gm_user` httpOnly,
   TTL 8 h, `killSession` al salir). Claves nunca en cliente/disco/logs.
-- `POST /api/auth/login` (Basic → `initSession`), `POST /api/auth/logout`,
-  `GET /api/auth/me`. `GET /api/admin/check` dice si hay admin (local o GLPI).
+  Alternativa local: cookie `gm_admin` (failover sin GLPI).
+- `POST /api/auth/login` (Basic → `initSession`), `POST /api/config/login`
+  (clave local), `POST /api/auth/logout`, `GET /api/auth/me`.
+  `GET /api/admin/check` dice si hay admin (local o GLPI).
+- `requireAuth(req)`: cualquier sesión válida (admin local o usuario GLPI).
+  Protege en lectura todas las API salvo login/logout/me, manifest e icono.
+  Sin sesión → 401 (antes: lectura libre de bienes/mapa/búsqueda).
 - `isOperator(req)`: admin local **o** sesión GLPI con perfil en
   `GLPI_OPERATOR_PROFILES` (default `Super-Admin,Admin`). Protege
   `PATCH /api/glpi` (401 sin login, 403 sin permiso), **todo `/api/access/*`** y
-  la parte de accesos de **`GET /api/search`** (equipos/personas son lectura
-  libre; áreas/correos/carpetas salen `{locked:true}` sin operador).
+  la parte de accesos de **`GET /api/search`** (equipos/personas requieren
+  sesión; áreas/correos/carpetas salen `{locked:true}` sin operador).
 - `isAdmin(req)`: clave local **o** sesión GLPI con perfil en
   `GLPI_ADMIN_PROFILES`. Centralizado: lo usan maps, upload, backup, brand,
   config y admin/check (antes cada ruta duplicaba su `adminOk`).

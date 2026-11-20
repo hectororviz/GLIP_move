@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ASSET_TYPES, getLocationsCached, glpiFetch } from "@/lib/glpi";
 import { loadFloors } from "@/lib/maps";
 import { loadConfig } from "@/lib/config";
 import { readActivity } from "@/lib/activity";
+import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,9 @@ const TTL = 5 * 60 * 1000;
 const PAGE = 1000;
 let cache: { at: number; data: any } | null = null;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   if (cache && Date.now() - cache.at < TTL) {
     return NextResponse.json({ ...cache.data, cached_at: cache.at, cached: true });
   }

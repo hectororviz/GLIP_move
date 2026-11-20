@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadFloors, imagePath } from "@/lib/maps";
 import { promises as fs } from "fs";
+import { requireAuth } from "@/lib/auth";
 
 const CT: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -9,8 +10,10 @@ const CT: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-// GET /api/maps/[id]/image -> sirve el plano del piso
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+// GET /api/maps/[id]/image -> sirve el plano del piso (requiere sesión)
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   const floors = await loadFloors();
   const f = floors.find((x) => x.id === params.id);
   if (!f) return NextResponse.json({ error: "Piso no existe" }, { status: 404 });

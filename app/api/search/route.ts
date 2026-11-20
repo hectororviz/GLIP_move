@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { canReadAccess, isOperator } from "@/lib/auth";
+import { canReadAccess, isOperator, requireAuth } from "@/lib/auth";
 import { ASSET_TYPES, clean, enrich, getLocationsCached, glpiFetch } from "@/lib/glpi";
 import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
 import { loadAccess } from "@/lib/access";
@@ -188,6 +188,8 @@ async function searchPuestos(q: string): Promise<{ items: any[]; error?: string 
 
 // GET /api/search?q= -> agregador: equipos + personas + puestos (público) y áreas/correos/carpetas (operador o viewer).
 export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   const q = (new URL(req.url).searchParams.get("q") || "").trim();
   if (!q) return NextResponse.json({ error: "Parámetro: ?q=" }, { status: 400 });
   const canOperate = isOperator(req as any);

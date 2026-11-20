@@ -44,7 +44,7 @@ function Modal({ title, onClose, children, guard }: { title: string; onClose: ()
   const tryClose = () => { const g = guardRef.current; if (g && !confirm(g)) return; onCloseRef.current(); };
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-ink/50" onClick={tryClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-ink/60 backdrop-blur-md" onClick={tryClose} aria-hidden="true" />
       <div className="relative bg-white w-full sm:max-w-lg max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-lift overflow-hidden" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="p-4 pb-3 border-b border-line flex items-start justify-between gap-2">
           <h2 className="font-bold text-ink">{title}</h2>
@@ -67,7 +67,7 @@ function SubModal({ title, onClose, children }: { title: string; onClose: () => 
   }, []);
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-ink/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-ink/60 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
       <div className="relative bg-white w-full sm:max-w-md max-h-[92dvh] flex flex-col rounded-t-2xl sm:rounded-2xl shadow-lift overflow-hidden" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="p-4 pb-3 border-b border-line flex items-start justify-between gap-2">
           <h2 className="font-bold text-ink">{title}</h2>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clean, glpiFetch } from "@/lib/glpi";
-import { getAuth, isOperator } from "@/lib/auth";
+import { getAuth, isOperator, requireAuth } from "@/lib/auth";
 import { loadFloors } from "@/lib/maps";
 import { appendActivity } from "@/lib/activity";
 
@@ -36,7 +36,9 @@ function isUsable(u: any) {
 // GET /api/glpi/users?q=ana -> usuarios GLPI (solo campos seguros)
 // GET /api/glpi/users?id=12 -> un usuario GLPI por ID
 // GET /api/glpi/users?location_id=362 -> usuarios con locations_id = puesto (aunque sin bienes)
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   const sp = new URL(req.url).searchParams;
   const byId = Number(sp.get("id"));
   if (byId) {

@@ -1,6 +1,7 @@
 import { apiBase } from "./glpi";
 import { loadConfig } from "./config";
 import crypto from "crypto";
+import { NextResponse } from "next/server";
 
 export type AuthUser = { login: string; name: string; profiles: string[] };
 
@@ -116,6 +117,15 @@ export function isOperator(req: any): boolean {
   const a = getAuth(req);
   if (a.kind === "admin") return true;
   return canOperate(a.session);
+}
+
+// Exige cualquier sesión válida (admin local o usuario GLPI).
+// Devuelve respuesta 401 para denegar, o null si está autenticado.
+export function requireAuth(req: any): NextResponse | null {
+  if (getAuth(req).kind === "none") {
+    return NextResponse.json({ error: "Inicia sesión para continuar." }, { status: 401 });
+  }
+  return null;
 }
 
 // Lectura de accesos: operador, viewer o clave maestra. Escrituras siguen con isOperator.

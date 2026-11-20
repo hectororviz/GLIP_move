@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AuthButton from "./AuthButton";
+import AuthModal from "./AuthModal";
 import { IconLock } from "./icons";
 import { withBase } from "@/lib/base";
 
@@ -15,6 +16,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [canOperate, setCanOperate] = useState(false);
   const [canView, setCanView] = useState(false);
+  // null = verificando sesión (sin montar contenido ni pedir datos).
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -44,10 +47,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       fetch(withBase("/api/auth/me"), { cache: "no-store" })
         .then((r) => r.json())
         .then((j) => {
+          setAuthed(!!j.authenticated);
           setCanOperate(!!j.canOperate);
           setCanView(j.access ? j.access !== "none" : !!j.canOperate);
         })
-        .catch(() => { setCanOperate(false); setCanView(false); });
+        .catch(() => { setAuthed(false); setCanOperate(false); setCanView(false); });
     };
     checkAdmin();
     checkOperate();
@@ -122,6 +126,34 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         : "Iniciá sesión con un perfil autorizado para ver Configuración";
 
   const shortName = (cfg.appName || "GLPI Move").replace("GLPI Move", "CTIC · IDi").slice(0, 22);
+
+  // Verificando sesión: splash mínimo, sin montar contenido ni pedir datos.
+  if (authed === null) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-canvas">
+        <p className="text-sm text-muted animate-pulse">Verificando sesión…</p>
+      </div>
+    );
+  }
+
+  // Sin sesión: muro de login a pantalla completa. No se monta la app
+  // (los fetch de las páginas solo corren montadas) y el fondo queda
+  // blureado e ilegible detrás del modal.
+  if (!authed) {
+    return (
+      <div className="min-h-screen no-hscroll relative overflow-hidden bg-canvas">
+        <div className="absolute inset-0 backdrop-blur-xl bg-white/60" aria-hidden="true" />
+        <div className="absolute inset-0 grid place-items-center p-4">
+          <div className="text-center select-none" aria-hidden="true">
+            <div className="mx-auto mb-3 h-14 w-14 rounded-2xl font-bold text-2xl text-white grid place-items-center" style={{ background: "var(--accent, #0b5ed7)" }}>G</div>
+            <p className="font-bold text-ink text-lg">GLPI Move</p>
+            <p className="text-sm text-muted">Acceso restringido. Iniciá sesión para continuar.</p>
+          </div>
+        </div>
+        <AuthModal open={true} onClose={() => {}} onSuccess={() => window.location.reload()} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen no-hscroll">

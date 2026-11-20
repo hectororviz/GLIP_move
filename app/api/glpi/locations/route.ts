@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clearLocationsCache, getLocationsCached, glpiFetch } from "@/lib/glpi";
 import { loadFloors } from "@/lib/maps";
-import { getAuth, isOperator } from "@/lib/auth";
+import { getAuth, isOperator, requireAuth } from "@/lib/auth";
 import { appendActivity } from "@/lib/activity";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 // GET /api/glpi/locations?q=1234 -> ubicaciones por nombre o interno (room)
 // PATCH /api/glpi/locations {id, room} -> edita el interno (operador)
 export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   try {
     const sp = req.nextUrl.searchParams;
     const byId = Number(sp.get("id"));

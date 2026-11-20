@@ -350,7 +350,7 @@ img, table { max-width: 100%; }
 .asset-card:active { background: #f3f6fb; }
 
 /* SidePanel: drawer derecho desktop / fullscreen móvil */
-.sidepanel-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(15,31,56,0.5); animation: fade-in 160ms ease; }
+.sidepanel-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(15,31,56,0.5); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: fade-in 160ms ease; }
 .sidepanel {
   position: fixed; z-index: 51; background: #fff; display: flex; flex-direction: column;
   inset: auto 0 0 0; width: 100%; height: 100dvh; max-height: 100dvh;
@@ -409,11 +409,11 @@ img, table { max-width: 100%; }
 .combo-opt[aria-selected="true"] { font-weight: 700; color: var(--accent-700, #0a3fa8); }
 
 /* Confirm dialog */
-.confirm-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(15,31,56,0.55); display: grid; place-items: center; padding: 1rem; animation: fade-in 140ms ease; }
+.confirm-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(15,31,56,0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: grid; place-items: center; padding: 1rem; animation: fade-in 140ms ease; }
 .confirm-card { width: 100%; max-width: 26rem; animation: sheet-up 180ms ease; padding-bottom: calc(1rem + var(--safe-b)); }
 
 /* Drawer móvil navegación */
-.navdrawer-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(15,31,56,0.45); animation: fade-in 150ms ease; }
+.navdrawer-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(15,31,56,0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); animation: fade-in 150ms ease; }
 .navdrawer {
   position: fixed; z-index: 61; top: 0; right: 0; bottom: 0; width: min(320px, 88vw);
   background: #fff; box-shadow: -16px 0 48px rgba(15,31,56,0.25); display: flex; flex-direction: column;

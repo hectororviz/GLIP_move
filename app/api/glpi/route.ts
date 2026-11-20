@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { glpiFetch, enrich, ASSET_TYPES } from "@/lib/glpi";
 import { inventoryVariants } from "@/lib/inventory";
-import { getAuth, isOperator } from "@/lib/auth";
+import { getAuth, isOperator, requireAuth } from "@/lib/auth";
 import { appendActivity } from "@/lib/activity";
 
 function params(o: Record<string, string>): string {
@@ -12,6 +12,8 @@ function params(o: Record<string, string>): string {
 // GET /api/glpi?location_id=42          -> activos del puesto (fan-out tipos)
 // GET /api/glpi?type=Computer&id=123    -> detalle enriquecido
 export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   const sp = req.nextUrl.searchParams;
   try {
     const id = sp.get("id");

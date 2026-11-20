@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin, requireAuth } from "@/lib/auth";
 import { loadConfig, saveConfig, encryptSecret, publicConfig } from "@/lib/config";
 
 // El GET sin esto se prerenderiza como estático y el standalone responde 405 a PUT.
 export const dynamic = "force-dynamic";
 
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   return NextResponse.json(publicConfig(await loadConfig()));
 }
 

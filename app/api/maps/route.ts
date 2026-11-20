@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin, requireAuth } from "@/lib/auth";
 import { loadFloors, saveFloors, createFloor, type Floor } from "@/lib/maps";
 
 
-// GET /api/maps -> lista de pisos con puestos
-export async function GET() {
+// GET /api/maps -> lista de pisos con puestos (requiere sesión)
+export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   return NextResponse.json({ floors: await loadFloors() });
 }
 

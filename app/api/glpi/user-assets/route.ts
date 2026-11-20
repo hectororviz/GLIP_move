@@ -1,12 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ASSET_TYPES, enrich, glpiFetch } from "@/lib/glpi";
+import { requireAuth } from "@/lib/auth";
 
 function params(o: Record<string, string>): string {
   return new URLSearchParams(o).toString();
 }
 
-// GET /api/glpi/user-assets?user_id=12 -> equipos del usuario agrupados por puesto
-export async function GET(req: Request) {
+// GET /api/glpi/user-assets?user_id=12 -> equipos del usuario agrupados por puesto (requiere sesión)
+export async function GET(req: NextRequest) {
+  const denied = requireAuth(req);
+  if (denied) return denied;
   const userId = Number(new URL(req.url).searchParams.get("user_id"));
   if (!userId) return NextResponse.json({ error: "Parámetro: ?user_id=" }, { status: 400 });
   try {

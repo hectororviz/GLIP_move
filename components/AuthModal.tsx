@@ -40,7 +40,7 @@ export default function AuthModal({ open, onClose, onSuccess }: {
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
       <div className="relative card p-5 w-full max-w-sm grid gap-3">
         <h2 className="font-bold text-lg">Iniciar sesión</h2>
         <p className="text-sm text-muted">

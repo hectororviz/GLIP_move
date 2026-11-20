@@ -29,7 +29,7 @@ export default function BatchScanModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
       <div ref={panelRef} tabIndex={-1} className="relative card w-full max-w-[480px] max-h-[92dvh] overflow-auto grid gap-2 p-4" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}>
         <div className="flex items-center justify-between gap-2">
           <b className="text-ink min-w-0 truncate">{title}</b>
