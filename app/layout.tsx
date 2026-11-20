@@ -1,11 +1,12 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import AppShell from "@/components/AppShell";
+import { withBase } from "@/lib/base";
 
 export const metadata: Metadata = {
   title: "GLPI Move — Control de puestos",
   description: "Registro y consulta de bienes GLPI con mapa de puestos",
-  manifest: "/manifest.webmanifest",
+  manifest: withBase("/manifest.webmanifest"),
   appleWebApp: { capable: true, title: "GLPI Move" },
 };
 

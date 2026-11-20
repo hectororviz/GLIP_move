@@ -9,6 +9,8 @@ import { clasificarPuesto, ESTADO_META, type EstadoPuesto } from "@/lib/puesto-s
 import { formatFloorName } from "@/lib/location-display";
 import { Spinner, SidePanel, AdminSection, TypeIcon, ExpandableMeta, decodeEntities } from "./ui";
 import AssetEditModal from "./AssetEditModal";
+import Link from "next/link";
+import { withBase } from "@/lib/base";
 
 type Puesto = { glpi_id: number; x: number; y: number; w: number; h: number };
 type Floor = { id: string; name: string; image: string | null; glpiLocationId: number | null; puestos: Puesto[] };
@@ -122,14 +124,14 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   const { byId, childrenOf, refresh: refreshLoc } = useLocations();
 
   useEffect(() => {
-    fetch("/api/config").then((r) => r.json()).then((j) => setGlpiBase((j.glpiBaseUrl || "").replace(/\/$/, ""))).catch(() => {});
+    fetch(withBase("/api/config")).then((r) => r.json()).then((j) => setGlpiBase((j.glpiBaseUrl || "").replace(/\/$/, ""))).catch(() => {});
     const syncAuth = () => {
-      fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); }).catch(() => {});
+      fetch(withBase("/api/auth/me")).then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); else setAuthUser(null); }).catch(() => {});
     };
     syncAuth();
     window.addEventListener("auth-changed", syncAuth);
     if (calibrar) {
-      fetch("/api/admin/check").then((r) => r.json()).then((j) => {
+      fetch(withBase("/api/admin/check")).then((r) => r.json()).then((j) => {
         setAdminAuthed(!!j.admin);
         if (!j.admin) setAuthOpen(true);
       }).catch(() => setAuthOpen(true));
@@ -161,7 +163,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   };
 
   useEffect(() => {
-    fetch("/api/maps").then((r) => r.json()).then((j) => {
+    fetch(withBase("/api/maps")).then((r) => r.json()).then((j) => {
       const fl: Floor[] = j.floors || [];
       setFloors(fl);
       if (!floorParam && fl.length) setFloorId((cur) => cur || fl[0].id);
@@ -173,7 +175,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   useEffect(() => {
     if (calibrar) return;
     setDashLoading(true);
-    fetch("/api/dashboard", { cache: "no-store" })
+    fetch(withBase("/api/dashboard"), { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
         if (j.estados) {
@@ -234,7 +236,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     // 2) Si no hay coincidencia local, resolver inventario en GLPI y mapear a puesto.
     if (!out.length) {
       try {
-        const r = await fetch(`/api/glpi?q=${encodeURIComponent(q)}&type=all`);
+        const r = await fetch(withBase(`/api/glpi?q=${encodeURIComponent(q)}&type=all`));
         const j = await r.json();
         const list: any[] = j.items || [];
         for (const a of list.slice(0, 8)) {
@@ -352,7 +354,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (!ids.length) return map;
     await Promise.all(ids.map(async (id) => {
       try {
-        const r = await fetch(`/api/glpi/users?id=${id}`);
+        const r = await fetch(withBase(`/api/glpi/users?id=${id}`));
         const j = await r.json();
         // Ocultar inactivos/borrados (ej. *-old): no entran al mapa ni a la ficha.
         if (j.user?.display && j.user.isActive !== false && !j.user.isDeleted) map[id] = j.user.display;
@@ -387,7 +389,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     setSelOccupants([]);
     setDetailAsset(null); assetDirtyRef.current = false;
     setPuestoPanel(true);
-    const r = await fetch(`/api/glpi?location_id=${p.glpi_id}`);
+    const r = await fetch(withBase(`/api/glpi?location_id=${p.glpi_id}`));
     const j = await r.json();
     if (!r.ok) { setMsg("Error: " + j.error); setItems([]); return; }
     const loaded: Asset[] = j.items || [];
@@ -402,7 +404,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     }
     // Personas ubicadas en el puesto (User.locations_id) aunque no tengan bienes
     try {
-      const ur = await fetch(`/api/glpi/users?location_id=${p.glpi_id}`);
+      const ur = await fetch(withBase(`/api/glpi/users?location_id=${p.glpi_id}`));
       const uj = await ur.json();
       if (ur.ok && Array.isArray(uj.users)) {
         for (const u of uj.users) {
@@ -426,7 +428,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       const myToken = ++openToken.current;
       Promise.all(userIds.map(async (id): Promise<[number, Asset[]]> => {
         try {
-          const ur = await fetch(`/api/glpi/user-assets?user_id=${id}`);
+          const ur = await fetch(withBase(`/api/glpi/user-assets?user_id=${id}`));
           const uj = await ur.json();
           if (!ur.ok) return [id, []];
           const all: Asset[] = [...(uj.groups || []).flatMap((g: any) => g.items || []), ...(uj.unlocated || [])];
@@ -454,13 +456,13 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     let found: Asset | undefined;
     if (parsed) {
       setMsg(`Buscando ${parsed.type} #${parsed.id}...`);
-      const r = await fetch(`/api/glpi?type=${encodeURIComponent(parsed.type)}&id=${parsed.id}`);
+      const r = await fetch(withBase(`/api/glpi?type=${encodeURIComponent(parsed.type)}&id=${parsed.id}`));
       const j = await r.json();
       found = r.ok ? j.item : undefined;
       if (!found) { setMsg("No existe ese bien en GLPI"); return; }
     } else {
       setMsg("Buscando inventario " + inv + "...");
-      const s = await fetch(`/api/glpi?q=${encodeURIComponent(inv)}&type=all`).then((r) => r.json());
+      const s = await fetch(withBase(`/api/glpi?q=${encodeURIComponent(inv)}&type=all`)).then((r) => r.json());
       const list: Asset[] = s.items || [];
       const variants = new Set(inventoryVariants(inv).map((v) => v.toUpperCase()));
       found = list.find((it) => variants.has(String(it.otherserial || "").trim().toUpperCase())) || list[0];
@@ -472,9 +474,9 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       if (!confirm(`Este equipo es de ${owner} (${fromLoc}). ¿Moverlo al puesto ${nameOf(sel.glpi_id)}? Conservará su usuario.`)) return;
     }
     if (opts.replace) {
-      await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: opts.replace._type, id: opts.replace.id, location_id: null }) });
+      await fetch(withBase("/api/glpi"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: opts.replace._type, id: opts.replace.id, location_id: null }) });
     }
-    const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: found._type, id: found.id, location_id: sel.glpi_id }) });
+    const r = await fetch(withBase("/api/glpi"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: found._type, id: found.id, location_id: sel.glpi_id }) });
     const j = await r.json();
     setMsg(r.ok ? `Asignado ${found._type} ${found.otherserial || found.name} → ${nameOf(sel.glpi_id)}` : "Error: " + j.error);
     setScanMode(null); setManualInv("");
@@ -484,7 +486,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   async function unassign(a: Asset) {
     if (!confirm(`Quitar ${a._type} ${a.otherserial || a.name} del puesto? Quedará sin ubicación.`)) return;
-    const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, location_id: null }) });
+    const r = await fetch(withBase("/api/glpi"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, location_id: null }) });
     const j = await r.json().catch(() => ({}));
     setMsg(r.ok ? "Quitado (sin ubicación)" : `Error: ${j.error || r.status}`);
     if (r.ok && sel) openPuesto(sel);
@@ -493,7 +495,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
   async function searchOccupants() {
     if (!occQuery.trim()) return;
     setMsg("Buscando personas...");
-    const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(occQuery.trim())}`);
+    const r = await fetch(withBase(`/api/glpi/users?q=${encodeURIComponent(occQuery.trim())}`));
     const j = await r.json();
     if (!r.ok) { setMsg("Error: " + j.error); setOccResults([]); return; }
     setOccResults(j.users || []);
@@ -508,7 +510,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       if (!confirm(`Asignar a ${u.display} como ocupante de ${nameOf(sel.glpi_id)}? Se actualizará el usuario en ${items.length} equipo(s) (conservan el puesto).`)) return;
       setMsg("Asignando ocupante...");
       for (const a of items) {
-        const r = await fetch("/api/glpi", {
+        const r = await fetch(withBase("/api/glpi"), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: a._type, id: a.id, user_id: u.id }),
@@ -522,7 +524,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     }
     if (!confirm(`Asignar a ${u.display} en ${nameOf(sel.glpi_id)}? No se mueve ningún bien, solo queda marcada en el puesto.`)) return;
     setMsg("Asignando ocupante...");
-    const r = await fetch("/api/glpi/users", {
+    const r = await fetch(withBase("/api/glpi/users"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: u.id, location_id: sel.glpi_id }),
@@ -540,7 +542,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
       if (!confirm(`Quitar a ${name} del puesto? Se quitará como usuario de ${mine.length} equipo(s) (conservan el puesto).`)) return;
       setMsg("Quitando ocupante...");
       for (const a of mine) {
-        const r = await fetch("/api/glpi", {
+        const r = await fetch(withBase("/api/glpi"), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: a._type, id: a.id, user_id: null }),
@@ -554,7 +556,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     // Ocupante solo ubicado (puesto vacío): se deja sin puesto, sin tocar bienes.
     if (!confirm(`Quitar a ${name} de ${nameOf(sel.glpi_id)}? Quedará sin puesto (no se tocan bienes).`)) return;
     setMsg("Quitando ocupante...");
-    const r = await fetch("/api/glpi/users", {
+    const r = await fetch(withBase("/api/glpi/users"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, location_id: 0 }),
@@ -571,7 +573,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (v && v === cur) { setRoomMsg("Sin cambios."); return; }
     if (!v && cur && !confirm(`Quitar el interno ${cur} del puesto ${nameOf(sel.glpi_id)}?`)) return;
     setRoomMsg("Guardando...");
-    const r = await fetch("/api/glpi/locations", {
+    const r = await fetch(withBase("/api/glpi/locations"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: sel.glpi_id, room: v }),
@@ -589,7 +591,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     if (!cur) return;
     if (!confirm(`Quitar el interno ${cur} del puesto ${nameOf(sel.glpi_id)}?`)) return;
     setRoomMsg("Quitando interno...");
-    const r = await fetch("/api/glpi/locations", {
+    const r = await fetch(withBase("/api/glpi/locations"), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: sel.glpi_id, room: "" }),
@@ -646,7 +648,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
 
   async function autoSave(next: Puesto[]) {
     if (!floor) return;
-    const r = await fetch("/api/maps", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: floor.id, puestos: next }) });
+    const r = await fetch(withBase("/api/maps"), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: floor.id, puestos: next }) });
     const j = await r.json();
     if (!r.ok) {
       if (r.status === 401) { setAdminAuthed(false); setAuthOpen(true); }
@@ -700,7 +702,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           <p className="text-muted">Inicia sesión para calibrar.</p>
           <button className="btn btn-primary w-fit mx-auto" onClick={() => setAuthOpen(true)}>Iniciar sesión</button>
         </div>
-        <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onSuccess={() => { fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {}); fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
+        <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onSuccess={() => { fetch(withBase("/api/auth/me")).then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {}); fetch(withBase("/api/admin/check")).then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
       </div>
     );
   }
@@ -795,11 +797,11 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           </div>
         )}
         {!floor ? (
-          <p className="text-sm text-slate-500 bg-white rounded p-4">Sin pisos configurados. Crea uno y sube su plano en <a className="underline" href="/config">/config</a>.</p>
+          <p className="text-sm text-slate-500 bg-white rounded p-4">Sin pisos configurados. Crea uno y sube su plano en <Link className="underline" href="/config">/config</Link>.</p>
         ) : !floor.image ? (
-          <p className="text-sm text-slate-500 bg-white rounded p-4">El piso "{floor.name}" no tiene plano. <a className="underline" href="/config">Súbelo en /config</a>.</p>
+          <p className="text-sm text-slate-500 bg-white rounded p-4">El piso "{floor.name}" no tiene plano. <Link className="underline" href="/config">Súbelo en /config</Link>.</p>
         ) : noParent ? (
-          <p className="text-sm text-amber-800 bg-amber-50 border rounded p-4">Este piso no tiene ubicación GLPI padre. <a className="underline" href="/config">Vincúlalo en /config</a> para dibujar puestos.</p>
+          <p className="text-sm text-amber-800 bg-amber-50 border rounded p-4">Este piso no tiene ubicación GLPI padre. <Link className="underline" href="/config">Vincúlalo en /config</Link> para dibujar puestos.</p>
         ) : (
             <div ref={mapWrapRef} className={`relative ${isFull ? "bg-white" : ""}`}>
             <TransformWrapper ref={transformRef} minScale={0.5} maxScale={8} panning={{ disabled: panDisabled }}>
@@ -936,7 +938,7 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           </div>
         )}
         {!calibrar && (
-          <p className="text-xs text-slate-500 mt-2">Zoom con rueda/pinch, click en puesto para ver equipos. <a className="underline" href={`/mapa?calibrar=1${floor ? `&floor=${floor.id}` : ""}`}>Calibrar puestos</a></p>
+          <p className="text-xs text-slate-500 mt-2">Zoom con rueda/pinch, click en puesto para ver equipos. <Link className="underline" href={`/mapa?calibrar=1${floor ? `&floor=${floor.id}` : ""}`}>Calibrar puestos</Link></p>
         )}
       </div>
 
@@ -1173,8 +1175,8 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
           open={authOpen}
           onClose={() => { setAuthOpen(false); pendingAction.current = null; }}
           onSuccess={() => {
-            fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {});
-            fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {});
+            fetch(withBase("/api/auth/me")).then((r) => r.json()).then((j) => { if (j.authenticated) setAuthUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate }); }).catch(() => {});
+            fetch(withBase("/api/admin/check")).then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {});
             window.dispatchEvent(new Event("auth-changed"));
             const a = pendingAction.current; pendingAction.current = null;
             if (a) a();

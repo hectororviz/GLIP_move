@@ -7,6 +7,7 @@ import { inventoryVariants, parseGlpiUrl } from "@/lib/inventory";
 import { comparePisos, formatLocationDisplay } from "@/lib/location-display";
 import { Spinner, TypeIcon, SearchCombobox, ConfirmDialog } from "@/components/ui";
 import { IconUser } from "@/components/icons";
+import { withBase } from "@/lib/base";
 
 type Asset = any;
 type AuthUser = { login: string; name: string; profiles: string[]; canOperate: boolean };
@@ -76,7 +77,7 @@ export default function Masivo() {
   // ---- auth (mismo patrón que /buscar) ----
   useEffect(() => {
     const syncAuth = () => {
-      fetch("/api/auth/me")
+      fetch(withBase("/api/auth/me"))
         .then((r) => r.json())
         .then((j) => {
           if (j.authenticated)
@@ -102,7 +103,7 @@ export default function Masivo() {
 
   // ---- pisos con mapa + puestos hijos ----
   useEffect(() => {
-    fetch("/api/maps")
+    fetch(withBase("/api/maps"))
       .then((r) => r.json())
       .then((j) => {
         if (Array.isArray(j?.floors)) {
@@ -166,11 +167,11 @@ export default function Masivo() {
   async function lookup(code: string): Promise<Asset | null> {
     const parsed = parseGlpiUrl(code);
     if (parsed) {
-      const r = await fetch(`/api/glpi?type=${encodeURIComponent(parsed.type)}&id=${parsed.id}`);
+      const r = await fetch(withBase(`/api/glpi?type=${encodeURIComponent(parsed.type)}&id=${parsed.id}`));
       const j = await r.json();
       return r.ok ? j.item : null;
     }
-    const s = await fetch(`/api/glpi?q=${encodeURIComponent(code.trim())}&type=all`).then((r) => r.json());
+    const s = await fetch(withBase(`/api/glpi?q=${encodeURIComponent(code.trim())}&type=all`)).then((r) => r.json());
     const list: Asset[] = s.items || [];
     if (!list.length) return null;
     const variants = new Set(inventoryVariants(code).map((v) => v.toUpperCase()));
@@ -294,7 +295,7 @@ export default function Masivo() {
     for (let i = 0; i < targets.length; i++) {
       const r = targets[i];
       try {
-        const resp = await fetch("/api/glpi", {
+        const resp = await fetch(withBase("/api/glpi"), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: r.asset._type, id: r.asset.id, location_id: dest }),
@@ -363,7 +364,7 @@ export default function Masivo() {
               pendingAction.current = null;
             }}
             onSuccess={() => {
-              fetch("/api/auth/me")
+              fetch(withBase("/api/auth/me"))
                 .then((r) => r.json())
                 .then((j) => {
                   if (j.authenticated)
@@ -724,7 +725,7 @@ export default function Masivo() {
             pendingAction.current = null;
           }}
           onSuccess={() => {
-            fetch("/api/auth/me")
+            fetch(withBase("/api/auth/me"))
               .then((r) => r.json())
               .then((j) => {
                 if (j.authenticated)

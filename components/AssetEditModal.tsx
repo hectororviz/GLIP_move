@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { comparePisos, formatLocationDisplay } from "@/lib/location-display";
 import { AdminSection, ConfirmDialog, SearchCombobox, BusyButton, CopyButton, decodeEntities } from "./ui";
 import { IconBuilding, IconUser } from "./icons";
+import Link from "next/link";
+import { withBase } from "@/lib/base";
 
 type Asset = any;
 type Person = { id: number; display: string };
@@ -77,7 +79,7 @@ export default function AssetEditModal({
   useEffect(() => {
     if (!canEdit) return;
     setFloorsLoading(true);
-    fetch("/api/maps").then((r) => r.json()).then((j) => {
+    fetch(withBase("/api/maps")).then((r) => r.json()).then((j) => {
       if (Array.isArray(j?.floors)) {
         setFloors(j.floors.filter((f: any) => f && f.glpiLocationId != null).map((f: any) => ({
           id: String(f.id),
@@ -126,7 +128,7 @@ export default function AssetEditModal({
     setBusy(true);
     setErr("");
     try {
-      const r = await fetch("/api/glpi", {
+      const r = await fetch(withBase("/api/glpi"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: asset._type, id: asset.id, ...body }),
@@ -171,7 +173,7 @@ export default function AssetEditModal({
     const term = (q ?? pq).trim();
     if (!term) return;
     setPmsg("Buscando personas…");
-    const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(term)}`);
+    const r = await fetch(withBase(`/api/glpi/users?q=${encodeURIComponent(term)}`));
     const j = await r.json();
     if (!r.ok) { setPmsg("Error: " + j.error); setPresults([]); return; }
     setPresults(j.users || []);
@@ -244,13 +246,13 @@ export default function AssetEditModal({
               {compact.secondary && <span className="text-muted text-xs block truncate">{compact.secondary}</span>}
             </span>
             {hasLoc && !compact.isFloorOnly && (
-              <a
+              <Link
                 className="btn btn-secondary text-xs shrink-0"
                 href={`/mapa?focus=${asset._locationId}`}
                 aria-label={`Ver ${compact.primary} en el mapa`}
               >
                 Ver en mapa →
-              </a>
+              </Link>
             )}
           </div>
           {!hasLoc && <span className="badge badge-warning w-fit">Sin ubicación — sin puesto asignado</span>}

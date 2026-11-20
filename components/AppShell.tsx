@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import AuthButton from "./AuthButton";
 import { IconLock } from "./icons";
+import { withBase } from "@/lib/base";
 
 type PubConfig = { appName?: string; accentColor?: string; brandIcon?: string | null };
 
@@ -20,7 +21,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true;
     const load = () => {
-      fetch("/api/config", { cache: "no-store" })
+      fetch(withBase("/api/config"), { cache: "no-store" })
         .then((r) => r.json())
         .then((j) => { if (alive) setCfg({ appName: j.appName || "GLPI Move", accentColor: j.accentColor || "#0b5ed7", brandIcon: j.brandIcon || null }); })
         .catch(() => {});
@@ -34,13 +35,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAdmin = () => {
-      fetch("/api/admin/check", { cache: "no-store" })
+      fetch(withBase("/api/admin/check"), { cache: "no-store" })
         .then((r) => r.json())
         .then((j) => setIsAdmin(!!j.admin))
         .catch(() => setIsAdmin(false));
     };
     const checkOperate = () => {
-      fetch("/api/auth/me", { cache: "no-store" })
+      fetch(withBase("/api/auth/me"), { cache: "no-store" })
         .then((r) => r.json())
         .then((j) => {
           setCanOperate(!!j.canOperate);
@@ -71,12 +72,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     document.title = cfg.appName || "GLPI Move";
     let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
     if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
-    if (cfg.brandIcon) link.href = "/api/brand/icon";
-    else link.href = "/icon.png";
+    if (cfg.brandIcon) link.href = withBase("/api/brand/icon");
+    else link.href = withBase("/icon.png");
+    // Next emite el <link rel="manifest"> sin basePath: corregirlo en runtime (no-op en raíz).
+    const man = document.querySelector("link[rel='manifest']") as HTMLLinkElement | null;
+    if (man) man.href = withBase("/manifest.webmanifest");
   }, [cfg]);
 
   useEffect(() => {
     setOpen(false);
+    // Tras navegación cliente Next re-emite el <link rel="manifest"> sin basePath: reafirmar.
+    const man = document.querySelector("link[rel='manifest']") as HTMLLinkElement | null;
+    const want = withBase("/manifest.webmanifest");
+    if (man && man.getAttribute("href") !== want) man.href = want;
   }, [pathname]);
 
   // Cerrar drawer con Escape + foco al contenedor + bloqueo scroll
@@ -125,7 +133,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="flex items-center gap-2 min-w-0 flex-1 md:flex-none" aria-label="CTIC Agencia IDi — Inicio">
             {cfg.brandIcon ? (
               <img
-                src="/api/brand/icon"
+                src={withBase("/api/brand/icon")}
                 alt=""
                 className="h-9 w-9 shrink-0 rounded-xl object-contain bg-white border border-line"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; const fb = e.currentTarget.nextElementSibling as HTMLElement | null; if (fb) fb.style.display = "flex"; }}

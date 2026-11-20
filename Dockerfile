@@ -10,6 +10,9 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 RUN npm ci --no-audit --no-fund && npx prisma generate
 COPY . ./
+ARG NEXT_BASE_PATH=
+ARG NEXT_PUBLIC_BASE_PATH=
+ENV NEXT_BASE_PATH=$NEXT_BASE_PATH NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 RUN npm run build
 
 FROM node:20-slim AS runner

@@ -1,6 +1,13 @@
 node_modules
+.next
 data
 .git
+.gitignore
 npm-debug.log
-.env
+.env*
 !.env.example
+*.tgz
+*.sql.gz
+import.csv
+TODO.txt
+.playwright-mcp

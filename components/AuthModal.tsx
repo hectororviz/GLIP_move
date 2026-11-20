@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { withBase } from "@/lib/base";
 
 export default function AuthModal({ open, onClose, onSuccess }: {
   open: boolean;
@@ -18,7 +19,7 @@ export default function AuthModal({ open, onClose, onSuccess }: {
     setBusy(true);
     setMsg("");
     try {
-      const url = local ? "/api/config/login" : "/api/auth/login";
+      const url = local ? withBase("/api/config/login") : withBase("/api/auth/login");
       const body = local ? { password } : { login, password };
       const r = await fetch(url, {
         method: "POST",

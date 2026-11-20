@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { Floor } from "@/lib/maps";
+import { withBase } from "@/lib/base";
 
 export type GLoc = { id: number; name: string; completename: string; parentId: number | null; room?: string | null };
 
@@ -11,7 +12,7 @@ export function useLocations() {
   const load = async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/glpi/locations");
+      const r = await fetch(withBase("/api/glpi/locations"));
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Error");
       setLocations(j.locations || []);

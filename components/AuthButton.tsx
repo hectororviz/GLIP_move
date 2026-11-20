@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import AuthModal from "./AuthModal";
+import { withBase } from "@/lib/base";
 
 export type AuthInfo = { login: string; name: string; profiles: string[]; canOperate: boolean };
 
@@ -14,7 +15,7 @@ export default function AuthButton({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
 
   const refresh = useCallback(() => {
-    fetch("/api/auth/me", { cache: "no-store" })
+    fetch(withBase("/api/auth/me"), { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
         if (j.authenticated) setUser({ login: j.user.login, name: j.user.name, profiles: j.user.profiles, canOperate: j.canOperate });
@@ -34,7 +35,7 @@ export default function AuthButton({ compact = false }: { compact?: boolean }) {
   }, [refresh]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    await fetch(withBase("/api/auth/logout"), { method: "POST" }).catch(() => {});
     setUser(null);
     notifyAuthChanged();
   }

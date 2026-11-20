@@ -1,4 +1,4 @@
-name: build & publish image
+name: build & publish images
 
 on:
   push:
@@ -16,6 +16,22 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          # Raíz (/): comportamiento actual, sin cambios.
+          - variant: root
+            base_path: ""
+            sha_prefix: ""
+            stable_tags: |
+              type=raw,value=latest,enable={{is_default_branch}}
+              type=ref,event=tag
+          # Prefijo /move/: misma base de código, compilada con basePath.
+          - variant: move
+            base_path: /move
+            sha_prefix: "move-"
+            stable_tags: |
+              type=raw,value=move,enable={{is_default_branch}}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,9 +48,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=,format=short
-            type=ref,event=tag
+            ${{ matrix.stable_tags }}
+            type=sha,prefix=${{ matrix.sha_prefix }},format=short
 
       - uses: docker/build-push-action@v6
         with:
@@ -42,7 +57,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_BASE_PATH=${{ matrix.base_path }}
+            NEXT_PUBLIC_BASE_PATH=${{ matrix.base_path }}
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
           # El VPS Rocky es x86_64. Si aparece ARM, agregar linux/arm64.
           platforms: linux/amd64

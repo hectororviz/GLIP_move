@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { SegmentedBar, Spinner } from "@/components/ui";
 import { formatFloorName } from "@/lib/location-display";
+import { withBase } from "@/lib/base";
 
 const RECENT_VISIBLE = 8;
 
@@ -32,7 +33,7 @@ export default function Home() {
     setLoading(true);
     setError("");
     try {
-      const r = await fetch("/api/dashboard", { cache: "no-store" });
+      const r = await fetch(withBase("/api/dashboard"), { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Error");
       setDash(j);
@@ -47,7 +48,7 @@ export default function Home() {
 
   useEffect(() => {
     const check = () => {
-      fetch("/api/auth/me", { cache: "no-store" })
+      fetch(withBase("/api/auth/me"), { cache: "no-store" })
         .then((r) => r.json())
         .then((j) => setCanOperate(!!j.canOperate))
         .catch(() => setCanOperate(false));

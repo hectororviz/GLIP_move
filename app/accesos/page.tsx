@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AuthModal from "@/components/AuthModal";
 import { Spinner, EmptyState, SidePanel, Tabs, AdminSection, SearchCombobox, ConfirmDialog, CopyButton, BusyButton, PermBadges, ExpandableMeta, decodeEntities } from "@/components/ui";
 import { IconDownload, IconEye, IconFolder, IconMail, IconPlus, IconUser, IconBuilding } from "@/components/icons";
+import { withBase } from "@/lib/base";
 
 type Area = { id: string; nombre: string; responsableUserId: number; responsableNombre: string | null; mails: number; shares: number };
 type Mail = { id: string; nombre: string; direccion: string; areaId: string; area: string; personas: number; envian: number; reciben: number };
@@ -90,7 +91,7 @@ function UserSearch({ value, onPick }: { value: GlpiUser | null; onPick: (u: Glp
     setBusy(true);
     setMsg("Buscando…");
     try {
-      const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(t)}`);
+      const r = await fetch(withBase(`/api/glpi/users?q=${encodeURIComponent(t)}`));
       const j = await r.json();
       if (!r.ok) { setMsg("Error: " + (j.error || r.status)); setRes([]); return; }
       setRes(j.users || []);
@@ -236,23 +237,23 @@ export default function Accesos() {
   async function refreshPanelFor(p: Panel) {
     try {
       if (p.kind === "area") {
-        const r = await fetch(`/api/access/overview?area=${encodeURIComponent(p.area.id)}`);
+        const r = await fetch(withBase(`/api/access/overview?area=${encodeURIComponent(p.area.id)}`));
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
         const found = (j.areas || [])[0];
         if (found) setPanelBoth({ kind: "area", area: p.area, mails: found.mails || [], shares: found.shares || [] });
       } else if (p.kind === "mail") {
-        const r = await fetch(`/api/access/grants?accountId=${encodeURIComponent(p.mail.id)}`);
+        const r = await fetch(withBase(`/api/access/grants?accountId=${encodeURIComponent(p.mail.id)}`));
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
         setPanelBoth({ kind: "mail", mail: j.mail || p.mail, personas: j.personas || [] });
       } else if (p.kind === "share") {
-        const r = await fetch(`/api/access/grants?shareId=${encodeURIComponent(p.share.id)}`);
+        const r = await fetch(withBase(`/api/access/grants?shareId=${encodeURIComponent(p.share.id)}`));
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
         setPanelBoth({ kind: "share", share: j.share || p.share, personas: j.personas || [] });
       } else {
-        const r = await fetch(`/api/access/grants?user_id=${p.user.id}`);
+        const r = await fetch(withBase(`/api/access/grants?user_id=${p.user.id}`));
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
         setPanelBoth({ kind: "person", user: p.user, mails: j.mails || [], shares: j.shares || [] });
@@ -267,7 +268,7 @@ export default function Accesos() {
     const key = `${scope}:${id}`;
     setExporting(key);
     try {
-      const r = await fetch(`/api/access/export?scope=${scope}&id=${encodeURIComponent(id)}`);
+      const r = await fetch(withBase(`/api/access/export?scope=${scope}&id=${encodeURIComponent(id)}`));
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         setMsg(j.error || `Error ${r.status}`);
@@ -288,7 +289,7 @@ export default function Accesos() {
   }
 
   const refreshAuth = useCallback(() => {
-    fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).then((j) => {
+    fetch(withBase("/api/auth/me"), { cache: "no-store" }).then((r) => r.json()).then((j) => {
       setCanOperate(!!j.canOperate);
       setAccess(j.access ? j.access : (j.canOperate ? "full" : "none"));
       setLogin(j.authenticated ? (j.user?.login || "") : "");
@@ -306,9 +307,9 @@ export default function Accesos() {
     setMsg("");
     try {
       const [a, m, s] = await Promise.all([
-        fetch("/api/access/areas").then((r) => r.json()),
-        fetch(`/api/access/mails${areaFilter ? `?area=${encodeURIComponent(areaFilter)}` : ""}`).then((r) => r.json()),
-        fetch(`/api/access/shares${areaFilter ? `?area=${encodeURIComponent(areaFilter)}` : ""}`).then((r) => r.json()),
+        fetch(withBase("/api/access/areas")).then((r) => r.json()),
+        fetch(withBase(`/api/access/mails${areaFilter ? `?area=${encodeURIComponent(areaFilter)}` : ""}`)).then((r) => r.json()),
+        fetch(withBase(`/api/access/shares${areaFilter ? `?area=${encodeURIComponent(areaFilter)}` : ""}`)).then((r) => r.json()),
       ]);
       if (a.error) throw new Error(a.error);
       if (m.error) throw new Error(m.error);
@@ -329,7 +330,7 @@ export default function Accesos() {
   async function openAreaDetail(a: Area, push = true) {
     if (push) openPanel({ kind: "area", area: a, mails: [], shares: [] });
     try {
-      const r = await fetch(`/api/access/overview?area=${encodeURIComponent(a.id)}`);
+      const r = await fetch(withBase(`/api/access/overview?area=${encodeURIComponent(a.id)}`));
       const j = await r.json();
       if (!r.ok) { setMsg(j.error || "Error"); return; }
       const found = (j.areas || [])[0];
@@ -342,7 +343,7 @@ export default function Accesos() {
   async function openMailDetail(m: Mail, push = true) {
     if (push) openPanel({ kind: "mail", mail: m, personas: [] });
     try {
-      const r = await fetch(`/api/access/grants?accountId=${encodeURIComponent(m.id)}`);
+      const r = await fetch(withBase(`/api/access/grants?accountId=${encodeURIComponent(m.id)}`));
       const j = await r.json();
       if (!r.ok) { setMsg(j.error || "Error"); return; }
       setPanelBoth({ kind: "mail", mail: j.mail || m, personas: j.personas || [] });
@@ -354,7 +355,7 @@ export default function Accesos() {
   async function openShareDetail(s: Share, push = true) {
     if (push) openPanel({ kind: "share", share: s, personas: [] });
     try {
-      const r = await fetch(`/api/access/grants?shareId=${encodeURIComponent(s.id)}`);
+      const r = await fetch(withBase(`/api/access/grants?shareId=${encodeURIComponent(s.id)}`));
       const j = await r.json();
       if (!r.ok) { setMsg(j.error || "Error"); return; }
       setPanelBoth({ kind: "share", share: j.share || s, personas: j.personas || [] });
@@ -366,7 +367,7 @@ export default function Accesos() {
   async function openPersonDetail(p: GlpiUser, push = true) {
     if (push) openPanel({ kind: "person", user: p, mails: [], shares: [] });
     try {
-      const r = await fetch(`/api/access/grants?user_id=${p.id}`);
+      const r = await fetch(withBase(`/api/access/grants?user_id=${p.id}`));
       const j = await r.json();
       if (!r.ok) { setMsg(j.error || "Error"); return; }
       setPanelBoth({ kind: "person", user: p, mails: j.mails || [], shares: j.shares || [] });
@@ -392,7 +393,7 @@ export default function Accesos() {
     try {
       const body: any = areaModal.id ? { id: areaModal.id, nombre: areaModal.nombre.trim() } : { nombre: areaModal.nombre.trim(), responsableUserId: areaModal.resp!.id };
       if (areaModal.id && areaModal.resp) body.responsableUserId = areaModal.resp.id;
-      const r = await fetch("/api/access/areas", { method: areaModal.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(withBase("/api/access/areas"), { method: areaModal.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json();
       if (!r.ok) { setFormErr(j.error || `Error ${r.status}`); return; }
       setAreaModal(null);
@@ -404,7 +405,7 @@ export default function Accesos() {
   }
 
   async function execDeleteArea(a: Area) {
-    const r = await fetch(`/api/access/areas?id=${encodeURIComponent(a.id)}`, { method: "DELETE" });
+    const r = await fetch(withBase(`/api/access/areas?id=${encodeURIComponent(a.id)}`), { method: "DELETE" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
       setPanelErr(j.error || `Error ${r.status}`);
@@ -426,7 +427,7 @@ export default function Accesos() {
     setFormErr("");
     try {
       const body: any = mailModal.id ? { ...mailModal } : { nombre: mailModal.nombre.trim(), direccion: mailModal.direccion.trim(), areaId: mailModal.areaId };
-      const r = await fetch("/api/access/mails", { method: mailModal.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(withBase("/api/access/mails"), { method: mailModal.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json();
       if (!r.ok) { setFormErr(j.error || `Error ${r.status}`); return; }
       setMailModal(null);
@@ -438,7 +439,7 @@ export default function Accesos() {
   }
 
   async function execDeleteMail(m: Mail, force: boolean) {
-    const r = await fetch(`/api/access/mails?id=${encodeURIComponent(m.id)}${force ? "&force=1" : ""}`, { method: "DELETE" });
+    const r = await fetch(withBase(`/api/access/mails?id=${encodeURIComponent(m.id)}${force ? "&force=1" : ""}`), { method: "DELETE" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
       if (r.status === 409 && !force) {
@@ -466,7 +467,7 @@ export default function Accesos() {
       const body: any = shareModal.id
         ? { id: shareModal.id, nombre: shareModal.nombre.trim(), ruta: shareModal.ruta.trim(), areaId: shareModal.areaId }
         : { nombre: shareModal.nombre.trim(), ruta: shareModal.ruta.trim(), areaId: shareModal.areaId };
-      const r = await fetch("/api/access/shares", { method: shareModal.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(withBase("/api/access/shares"), { method: shareModal.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json();
       if (!r.ok) { setFormErr(j.error || `Error ${r.status}`); return; }
       setShareModal(null);
@@ -478,7 +479,7 @@ export default function Accesos() {
   }
 
   async function execDeleteShare(s: Share, force: boolean) {
-    const r = await fetch(`/api/access/shares?id=${encodeURIComponent(s.id)}${force ? "&force=1" : ""}`, { method: "DELETE" });
+    const r = await fetch(withBase(`/api/access/shares?id=${encodeURIComponent(s.id)}${force ? "&force=1" : ""}`), { method: "DELETE" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
       if (r.status === 409 && !force) {
@@ -499,7 +500,7 @@ export default function Accesos() {
   async function addMailGrant() {
     const cur = panelRef.current;
     if (cur?.kind !== "mail" || !grantUser) return;
-    const r = await fetch("/api/access/grants", {
+    const r = await fetch(withBase("/api/access/grants"), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scope: "mail", accountId: cur.mail.id, userId: grantUser.id, canSend: grantSend, canRead: grantRead }),
     });
@@ -513,7 +514,7 @@ export default function Accesos() {
   }
 
   async function updateMailGrant(g: MailGrant, patch: Partial<MailGrant>) {
-    const r = await fetch("/api/access/grants", {
+    const r = await fetch(withBase("/api/access/grants"), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scope: "mail", accountId: g.accountId, userId: g.userId, canSend: patch.canSend ?? g.canSend, canRead: patch.canRead ?? g.canRead }),
     });
@@ -525,7 +526,7 @@ export default function Accesos() {
   }
 
   async function execRemoveMailGrant(g: MailGrant) {
-    await fetch(`/api/access/grants?scope=mail&accountId=${encodeURIComponent(g.accountId)}&userId=${g.userId}`, { method: "DELETE" });
+    await fetch(withBase(`/api/access/grants?scope=mail&accountId=${encodeURIComponent(g.accountId)}&userId=${g.userId}`), { method: "DELETE" });
     setConfirmState(null);
     refreshCurrent();
     loadAll();
@@ -534,7 +535,7 @@ export default function Accesos() {
   async function addShareGrant() {
     const cur = panelRef.current;
     if (cur?.kind !== "share" || !grantUser) return;
-    const r = await fetch("/api/access/grants", {
+    const r = await fetch(withBase("/api/access/grants"), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ scope: "share", shareId: cur.share.id, userId: grantUser.id }),
     });
@@ -548,7 +549,7 @@ export default function Accesos() {
   }
 
   async function execRemoveShareGrant(g: ShareGrant) {
-    await fetch(`/api/access/grants?scope=share&shareId=${encodeURIComponent(g.shareId)}&userId=${g.userId}`, { method: "DELETE" });
+    await fetch(withBase(`/api/access/grants?scope=share&shareId=${encodeURIComponent(g.shareId)}&userId=${g.userId}`), { method: "DELETE" });
     setConfirmState(null);
     refreshCurrent();
     loadAll();
@@ -557,7 +558,7 @@ export default function Accesos() {
   async function searchPeople() {
     if (!pq.trim()) return;
     setPmsg("Buscando…");
-    const r = await fetch(`/api/glpi/users?q=${encodeURIComponent(pq.trim())}`);
+    const r = await fetch(withBase(`/api/glpi/users?q=${encodeURIComponent(pq.trim())}`));
     const j = await r.json();
     if (!r.ok) { setPmsg("Error: " + (j.error || r.status)); setPresults([]); return; }
     setPresults(j.users || []);

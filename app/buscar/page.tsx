@@ -7,6 +7,8 @@ import { Spinner, EmptyState, TypeIcon, SidePanel, AdminSection, PermBadges, Exp
 import { IconBuilding, IconCamera, IconDownload, IconEye, IconFolder, IconLock, IconMail, IconMonitor, IconPhone, IconUser } from "@/components/icons";
 import { formatLocationDisplay } from "@/lib/location-display";
 import AssetEditModal from "@/components/AssetEditModal";
+import { withBase } from "@/lib/base";
+import Link from "next/link";
 
 function CompactLocation({ locId, fallback, byId, wrap }: { locId: number | null | undefined; fallback: any; byId: Map<number, any>; wrap?: boolean }) {
   if (locId == null) return <span className="badge badge-warning">Sin ubicación</span>;
@@ -97,30 +99,30 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
     setBajaMsg("Aplicando baja...");
     try {
       for (const a of bajaStay) {
-        const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, user_id: null }) });
+        const r = await fetch(withBase("/api/glpi"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, user_id: null }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(`Bien ${a._type} ${a.id}: ${j.error || r.status}`);
       }
       for (const a of bajaMove) {
-        const r = await fetch("/api/glpi", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, user_id: null, location_id: GUARDA_ID }) });
+        const r = await fetch(withBase("/api/glpi"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: a._type, id: a.id, user_id: null, location_id: GUARDA_ID }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(`Bien ${a._type} ${a.id} → Guarda: ${j.error || r.status}`);
       }
       for (const g of accessMails) {
-        const r = await fetch(`/api/access/grants?scope=mail&accountId=${encodeURIComponent(g.accountId)}&userId=${p.id}`, { method: "DELETE" });
+        const r = await fetch(withBase(`/api/access/grants?scope=mail&accountId=${encodeURIComponent(g.accountId)}&userId=${p.id}`), { method: "DELETE" });
         if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(`Correo ${g.nombre || g.accountId}: ${j.error || r.status}`); }
       }
       for (const g of accessShares) {
-        const r = await fetch(`/api/access/grants?scope=share&shareId=${encodeURIComponent(g.shareId)}&userId=${p.id}`, { method: "DELETE" });
+        const r = await fetch(withBase(`/api/access/grants?scope=share&shareId=${encodeURIComponent(g.shareId)}&userId=${p.id}`), { method: "DELETE" });
         if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(`Carpeta ${g.nombre || g.shareId}: ${j.error || r.status}`); }
       }
       if (p.locationId) {
-        const r = await fetch("/api/glpi/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, location_id: 0 }) });
+        const r = await fetch(withBase("/api/glpi/users"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, location_id: 0 }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(`Puesto: ${j.error || r.status}`);
       }
       {
-        const r = await fetch("/api/glpi/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, is_active: 0 }) });
+        const r = await fetch(withBase("/api/glpi/users"), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, is_active: 0 }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(`Inactivar: ${j.error || r.status}`);
       }
@@ -139,7 +141,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
     setAssignBusy(true);
     setAssignMsg("Buscando bien...");
     try {
-      const s = await fetch(`/api/glpi?q=${encodeURIComponent(inv.trim())}&type=all`).then((r) => r.json());
+      const s = await fetch(withBase(`/api/glpi?q=${encodeURIComponent(inv.trim())}&type=all`)).then((r) => r.json());
       const list: Asset[] = s.items || [];
       const found: Asset | undefined = list[0];
       if (!found) { setAssignMsg("No existe ese bien en GLPI"); return; }
@@ -151,7 +153,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
       ].filter(Boolean).join(" · ");
       if (!confirm(`Asignar ${found._type} ${found.otherserial || found.name} a ${p.display}? ${extra}.`)) return;
       setAssignMsg("Asignando...");
-      const r = await fetch("/api/glpi", {
+      const r = await fetch(withBase("/api/glpi"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: found._type, id: found.id, user_id: p.id }),
@@ -192,7 +194,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
                   <b className="text-ink text-sm truncate" title={d.full}>{locName}</b>
                   <span className="text-xs text-muted tabular-nums shrink-0">· {g.items.length} eq.</span>
                 </span>
-                <a className="btn btn-secondary text-xs shrink-0" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</a>
+                <Link className="btn btn-secondary text-xs shrink-0" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</Link>
               </div>
               <ul aria-label={`Equipos en ${locName}`}>
                 {g.items.map((a) => (
@@ -286,7 +288,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
 
       {canSeeAccess && (
         <div className="grid gap-2 border-t pt-3">
-          <div className="text-sm font-semibold">Accesos (áreas / correos / carpetas) <a className="underline text-xs font-normal" href="/accesos">gestionar en Accesos →</a></div>
+          <div className="text-sm font-semibold">Accesos (áreas / correos / carpetas) <Link className="underline text-xs font-normal" href="/accesos">gestionar en Accesos →</Link></div>
           <div className="grid sm:grid-cols-2 gap-2">
             <div className="card p-3 grid gap-1">
               <b className="text-sm inline-flex items-center gap-1"><IconMail size={13} /> Correos ({accessMails.length})</b>
@@ -407,7 +409,7 @@ function PuestoCard({ p, floorLabel, onOpen }: { p: PuestoHit; floorLabel: strin
         </span>
       </button>
       <span className="flex gap-2 pl-11">
-        <a className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</a>
+        <Link className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</Link>
       </span>
     </article>
   );
@@ -501,7 +503,7 @@ export default function Buscar() {
     const key = `${scope}:${id}`;
     setExporting(key);
     try {
-      const r = await fetch(`/api/access/export?scope=${scope}&id=${encodeURIComponent(id)}`);
+      const r = await fetch(withBase(`/api/access/export?scope=${scope}&id=${encodeURIComponent(id)}`));
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         alert(j.error || `Error ${r.status}`);
@@ -522,7 +524,7 @@ export default function Buscar() {
   }
 
   const syncAuth = useCallback(() => {
-    fetch("/api/auth/me")
+    fetch(withBase("/api/auth/me"))
       .then((r) => r.json())
       .then((j) => {
         if (j.authenticated) {
@@ -562,10 +564,11 @@ export default function Buscar() {
     setSearched(true);
     closeDetail(false);
     try {
-      history.replaceState(null, "", `/buscar?q=${encodeURIComponent(query)}`);
+      // Solo query string: conserva la ruta actual (funciona en / y /move/).
+      history.replaceState(null, "", `${window.location.pathname}?q=${encodeURIComponent(query)}`);
     } catch {}
     try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: ctl.signal });
+      const r = await fetch(withBase(`/api/search?q=${encodeURIComponent(query)}`), { signal: ctl.signal });
       const j = await r.json();
       if (!r.ok) { setMsg("Error: " + (j.error || r.status)); setResults(null); return; }
       setResults(j.results);
@@ -599,7 +602,7 @@ export default function Buscar() {
     // Refrescar encabezado (puesto/estado) por si cambió en otra gestión.
     let head = p;
     try {
-      const ur = await fetch(`/api/glpi/users?id=${p.id}`);
+      const ur = await fetch(withBase(`/api/glpi/users?id=${p.id}`));
       const uj = await ur.json();
       if (ur.ok && uj.user?.id != null) {
         head = {
@@ -619,9 +622,9 @@ export default function Buscar() {
     setDetailPerson({ p: head, groups: [], unlocated: [], mails: [], shares: [] });
     try {
       const [ra, rg] = await Promise.all([
-        fetch(`/api/glpi/user-assets?user_id=${p.id}`).then((r) => r.json()),
+        fetch(withBase(`/api/glpi/user-assets?user_id=${p.id}`)).then((r) => r.json()),
         canOperate || canSeeAccess || authUser?.canOperate
-          ? fetch(`/api/access/grants?user_id=${p.id}`).then((r) => (r.ok ? r.json() : { mails: [], shares: [] })).catch(() => ({ mails: [], shares: [] }))
+          ? fetch(withBase(`/api/access/grants?user_id=${p.id}`)).then((r) => (r.ok ? r.json() : { mails: [], shares: [] })).catch(() => ({ mails: [], shares: [] }))
           : Promise.resolve({ mails: [], shares: [] }),
       ]);
       setDetailPerson({ p: head, groups: ra.groups || [], unlocated: ra.unlocated || [], mails: rg.mails || [], shares: rg.shares || [] });
@@ -633,7 +636,7 @@ export default function Buscar() {
     setDetailMail({ mail: m, personas: [] });
     if (!canSee) return;
     try {
-      const r = await fetch(`/api/access/grants?accountId=${encodeURIComponent(m.id)}`);
+      const r = await fetch(withBase(`/api/access/grants?accountId=${encodeURIComponent(m.id)}`));
       const j = await r.json();
       if (r.ok) setDetailMail({ mail: j.mail || m, personas: j.personas || [] });
     } catch {}
@@ -644,7 +647,7 @@ export default function Buscar() {
     setDetailShare({ share: s, personas: [] });
     if (!canSee) return;
     try {
-      const r = await fetch(`/api/access/grants?shareId=${encodeURIComponent(s.id)}`);
+      const r = await fetch(withBase(`/api/access/grants?shareId=${encodeURIComponent(s.id)}`));
       const j = await r.json();
       if (r.ok) setDetailShare({ share: j.share || s, personas: j.personas || [] });
     } catch {}
@@ -655,7 +658,7 @@ export default function Buscar() {
     setDetailArea({ area: a, mails: [], shares: [] });
     if (!canSee) return;
     try {
-      const r = await fetch(`/api/access/overview?area=${encodeURIComponent(a.id)}`);
+      const r = await fetch(withBase(`/api/access/overview?area=${encodeURIComponent(a.id)}`));
       const j = await r.json();
       const found = (j.areas || []).find((x: any) => x.id === a.id);
       if (found) setDetailArea({ area: a, mails: found.mails || [], shares: found.shares || [] });
@@ -666,7 +669,7 @@ export default function Buscar() {
     openDetail(true);
     setDetailPuesto({ loc: p, items: [], occupants: [], loading: true, error: "" });
     try {
-      const r = await fetch(`/api/glpi?location_id=${p.id}`);
+      const r = await fetch(withBase(`/api/glpi?location_id=${p.id}`));
       const j = await r.json();
       if (!r.ok) { setDetailPuesto({ loc: p, items: [], occupants: [], loading: false, error: j.error || `Error ${r.status}` }); return; }
       const items: Asset[] = j.items || [];
@@ -675,14 +678,14 @@ export default function Buscar() {
       const inactiveIds = new Set<number>();
       await Promise.all(ids.map(async (id) => {
         try {
-          const ur = await fetch(`/api/glpi/users?id=${id}`);
+          const ur = await fetch(withBase(`/api/glpi/users?id=${id}`));
           const uj = await ur.json();
           if (ur.ok && uj.user?.display && uj.user.isActive !== false && !uj.user.isDeleted) occMap.set(id, uj.user.display);
           else if (ur.ok && (uj.user?.isActive === false || uj.user?.isDeleted)) inactiveIds.add(id);
         } catch {}
       }));
       try {
-        const lr = await fetch(`/api/glpi/users?location_id=${p.id}`);
+        const lr = await fetch(withBase(`/api/glpi/users?location_id=${p.id}`));
         const lj = await lr.json();
         if (lr.ok && Array.isArray(lj.users)) for (const u of lj.users) if (u?.id != null && !occMap.has(u.id)) occMap.set(u.id, u.display || `Usuario #${u.id}`);
       } catch {}
@@ -703,7 +706,7 @@ export default function Buscar() {
 
   async function openPersonById(userId: number) {
     try {
-      const r = await fetch(`/api/glpi/users?id=${userId}`);
+      const r = await fetch(withBase(`/api/glpi/users?id=${userId}`));
       const j = await r.json();
       const u = j.user;
       if (!r.ok || !u || u.id == null) return;
@@ -737,7 +740,7 @@ export default function Buscar() {
   async function openPersonFromAsset(userId: number): Promise<boolean> {
     if (!detailAsset) return false;
     try {
-      const r = await fetch(`/api/glpi/users?id=${userId}`);
+      const r = await fetch(withBase(`/api/glpi/users?id=${userId}`));
       const j = await r.json();
       const u = j.user;
       if (!r.ok || !u || u.id == null) return false;
@@ -768,7 +771,7 @@ export default function Buscar() {
     if (!p) return;
     if (!confirm(`Quitar a ${p.display} de este puesto? Se quitará como usuario de ${g.items.length} equipo(s) (conservan el puesto).`)) return;
     for (const a of g.items) {
-      await fetch("/api/glpi", {
+      await fetch(withBase("/api/glpi"), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: a._type, id: a.id, user_id: null }),
@@ -927,7 +930,7 @@ export default function Buscar() {
                                     <td className="min-w-0"><b className="block truncate" title={d.full}>{disp(p.name)}</b><span className="text-xs text-muted tabular-nums">GLPI #{p.id}{p.drawn ? "" : " · sin dibujar"}</span></td>
                                     <td className="max-w-[240px] min-w-0"><CompactLocation locId={p.id} fallback={p.completename || p.name} byId={byId} /></td>
                                     <td className="tabular-nums">{p.room ? <span className="badge badge-brand tabular-nums">Int. {disp(p.room)}</span> : <span className="badge">Sin interno</span>}</td>
-                                    <td className="whitespace-nowrap"><span className="inline-flex gap-2"><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openPuestoDetail(p)}>Ver puesto</button><a className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</a></span></td>
+                                    <td className="whitespace-nowrap"><span className="inline-flex gap-2"><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openPuestoDetail(p)}>Ver puesto</button><Link className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</Link></span></td>
                                   </tr>
                                 );
                               })}
@@ -1084,7 +1087,7 @@ export default function Buscar() {
           title={`Puesto: ${disp(detailPuesto.loc.name)}`}
           subtitle={`GLPI #${detailPuesto.loc.id}${detailPuesto.loc.room ? ` · Int. ${detailPuesto.loc.room}` : " · Sin interno"}${detailPuesto.loc.floorName ? ` · ${detailPuesto.loc.floorName}` : ""}`}
           onClose={() => closeDetail(true)}
-          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href={`/mapa?focus=${detailPuesto.loc.id}`}>Ver en mapa →</a><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><Link className="btn btn-secondary text-xs tap-target" href={`/mapa?focus=${detailPuesto.loc.id}`}>Ver en mapa →</Link><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
         >
           <div className="grid gap-2 text-sm">
             <CompactLocation locId={detailPuesto.loc.id} fallback={detailPuesto.loc.completename || detailPuesto.loc.name} byId={byId} wrap />
@@ -1123,11 +1126,11 @@ export default function Buscar() {
           title={`Correo: ${detailMail.mail.nombre || detailMail.mail.direccion}`}
           subtitle={`${detailMail.mail.direccion || ""} · Área ${detailMail.mail.area || "—"}`}
           onClose={() => closeDetail(true)}
-          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</a><button className="btn btn-secondary text-xs tap-target" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><Link className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</Link><button className="btn btn-secondary text-xs tap-target" disabled={exporting === `mail:${detailMail.mail.id}`} onClick={() => downloadExport("mail", detailMail.mail.id)}>{exporting === `mail:${detailMail.mail.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
         >
           <div className="grid gap-2 text-sm">
             {!canSee && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador o de lectura para ver las personas.</span></p>}
-            {canSee && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
+            {canSee && !detailMail.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <Link className="underline" href="/accesos">Accesos →</Link></p>}
             {canSee && detailMail.personas.length > 0 && (
               <div className="table-scroll" tabIndex={0}>
                 <table className="table-dense table-modal-fluid">
@@ -1152,11 +1155,11 @@ export default function Buscar() {
           title={`Carpeta: ${detailShare.share.nombre}`}
           subtitle={`${detailShare.share.ruta || ""} · Área ${detailShare.share.area || "—"}`}
           onClose={() => closeDetail(true)}
-          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</a><button className="btn btn-secondary text-xs tap-target" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><Link className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</Link><button className="btn btn-secondary text-xs tap-target" disabled={exporting === `share:${detailShare.share.id}`} onClick={() => downloadExport("share", detailShare.share.id)}>{exporting === `share:${detailShare.share.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
         >
           <div className="grid gap-2 text-sm">
             {!canSee && <p className="text-sm text-muted inline-flex items-start gap-1"><span className="inline-flex mt-0.5"><IconLock size={12} /></span><span>Iniciá sesión con perfil operador o de lectura para ver las personas.</span></p>}
-            {canSee && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <a className="underline" href="/accesos">Accesos →</a></p>}
+            {canSee && !detailShare.personas.length && <p className="text-sm text-muted">Nadie tiene acceso aún. Gestionar en <Link className="underline" href="/accesos">Accesos →</Link></p>}
             {canSee && detailShare.personas.length > 0 && (
               <div className="table-scroll" tabIndex={0}>
                 <table className="table-dense table-modal-fluid">
@@ -1180,7 +1183,7 @@ export default function Buscar() {
           title={`Área: ${detailArea.area.nombre}`}
           subtitle={`Responsable: ${detailArea.area.responsableNombre || "—"} #${detailArea.area.responsableUserId}`}
           onClose={() => closeDetail(true)}
-          footer={<div className="flex gap-2 justify-end flex-wrap"><a className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</a>{canSee && <button className="btn btn-secondary text-xs tap-target" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}<button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><Link className="btn btn-secondary text-xs tap-target" href="/accesos">Gestionar en Accesos</Link>{canSee && <button className="btn btn-secondary text-xs tap-target" disabled={exporting === `area:${detailArea.area.id}`} onClick={() => downloadExport("area", detailArea.area.id)}>{exporting === `area:${detailArea.area.id}` ? "Exportando…" : <span className="inline-flex items-center gap-1"><IconDownload size={13} /> Excel</span>}</button>}<button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
         >
           <div className="grid gap-2 text-sm">
             <b className="text-sm inline-flex items-center gap-1"><IconMail size={13} /> Correos ({detailArea.mails.length})</b>

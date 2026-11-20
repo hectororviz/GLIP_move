@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { ParentPicker, useLocations } from "@/components/Places";
 import AuthModal from "@/components/AuthModal";
 import { Tabs, AdminSection, ConfirmDialog, BusyButton, EmptyState } from "@/components/ui";
+import { withBase } from "@/lib/base";
+import Link from "next/link";
 
 type Floor = {
   id: string;
@@ -47,12 +49,12 @@ export default function ConfigPage() {
     const fd = new FormData();
     fd.set("file", file);
     try {
-      const r = await fetch("/api/brand/icon", { method: "POST", body: fd });
+      const r = await fetch(withBase("/api/brand/icon"), { method: "POST", body: fd });
       const j = await r.json();
       setIconMsg(r.ok ? "Logo guardado." : "Error: " + j.error);
       if (r.ok) {
         setForm((f) => ({ ...f, brandIcon: j.brandIcon }));
-        fetch("/api/config").then((x) => x.json()).then((c) => setForm((f) => ({ ...f, brandIcon: c.brandIcon || null }))).catch(() => {});
+        fetch(withBase("/api/config")).then((x) => x.json()).then((c) => setForm((f) => ({ ...f, brandIcon: c.brandIcon || null }))).catch(() => {});
         window.dispatchEvent(new Event("brand-icon-changed"));
       }
     } catch (e: any) {
@@ -66,7 +68,7 @@ export default function ConfigPage() {
     setIconMsg("Quitando logo...");
     setIconBusy(true);
     try {
-      const r = await fetch("/api/brand/icon", { method: "DELETE" });
+      const r = await fetch(withBase("/api/brand/icon"), { method: "DELETE" });
       const j = await r.json();
       setIconMsg(r.ok ? "Logo quitado." : "Error: " + j.error);
       if (r.ok) { setForm((f) => ({ ...f, brandIcon: null })); window.dispatchEvent(new Event("brand-icon-changed")); }
@@ -82,7 +84,7 @@ export default function ConfigPage() {
     setBackupMsg("Generando respaldo...");
     setBackupBusy(true);
     try {
-      const r = await fetch("/api/backup");
+      const r = await fetch(withBase("/api/backup"));
       if (!r.ok) { setBackupMsg("Error: " + (await r.json()).error); return; }
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
@@ -107,7 +109,7 @@ export default function ConfigPage() {
     const fd = new FormData();
     fd.set("file", file);
     try {
-      const r = await fetch("/api/backup", { method: "POST", body: fd });
+      const r = await fetch(withBase("/api/backup"), { method: "POST", body: fd });
       const j = await r.json();
       setBackupMsg(r.ok ? `Importado: ${j.pisos} pisos, ${j.puestos} puestos.` : "Error: " + j.error);
       if (r.ok) refreshFloors();
@@ -127,12 +129,12 @@ export default function ConfigPage() {
   const { childrenOf } = useLocations();
 
   async function refreshFloors() {
-    const r = await fetch("/api/maps").then((x) => x.json()).catch(() => null);
+    const r = await fetch(withBase("/api/maps")).then((x) => x.json()).catch(() => null);
     if (r?.floors) setFloors(r.floors);
   }
 
   useEffect(() => {
-    fetch("/api/config").then((r) => r.json()).then((j) => {
+    fetch(withBase("/api/config")).then((r) => r.json()).then((j) => {
       const snap = {
         glpiBaseUrl: j.glpiBaseUrl || "",
         keepUserOnMove: j.keepUserOnMove ?? true,
@@ -144,7 +146,7 @@ export default function ConfigPage() {
       setSets({ appTokenSet: !!j.appTokenSet, userTokenSet: !!j.userTokenSet });
     }).catch(() => {});
     refreshFloors();
-    fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {});
+    fetch(withBase("/api/admin/check")).then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {});
   }, []);
 
   const dirtyConn = form.glpiBaseUrl !== saved.glpiBaseUrl;
@@ -155,7 +157,7 @@ export default function ConfigPage() {
     setMsg("Guardando...");
     setSaveBusy(true);
     try {
-      const r = await fetch("/api/config", {
+      const r = await fetch(withBase("/api/config"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -171,7 +173,7 @@ export default function ConfigPage() {
       setMsg(r.ok ? "Guardado." : "Error: " + j.error);
       if (r.ok) {
         setForm((f) => ({ ...f, appToken: "", userToken: "" }));
-        fetch("/api/config").then((x) => x.json()).then((c) => {
+        fetch(withBase("/api/config")).then((x) => x.json()).then((c) => {
           const snap = {
             glpiBaseUrl: c.glpiBaseUrl || "",
             keepUserOnMove: c.keepUserOnMove ?? true,
@@ -192,7 +194,7 @@ export default function ConfigPage() {
     setTestRes("Probando conexión…");
     setTestBusy(true);
     try {
-      const r = await fetch("/api/config/test");
+      const r = await fetch(withBase("/api/config/test"));
       const j = await r.json();
       setTestRes(r.ok ? `OK. Perfiles: ${(j.profiles || []).join(", ") || "—"}` : "Fallo: " + j.error);
     } finally {
@@ -202,7 +204,7 @@ export default function ConfigPage() {
 
   async function addFloor() {
     if (!newFloor.trim()) return;
-    const r = await fetch("/api/maps", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newFloor.trim() }) });
+    const r = await fetch(withBase("/api/maps"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newFloor.trim() }) });
     const j = await r.json();
     if (r.ok) { setNewFloor(""); refreshFloors(); } else setMsg("Error: " + j.error);
   }
@@ -220,7 +222,7 @@ export default function ConfigPage() {
     fd.set("floorId", floorId);
     fd.set("file", file);
     try {
-      const r = await fetch("/api/maps/upload", { method: "POST", body: fd });
+      const r = await fetch(withBase("/api/maps/upload"), { method: "POST", body: fd });
       const j = await r.json();
       setMsg(r.ok ? "Plano subido." : "Error: " + j.error);
       if (r.ok) refreshFloors();
@@ -232,14 +234,14 @@ export default function ConfigPage() {
   }
 
   async function setParent(floor: Floor, glpiLocationId: number | null) {
-    const r = await fetch("/api/maps", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: floor.id, glpiLocationId }) });
+    const r = await fetch(withBase("/api/maps"), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: floor.id, glpiLocationId }) });
     const j = await r.json();
     setMsg(r.ok ? `Piso vinculado a ubicación ${glpiLocationId ?? "—"}.` : "Error: " + j.error);
     refreshFloors();
   }
 
   async function execDelFloor(id: string) {
-    await fetch(`/api/maps?id=${id}`, { method: "DELETE" });
+    await fetch(withBase(`/api/maps?id=${id}`), { method: "DELETE" });
     setConfirmState(null);
     refreshFloors();
   }
@@ -345,7 +347,7 @@ export default function ConfigPage() {
                           <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={!adminAuthed || !!uploading}
                             onChange={(e) => { const fl = e.target.files?.[0]; if (fl && adminAuthed) requestPlanUpload(f, fl); e.target.value = ""; }} />
                         </label>
-                        <a className="btn btn-secondary text-xs tap-target" href={`/mapa?calibrar=1&floor=${f.id}`}>Calibrar puestos →</a>
+                        <Link className="btn btn-secondary text-xs tap-target" href={`/mapa?calibrar=1&floor=${f.id}`}>Calibrar puestos →</Link>
                       </span>
                     </div>
                   </div>
@@ -414,7 +416,7 @@ export default function ConfigPage() {
               <div className="flex items-center gap-3 flex-wrap">
                 {form.brandIcon ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src="/api/brand/icon" alt="Logo" className="h-12 w-12 rounded-xl object-contain border border-line bg-white" />
+                  <img src={withBase("/api/brand/icon")} alt="Logo" className="h-12 w-12 rounded-xl object-contain border border-line bg-white" />
                 ) : (
                   <div className="h-12 w-12 rounded-xl grid place-items-center text-white font-bold" style={{ background: "var(--accent)" }}>
                     {(form.appName || "GLPI Move").slice(0, 1).toUpperCase()}
@@ -478,7 +480,7 @@ export default function ConfigPage() {
       </div>
 
       {!adminAuthed && (
-        <AuthModal open={true} onClose={() => {}} onSuccess={() => { fetch("/api/admin/check").then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
+        <AuthModal open={true} onClose={() => {}} onSuccess={() => { fetch(withBase("/api/admin/check")).then((r) => r.json()).then((j) => setAdminAuthed(!!j.admin)).catch(() => {}); }} />
       )}
 
       {confirmState?.kind === "delFloor" && (
