@@ -9,6 +9,14 @@ type Area = { id: string; nombre: string; responsableUserId: number; responsable
 type Mail = { id: string; nombre: string; direccion: string; areaId: string; area: string; personas: number; envian: number; reciben: number };
 type Share = { id: string; nombre: string; ruta: string; areaId: string; area: string; personas: number };
 type GlpiUser = { id: number; login: string | null; display: string };
+type AdUser = {
+  loginKey: string; login: string; nombre: string;
+  cuenta: "HABILITADA" | "DESHABILITADA";
+  ultimoCambio: string; vencimiento: string;
+  diasRestantes: number | null; estadoClave: string;
+  ausenteUltimoImport: boolean;
+};
+type AdMeta = { importedAt: number | null; sourceFile: string | null; total: number };
 type MailGrant = { accountId: string; userId: number; userDisplay: string | null; canSend: boolean; canRead: boolean; nombre?: string; direccion?: string; area?: string };
 type ShareGrant = { shareId: string; userId: number; userDisplay: string | null; nombre?: string; ruta?: string; area?: string };
 
@@ -16,7 +24,7 @@ type Panel =
   | { kind: "area"; area: Area; mails: Mail[]; shares: Share[] }
   | { kind: "mail"; mail: Mail; personas: MailGrant[] }
   | { kind: "share"; share: Share; personas: ShareGrant[] }
-  | { kind: "person"; user: GlpiUser; mails: MailGrant[]; shares: ShareGrant[] };
+  | { kind: "person"; user: GlpiUser; mails: MailGrant[]; shares: ShareGrant[]; ad?: AdUser | null };
 
 type ConfirmState =
   | { kind: "delArea"; area: Area }
@@ -197,9 +205,15 @@ export default function Accesos() {
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   // búsqueda de personas
-  const [pq, setPq] = useState("");
-  const [presults, setPresults] = useState<GlpiUser[]>([]);
-  const [pmsg, setPmsg] = useState("");
+  const [adUsers, setAdUsers] = useState<AdUser[]>([]);
+  const [adMeta, setAdMeta] = useState<AdMeta | null>(null);
+  const [adLoading, setAdLoading] = useState(false);
+  const [adCuenta, setAdCuenta] = useState("");
+  const [adEstado, setAdEstado] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   function setPanelBoth(p: Panel | null) { panelRef.current = p; setPanel(p); }
   function openPanel(p: Panel, push = true) {
@@ -256,7 +270,8 @@ export default function Accesos() {
         const r = await fetch(withBase(`/api/access/grants?user_id=${p.user.id}`));
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
-        setPanelBoth({ kind: "person", user: p.user, mails: j.mails || [], shares: j.shares || [] });
+        if (p.user.id > 0) setPanelBoth({ kind: "person", user: p.user, mails: j.mails || [], shares: j.shares || [], ad: p.ad ?? null });
+        else setPanelBoth({ kind: "person", user: p.user, mails: [], shares: [], ad: p.ad ?? null });
       }
     } catch (e: any) {
       setPanelErr(e.message || "Error al actualizar");
@@ -295,6 +310,9 @@ export default function Accesos() {
       setLogin(j.authenticated ? (j.user?.login || "") : "");
       setAuthChecked(true);
     }).catch(() => setAuthChecked(true));
+    fetch(withBase("/api/admin/check"), { cache: "no-store" }).then((r) => r.json()).then((j) => {
+      setIsAdmin(!!j.admin);
+    }).catch(() => {});
   }, []);
   useEffect(() => {
     refreshAuth();
@@ -325,6 +343,7 @@ export default function Accesos() {
   }, [areaFilter]);
 
   useEffect(() => { if (access !== "none") loadAll(); }, [access, loadAll]);
+  useEffect(() => { if (access !== "none") loadAdList(); }, [access]);
 
   /* ---------- aperturas (información primero) ---------- */
   async function openAreaDetail(a: Area, push = true) {
@@ -364,16 +383,36 @@ export default function Accesos() {
     }
   }
 
-  async function openPersonDetail(p: GlpiUser, push = true) {
-    if (push) openPanel({ kind: "person", user: p, mails: [], shares: [] });
+  async function openPersonDetail(p: GlpiUser, push = true, ad?: AdUser | null) {
+    if (push) openPanel({ kind: "person", user: p, mails: [], shares: [], ad: ad ?? null });
+    if (!p.id) { setPanelBoth({ kind: "person", user: p, mails: [], shares: [], ad: ad ?? null }); return; }
     try {
       const r = await fetch(withBase(`/api/access/grants?user_id=${p.id}`));
       const j = await r.json();
       if (!r.ok) { setMsg(j.error || "Error"); return; }
-      setPanelBoth({ kind: "person", user: p, mails: j.mails || [], shares: j.shares || [] });
+      setPanelBoth({ kind: "person", user: p, mails: j.mails || [], shares: j.shares || [], ad: ad ?? null });
     } catch (e: any) {
       setMsg(e.message || "Error");
     }
+  }
+
+  // Abrir ficha desde el listado AD: resuelve GLPI por login exacto para
+  // traer correos/carpetas; si no hay vínculo muestra solo la info AD.
+  async function openAdPerson(ad: AdUser) {
+    openPanel({ kind: "person", user: { id: 0, login: ad.login, display: ad.nombre }, mails: [], shares: [], ad });
+    try {
+      const r = await fetch(withBase(`/api/glpi/users?q=${encodeURIComponent(ad.login)}`));
+      const j = await r.json();
+      if (r.ok && Array.isArray(j.users)) {
+        const exact = j.users.find((u: GlpiUser) => (u.login || "").toLowerCase() === ad.loginKey);
+        if (exact) {
+          const g = await fetch(withBase(`/api/access/grants?user_id=${exact.id}`));
+          const gj = await g.json();
+          if (g.ok) { setPanelBoth({ kind: "person", user: exact, mails: gj.mails || [], shares: gj.shares || [], ad }); return; }
+          setPanelBoth({ kind: "person", user: exact, mails: [], shares: [], ad }); return;
+        }
+      }
+    } catch {}
   }
 
   function mailFromGrant(g: MailGrant): Mail {
@@ -556,13 +595,42 @@ export default function Accesos() {
   }
 
   async function searchPeople() {
-    if (!pq.trim()) return;
-    setPmsg("Buscando…");
-    const r = await fetch(withBase(`/api/glpi/users?q=${encodeURIComponent(pq.trim())}`));
-    const j = await r.json();
-    if (!r.ok) { setPmsg("Error: " + (j.error || r.status)); setPresults([]); return; }
-    setPresults(j.users || []);
-    setPmsg(j.users?.length ? "" : "Sin personas en GLPI.");
+    await loadAdList();
+  }
+
+  async function loadAdList() {
+    setAdLoading(true);
+    setImportMsg("");
+    try {
+      const r = await fetch(withBase("/api/access/ad"));
+      const j = await r.json();
+      if (!r.ok) { setImportMsg(j.error || `Error ${r.status}`); setAdUsers([]); return; }
+      setAdUsers(j.users || []);
+      setAdMeta(j.meta || null);
+    } catch (e: any) {
+      setImportMsg(e.message || "Error");
+    } finally {
+      setAdLoading(false);
+    }
+  }
+
+  async function importAdCsv(f: File) {
+    setImportBusy(true);
+    setImportMsg("");
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const r = await fetch(withBase("/api/access/ad/import"), { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) { setImportMsg(j.error || `Error ${r.status}`); return; }
+      setImportMsg(`Importado ${j.archivo}: ${j.nuevos} nuevos, ${j.actualizados} actualizados, ${j.ausentes} ausentes en CSV.`);
+      await loadAdList();
+    } catch (e: any) {
+      setImportMsg(e.message || "Error");
+    } finally {
+      setImportBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   if (!authChecked) {
@@ -597,7 +665,15 @@ export default function Accesos() {
   const fAreas = areas.filter((a) => matchQ(a.nombre, a.responsableNombre));
   const fMails = mails.filter((m) => matchQ(m.nombre, m.direccion, m.area));
   const fShares = shares.filter((s) => matchQ(s.nombre, s.ruta, s.area));
+  const fAd = adUsers.filter((u) => {
+    if (q && !(`${u.nombre} ${u.login}`.toLowerCase().includes(q))) return false;
+    if (adCuenta && u.cuenta !== adCuenta) return false;
+    if (adEstado && u.estadoClave !== adEstado) return false;
+    return true;
+  });
   const areaOptions = areas.map((a) => ({ value: a.id, label: a.nombre }));
+  const diasCls = (d: number | null) => d == null ? "text-muted" : d < 0 ? "text-danger font-semibold" : d <= 7 ? "text-warning font-semibold" : "tabular-nums";
+  const diasTxt = (d: number | null) => d == null ? "—" : String(d);
 
   return (
     <div className="grid gap-3 no-hscroll">
@@ -616,7 +692,7 @@ export default function Accesos() {
               { id: "areas", label: "Áreas", icon: <IconBuilding size={14} />, badge: <span className="badge badge-brand">{areas.length}</span> },
               { id: "mails", label: "Correos", icon: <IconMail size={14} />, badge: <span className="badge badge-brand">{mails.length}</span> },
               { id: "shares", label: "Carpetas", icon: <IconFolder size={14} />, badge: <span className="badge badge-brand">{shares.length}</span> },
-              { id: "personas", label: "Personas", icon: <IconUser size={14} /> },
+              { id: "personas", label: "Personas", icon: <IconUser size={14} />, badge: <span className="badge badge-brand">{adUsers.length}</span> },
             ]}
           />
         </div>
@@ -778,27 +854,95 @@ export default function Accesos() {
       )}
 
       {tab === "personas" && (
-        <section aria-label="Búsqueda de personas" className="grid gap-2">
+        <section aria-label="Listado de personas (AD)" className="grid gap-2">
           <div className="card p-3 grid gap-2">
-            <form role="search" aria-label="Buscar persona por accesos" className="flex gap-2" onSubmit={(e) => { e.preventDefault(); searchPeople(); }}>
-              <input className="input flex-1 min-w-0" placeholder="Nombre, apellido o usuario GLPI…" value={pq} onChange={(e) => setPq(e.target.value)} aria-label="Buscar persona" autoComplete="off" enterKeyHint="search" />
-              <button type="submit" className="btn btn-primary text-sm shrink-0 tap-target">Buscar</button>
-            </form>
-            {pmsg && <p className="text-sm text-muted" role="status">{pmsg}</p>}
-            {presults.length > 0 && (
-              <ul className="grid gap-2" aria-label="Personas encontradas">
-                {presults.map((p) => (
-                  <li key={p.id} className="card p-3 flex items-center justify-between gap-3 text-sm">
-                    <span className="min-w-0">
-                      <b className="block truncate text-ink">{p.display}</b>
-                      <span className="block text-xs text-muted truncate">{p.login ? `${p.login} · ` : ""}GLPI #{p.id}</span>
-                    </span>
-                    <button className="btn btn-secondary text-xs shrink-0 !min-h-[36px]" onClick={() => openPersonDetail(p)}>Ver accesos</button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="flex gap-2 flex-wrap items-center">
+              <input
+                className="input text-sm flex-1 min-w-[160px]"
+                placeholder="Filtrar por nombre o usuario…"
+                value={filterQ}
+                onChange={(e) => setFilterQ(e.target.value)}
+                aria-label="Filtrar personas"
+              />
+              <select className="input text-sm max-w-[170px]" value={adCuenta} onChange={(e) => setAdCuenta(e.target.value)} aria-label="Filtrar por cuenta">
+                <option value="">Todas las cuentas</option>
+                <option value="HABILITADA">Habilitadas</option>
+                <option value="DESHABILITADA">Deshabilitadas</option>
+              </select>
+              <select className="input text-sm max-w-[180px]" value={adEstado} onChange={(e) => setAdEstado(e.target.value)} aria-label="Filtrar por estado de clave">
+                <option value="">Todos los estados</option>
+                <option value="VIGENTE">Vigente</option>
+                <option value="PROXIMA A VENCER">Próxima a vencer</option>
+                <option value="VENCIDA">Vencida</option>
+                <option value="NO VENCE">No vence</option>
+              </select>
+            </div>
+            <div className="flex gap-2 justify-between items-center flex-wrap">
+              <span className="text-sm text-muted" role="status">
+                {fAd.length} de {adUsers.length} persona(s)
+                {adMeta?.importedAt ? ` · importado ${new Date(adMeta.importedAt).toLocaleString("es-AR")} ${adMeta.sourceFile ? `(${adMeta.sourceFile})` : ""}` : " · sin importación AD"}
+              </span>
+              <span className="flex gap-2 flex-wrap">
+                <button className="btn btn-secondary text-xs" disabled={adLoading} onClick={() => loadAdList()}>
+                  {adLoading ? "Actualizando…" : "Recargar"}
+                </button>
+                {isAdmin && (
+                  <>
+                    <input ref={fileRef} type="file" accept=".csv" className="hidden" aria-label="Archivo CSV del AD"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) importAdCsv(f); }} />
+                    <button className="btn btn-primary text-xs" disabled={importBusy} onClick={() => fileRef.current?.click()}>
+                      {importBusy ? "Importando…" : "Importar CSV AD"}
+                    </button>
+                  </>
+                )}
+              </span>
+            </div>
+            {importMsg && <p className="text-sm text-muted" role="status">{importMsg}</p>}
           </div>
+
+          {/* Desktop: tabla */}
+          <div className="table-scroll hidden md:block card p-0" tabIndex={0} aria-label="Personas en tabla">
+            <table className="table-dense">
+              <thead><tr><th scope="col">Nombre</th><th scope="col">Usuario</th><th scope="col">Cuenta</th><th scope="col">Vencimiento</th><th scope="col">Días</th><th scope="col">Estado</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+              <tbody>
+                {fAd.map((u) => (
+                  <tr key={u.loginKey} className={u.ausenteUltimoImport ? "opacity-60" : undefined}>
+                    <td className="min-w-0"><button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${u.nombre} — abrir ficha`} onClick={() => openAdPerson(u)}>{decodeEntities(u.nombre)}{u.ausenteUltimoImport ? " (ausente)" : ""}</button></td>
+                    <td className="text-sm tabular-nums">{u.login}</td>
+                    <td>{u.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}</td>
+                    <td className="text-sm tabular-nums whitespace-nowrap">{u.vencimiento || "—"}</td>
+                    <td className={`text-sm whitespace-nowrap ${diasCls(u.diasRestantes)}`}>{diasTxt(u.diasRestantes)}</td>
+                    <td>{u.estadoClave === "VIGENTE" ? <span className="badge">Vigente</span>
+                      : u.estadoClave === "PROXIMA A VENCER" ? <span className="badge badge-warning">Próxima</span>
+                      : u.estadoClave === "VENCIDA" ? <span className="badge badge-danger">Vencida</span>
+                      : <span className="badge badge-brand">No vence</span>}</td>
+                    <td><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openAdPerson(u)}>Ver ficha</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Móvil: tarjetas */}
+          <div className="grid gap-2 md:hidden">
+            {fAd.map((u) => (
+              <article key={u.loginKey} className="card asset-card">
+                <button onClick={() => openAdPerson(u)} className="grid gap-1 text-left min-w-0" aria-label={`Ver ficha de ${u.nombre}`}>
+                  <b className="text-ink break-words leading-snug">{decodeEntities(u.nombre)}</b>
+                  <span className="block text-xs text-muted tabular-nums break-all leading-snug">{u.login}</span>
+                  <span className="flex gap-1.5 flex-wrap">
+                    {u.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}
+                    {u.estadoClave === "VIGENTE" ? <span className="badge">Vigente</span>
+                      : u.estadoClave === "PROXIMA A VENCER" ? <span className="badge badge-warning">Próxima · {diasTxt(u.diasRestantes)}d</span>
+                      : u.estadoClave === "VENCIDA" ? <span className="badge badge-danger">Vencida</span>
+                      : <span className="badge badge-brand">No vence</span>}
+                  </span>
+                  <span className="block text-xs text-muted leading-snug">Vence: {u.vencimiento || "—"} · Días: {diasTxt(u.diasRestantes)}{u.ausenteUltimoImport ? " · ausente en último CSV" : ""}</span>
+                  <span className="text-sm font-semibold" style={{ color: "var(--accent)" }} aria-hidden="true">Ficha ›</span>
+                </button>
+              </article>
+            ))}
+          </div>
+          {!fAd.length && <EmptyState title="Sin personas" hint={adUsers.length ? "Sin coincidencias para ese filtro." : "Importá el CSV del AD con el botón Importar CSV AD."} />}
         </section>
       )}
 
@@ -868,12 +1012,12 @@ export default function Accesos() {
       {panel?.kind === "person" && (
         <SidePanel
           title={panel.user.display}
-          subtitle={`GLPI #${panel.user.id}${panel.user.login ? ` · ${panel.user.login}` : ""}`}
+          subtitle={`${panel.user.id > 0 ? `GLPI #${panel.user.id}` : "Solo AD"}${panel.user.login ? ` · ${panel.user.login}` : ""}`}
           onClose={closePanel}
           footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={closePanel}>{stack.length ? "← Volver" : "Volver al listado"}</button></div>}
         >
           <PersonPanel
-            user={panel.user} mails={panel.mails} shares={panel.shares}
+            user={panel.user} mails={panel.mails} shares={panel.shares} ad={panel.ad}
             canEdit={!readOnly}
             onOpenMail={(m) => openMailDetail(mailFromGrant(m))} onOpenShare={(s) => openShareDetail(shareFromGrant(s))}
             onToggle={(g, patch) => updateMailGrant(g, patch)}
@@ -1296,8 +1440,8 @@ function SharePanel({ share, personas, areas, canEdit, onOpenPerson, onOpenArea,
   );
 }
 
-function PersonPanel({ user, mails, shares, canEdit, onOpenMail, onOpenShare, onToggle, onRemoveMail, onRemoveShare, err }: {
-  user: GlpiUser; mails: MailGrant[]; shares: ShareGrant[]; canEdit: boolean;
+function PersonPanel({ user, mails, shares, ad, canEdit, onOpenMail, onOpenShare, onToggle, onRemoveMail, onRemoveShare, err }: {
+  user: GlpiUser; mails: MailGrant[]; shares: ShareGrant[]; ad?: AdUser | null; canEdit: boolean;
   onOpenMail: (m: MailGrant) => void; onOpenShare: (s: ShareGrant) => void;
   onToggle: (g: MailGrant, patch: Partial<MailGrant>) => void;
   onRemoveMail: (g: MailGrant) => void; onRemoveShare: (g: ShareGrant) => void; err: string;
@@ -1309,10 +1453,29 @@ function PersonPanel({ user, mails, shares, canEdit, onOpenMail, onOpenShare, on
         <h3 className="section-h">Información general</h3>
         <dl className="info-card">
           <div className="info-row"><dt>Nombre</dt><dd className="font-semibold">{user.display}</dd></div>
-          {user.login && <div className="info-row"><dt>Usuario</dt><dd>{user.login}</dd></div>}
-          <div className="info-row"><dt>GLPI ID</dt><dd className="tabular-nums">#{user.id}</dd></div>
+          {user.login && <div className="info-row"><dt>Usuario</dt><dd><span className="copy-wrap"><span>{user.login}</span><CopyButton value={user.login} label="usuario" /></span></dd></div>}
+          <div className="info-row"><dt>GLPI ID</dt><dd className="tabular-nums">{user.id > 0 ? `#${user.id}` : "Sin vínculo GLPI"}</dd></div>
           <div className="info-row"><dt>Accesos</dt><dd className="tabular-nums">{mails.length} correo(s) · {shares.length} carpeta(s)</dd></div>
         </dl>
+      </section>
+
+      <section aria-label="Estado en AD" className="grid gap-1.5">
+        <h3 className="section-h">Active Directory</h3>
+        {ad ? (
+          <dl className="info-card">
+            <div className="info-row"><dt>Cuenta</dt><dd>{ad.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}</dd></div>
+            <div className="info-row"><dt>Vencimiento</dt><dd className="tabular-nums">{ad.vencimiento || "—"}</dd></div>
+            <div className="info-row"><dt>Días restantes</dt><dd className="tabular-nums">{ad.diasRestantes == null ? "—" : String(ad.diasRestantes)}</dd></div>
+            <div className="info-row"><dt>Estado clave</dt><dd>{ad.estadoClave === "VIGENTE" ? <span className="badge">Vigente</span>
+              : ad.estadoClave === "PROXIMA A VENCER" ? <span className="badge badge-warning">Próxima a vencer</span>
+              : ad.estadoClave === "VENCIDA" ? <span className="badge badge-danger">Vencida</span>
+              : <span className="badge badge-brand">No vence</span>}</dd></div>
+            <div className="info-row"><dt>Último cambio</dt><dd className="tabular-nums">{ad.ultimoCambio || "—"}</dd></div>
+            {ad.ausenteUltimoImport && <div className="info-row"><dt>Ausente</dt><dd><span className="badge badge-warning">No vino en el último CSV</span></dd></div>}
+          </dl>
+        ) : (
+          <p className="text-sm text-muted">Sin datos del AD para este usuario.</p>
+        )}
       </section>
 
       <section aria-label="Correos de la persona" className="grid gap-1.5">

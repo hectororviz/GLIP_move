@@ -165,6 +165,35 @@ async function main() {
           data: { shareId: g.shareId, userId: g.userId, userDisplay: g.userDisplay ?? null, userFirstname: g.userFirstname ?? null, userRealname: g.userRealname ?? null, by: g.by ?? null, at: BigInt(g.at || 0) },
         });
       }
+      // ad-users (snapshot AD, reemplazo)
+      try {
+        const adj = await readJson("ad-users.json", null);
+        if (adj && Array.isArray(adj.users)) {
+          await tx.adUser.deleteMany();
+          if (adj.users.length) {
+            await tx.adUser.createMany({
+              data: adj.users.filter((u) => u && u.loginKey).map((u) => ({
+                loginKey: String(u.loginKey),
+                login: normStr(u.login),
+                nombre: normStr(u.nombre),
+                cuenta: u.cuenta === "DESHABILITADA" ? "DESHABILITADA" : "HABILITADA",
+                ultimoCambio: normStr(u.ultimoCambio),
+                ultimoCambioTs: u.ultimoCambioTs != null ? BigInt(u.ultimoCambioTs) : null,
+                vencimiento: normStr(u.vencimiento),
+                vencimientoTs: u.vencimientoTs != null ? BigInt(u.vencimientoTs) : null,
+                diasRestantes: u.diasRestantes ?? null,
+                estadoClave: normStr(u.estadoClave, "VIGENTE"),
+                ausenteUltimoImport: !!u.ausenteUltimoImport,
+                firstSeenAt: BigInt(u.firstSeenAt || 0),
+                updatedAt: BigInt(u.updatedAt || 0),
+                lastImportAt: BigInt(u.lastImportAt || 0),
+                sourceFile: adj.sourceFile || null,
+              })),
+            });
+          }
+          report.adUsers = adj.users.length;
+        }
+      } catch {}
       // activity (solo si el log PG está vacío → idempotente)
       const n = await tx.activity.count();
       if (n === 0 && Array.isArray(activity)) {

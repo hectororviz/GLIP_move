@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
       const { loadAccess } = await import("@/lib/access");
       zip.addFile("access.json", Buffer.from(JSON.stringify(await loadAccess(), null, 2), "utf8"));
     } catch {}
+    try {
+      const { loadAd } = await import("@/lib/ad");
+      zip.addFile("ad-users.json", Buffer.from(JSON.stringify(await loadAd(), null, 2), "utf8"));
+    } catch {}
     const mapDir = mapsDir();
     for (const f of floors) {
       if (!f.image) continue;
@@ -122,6 +126,19 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch {}
+  // ad-users.json opcional: snapshot AD (upsert, no borra).
+  let adInfo = "";
+  try {
+    const ade = zip.getEntry("ad-users.json");
+    if (ade) {
+      const adj: any = JSON.parse(ade.getData().toString("utf8"));
+      if (adj && typeof adj === "object" && Array.isArray(adj.users)) {
+        const { saveAd } = await import("@/lib/ad");
+        await saveAd({ version: 1, users: adj.users, importedAt: adj.importedAt ?? null, sourceFile: adj.sourceFile ?? null });
+        adInfo = `, AD: ${adj.users.length} usuarios`;
+      }
+    }
+  } catch {}
   const totalPuestos = floors.reduce((a: number, f: any) => a + (f.puestos?.length || 0), 0);
-  return NextResponse.json({ ok: true, pisos: floors.length, puestos: totalPuestos, extra: accessInfo });
+  return NextResponse.json({ ok: true, pisos: floors.length, puestos: totalPuestos, extra: `${accessInfo}${adInfo}` });
 }

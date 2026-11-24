@@ -1,6 +1,6 @@
 # 09 — Postgres (DB propia) + Prisma + GHCR
 
-La DB propia (accesos, pisos, config, actividad) vive en **Postgres 16**
+La DB propia (accesos, AD, pisos, config, actividad) vive en **Postgres 16**
 vía **Prisma 5**. GLPI sigue siendo fuente de verdad para bienes/personas.
 
 ## Cuándo se usa cada backend
@@ -13,8 +13,8 @@ vía **Prisma 5**. GLPI sigue siendo fuente de verdad para bienes/personas.
 
 ## Archivos
 
-- `prisma/schema.prisma` — 9 modelos (`app_config`, `floors`, `puestos`,
-  `areas`, `mails`, `shares`, `mail_grants`, `share_grants`, `activity_log`).
+- `prisma/schema.prisma` — 10 modelos (`app_config`, `floors`, `puestos`,
+  `areas`, `mails`, `shares`, `mail_grants`, `share_grants`, `activity_log`, `ad_users`).
 - `prisma/migrations/0001_init/` — migración inicial (aplica `migrate deploy`).
 - `lib/db.ts` — singleton Prisma + `usePostgres()` + `withWriteLock()`.
 - `scripts/migrate-json-to-pg.mjs` — import idempotente desde `./data/*.json`.

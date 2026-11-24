@@ -33,6 +33,26 @@ Reglas:
 
 Agregador server-side: en paralelo busca equipos (misma lógica inventario→nombre/serie + atajo QR), personas (3 campos User) y —solo con `isOperator()`— áreas/correos/carpetas (match contiene-insensible con `lib/search.ts:norm()` en nombre/dirección/ruta/área/responsable, tope 20/categoría). Sin operador devuelve `{locked:true}` en esas 3. `?q=` también soportado en `GET /api/access/{areas,mails,shares}` para reutilizar. `/buscar` es la vista global con 5 acordeones + detalle en modal; `/accesos` queda solo para ABM.
 
+## Personas: snapshot del AD (lista directa del servidor)
+
+La pestaña **Personas ya no busca en GLPI en vivo**: lista el snapshot del AD
+importado del CSV (`Usuario;Nombre;Cuenta;UltimoCambio;Vencimiento;DiasRestantes;EstadoClave`,
+separador `;`, UTF-8 con BOM).
+
+* Columnas: Nombre / Usuario / Cuenta (`HABILITADA`/`DESHABILITADA`) /
+  Vencimiento / Días restantes / Estado (`VIGENTE`/`PROXIMA A VENCER`/`VENCIDA`/`NO VENCE`).
+* Filtros client-side: texto (nombre/usuario) + cuenta + estado. Tabla desktop,
+  tarjetas móvil (mismo patrón que las otras pestañas).
+* Click → ficha persona: sección **Active Directory** (cuenta, vencimiento,
+  días, estado, último cambio) + correos/carpetas si hay vínculo GLPI
+  (match exacto `lower(AD.Usuario) == lower(GLPI User.name)`; si no hay vínculo
+  muestra "Solo AD / Sin vínculo GLPI" y no permite otorgar accesos).
+* **Importar CSV AD** (solo admin: clave local o perfil `GLPI_ADMIN_PROFILES`):
+  botón en la pestaña Personas → `POST /api/access/ad/import` (multipart `file`,
+  máx 5 MB). Upsert por login: agrega nuevos, actualiza existentes, marca
+  `ausenteUltimoImport` a los que no vinieron. Nunca borra. Lectura del listado
+  con `GET /api/access/ad` (permiso de lectura de accesos: operador o viewer).
+
 ## APIs (`app/api/access/`)
 
 | Ruta | Uso |
@@ -48,6 +68,9 @@ Agregador server-side: en paralelo busca equipos (misma lógica inventario→nom
 | `GET /api/access/export?scope=area\|mail\|share&id=` | **XLSX real** (solo operador): área = 2 hojas (Correos+Carpetas); correo/carpeta = 1 hoja. Columnas correo: `Área|Correo|Dirección|Apellido|Nombre|UserID|Envía|Recibe`; carpeta: `Área|Carpeta|Ruta|Apellido|Nombre|UserID|Acceso`. `Apellido`/`Nombre` salen de GLPI (`realname`/`firstname` guardados en cada grant; fallback heurístico sobre el display si faltan). Recursos sin grants salen con fila vacía |
 | `GET /api/access/export?scope=mails\|shares` | **Descargar todo** (solo operador): `mails` = 1 hoja `Correos` con todos los correos; `shares` = 1 hoja `Carpetas` con todas las carpetas. Mismo formato de columnas. Nombres `accesos-correos-todo-*.xlsx` / `accesos-carpetas-todo-*.xlsx` |
 | `GET /api/access/export?scope=areas` | **Descargar todo de áreas** (solo operador): 2 hojas (`Correos`+`Carpetas`) con todas las áreas ordenadas por área+nombre. Nombre `accesos-areas-todo-*.xlsx` |
+| `GET /api/access/ad?q=&cuenta=&estado=` | Listado snapshot AD + `meta {importedAt, sourceFile, total}` (lectura accesos) |
+| `GET /api/access/ad?login=` | Un registro AD (para ficha) |
+| `POST /api/access/ad/import` | Import CSV AD upsert (solo admin, multipart `file` máx 5 MB; reporte `{nuevos, actualizados, ausentes, ...}`) |
 
 Lectura (`GET` áreas/correos/carpetas/overview/grants/export + secciones de `/api/search`): `401` sin login, `403` logueado sin perfil con acceso. Escritura (`POST/PUT/DELETE`): solo operador (`403` para viewers).
 

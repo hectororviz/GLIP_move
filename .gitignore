@@ -6,6 +6,8 @@ data/floors.json
 data/activity.json
 data/access.json
 data/access.json.bak-*
+data/ad-users.json
+data/ad-import-report-*.json
 data/import-report-*.json
 data/import-pg-report-*.json
 .playwright-mcp/

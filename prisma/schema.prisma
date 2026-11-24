@@ -122,6 +122,29 @@ model ShareGrant {
   @@map("share_grants")
 }
 
+// Snapshot del AD (lista directa del servidor). El CSV se importa con upsert
+// por login_key: agrega nuevos y actualiza estado/vencimiento. Nunca borra;
+// los ausentes en el último CSV quedan marcados (ausenteUltimoImport).
+model AdUser {
+  loginKey           String   @id
+  login              String
+  nombre             String
+  cuenta             String
+  ultimoCambio       String   @default("")
+  ultimoCambioTs     BigInt?
+  vencimiento        String   @default("")
+  vencimientoTs      BigInt?
+  diasRestantes      Int?
+  estadoClave        String
+  ausenteUltimoImport Boolean @default(false)
+  firstSeenAt        BigInt
+  updatedAt          BigInt
+  lastImportAt       BigInt
+  sourceFile         String?
+
+  @@map("ad_users")
+}
+
 // Log de auditoría liviana. Se recorta a las últimas 100 (igual que activity.json).
 model Activity {
   id         BigInt @id @default(autoincrement())
