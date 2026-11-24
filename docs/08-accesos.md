@@ -46,7 +46,10 @@ separador `;`, UTF-8 con BOM).
 * Click → ficha persona: sección **Active Directory** (cuenta, vencimiento,
   días, estado, último cambio) + correos/carpetas si hay vínculo GLPI
   (match exacto `lower(AD.Usuario) == lower(GLPI User.name)`; si no hay vínculo
-  muestra "Solo AD / Sin vínculo GLPI" y no permite otorgar accesos).
+  muestra "Solo AD / Sin vínculo GLPI" y no permite otorgar accesos). La ficha
+  resuelve login+AD al abrirse desde cualquier entrada (correo, carpeta, área
+  o Personas), y muestra el **Puesto** (`Piso · Puesto`) con link
+  "Ver en mapa →" (`/mapa?focus=`).
 * **Importar CSV AD** (solo admin: clave local o perfil `GLPI_ADMIN_PROFILES`):
   botón en la pestaña Personas → `POST /api/access/ad/import` (multipart `file`,
   máx 5 MB). Upsert por login: agrega nuevos, actualiza existentes, marca

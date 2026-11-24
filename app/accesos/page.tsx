@@ -1,14 +1,17 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AuthModal from "@/components/AuthModal";
 import { Spinner, EmptyState, SidePanel, Tabs, AdminSection, SearchCombobox, ConfirmDialog, CopyButton, BusyButton, PermBadges, ExpandableMeta, decodeEntities } from "@/components/ui";
 import { IconDownload, IconEye, IconFolder, IconMail, IconPlus, IconUser, IconBuilding } from "@/components/icons";
+import { useLocations } from "@/components/Places";
+import { formatLocationDisplay } from "@/lib/location-display";
 import { withBase } from "@/lib/base";
 
 type Area = { id: string; nombre: string; responsableUserId: number; responsableNombre: string | null; mails: number; shares: number };
 type Mail = { id: string; nombre: string; direccion: string; areaId: string; area: string; personas: number; envian: number; reciben: number };
 type Share = { id: string; nombre: string; ruta: string; areaId: string; area: string; personas: number };
-type GlpiUser = { id: number; login: string | null; display: string };
+type GlpiUser = { id: number; login: string | null; display: string; locationId?: number | null };
 type AdUser = {
   loginKey: string; login: string; nombre: string;
   cuenta: "HABILITADA" | "DESHABILITADA";
@@ -243,6 +246,8 @@ export default function Accesos() {
   const [filterQ, setFilterQ] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  // Ubicaciones GLPI para mostrar el puesto en la ficha (igual que /buscar).
+  const { byId: locById } = useLocations();
 
   // panel lateral + pila de navegación
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -461,14 +466,34 @@ export default function Accesos() {
     }
   }
 
+  // Ficha persona desde cualquier entrada (correo/carpeta/área/búsqueda):
+  // además de los grants, resuelve login+puesto en GLPI y el registro AD
+  // por login. El AD es enriquecimiento best-effort: si falla, la ficha
+  // igual muestra correos/carpetas.
   async function openPersonDetail(p: GlpiUser, push = true, ad?: AdUser | null) {
     if (push) openPanel({ kind: "person", user: p, mails: [], shares: [], ad: ad ?? null });
     if (!p.id) { setPanelBoth({ kind: "person", user: p, mails: [], shares: [], ad: ad ?? null }); return; }
     try {
-      const r = await fetch(withBase(`/api/access/grants?user_id=${p.id}`));
-      const j = await r.json();
-      if (!r.ok) { setMsg(j.error || "Error"); return; }
-      setPanelBoth({ kind: "person", user: p, mails: j.mails || [], shares: j.shares || [], ad: ad ?? null });
+      const [g, u] = await Promise.all([
+        fetch(withBase(`/api/access/grants?user_id=${p.id}`)).then(async (r) => ({ ok: r.ok, j: await r.json().catch(() => ({})) })),
+        fetch(withBase(`/api/glpi/users?id=${p.id}`)).then(async (r) => ({ ok: r.ok, j: await r.json().catch(() => ({})) })).catch(() => ({ ok: false as const, j: {} as any })),
+      ]);
+      if (!g.ok) { setMsg(g.j.error || "Error"); return; }
+      let user = p;
+      let adRec: AdUser | null = ad ?? null;
+      const gu = (u as any).j?.user;
+      if (gu) user = { ...p, login: gu.login ?? p.login, display: gu.display || p.display, locationId: gu.locationId ?? null };
+      const loginKey = String(gu?.login || p.login || "").trim().toLowerCase();
+      if (!adRec && loginKey) {
+        try {
+          const ar = await fetch(withBase(`/api/access/ad?login=${encodeURIComponent(loginKey)}`));
+          if (ar.ok) {
+            const aj = await ar.json();
+            if (aj.user) adRec = aj.user;
+          }
+        } catch {}
+      }
+      setPanelBoth({ kind: "person", user, mails: g.j.mails || [], shares: g.j.shares || [], ad: adRec });
     } catch (e: any) {
       setMsg(e.message || "Error");
     }
@@ -1180,7 +1205,7 @@ export default function Accesos() {
           footer={<div className="flex gap-2 justify-end"><button className="btn btn-secondary text-sm tap-target" onClick={closePanel}>{stack.length ? "← Volver" : "Volver al listado"}</button></div>}
         >
           <PersonPanel
-            user={panel.user} mails={panel.mails} shares={panel.shares} ad={panel.ad}
+            user={panel.user} mails={panel.mails} shares={panel.shares} ad={panel.ad} byId={locById}
             canEdit={!readOnly}
             onOpenMail={(m) => openMailDetail(mailFromGrant(m))} onOpenShare={(s) => openShareDetail(shareFromGrant(s))}
             onToggle={(g, patch) => updateMailGrant(g, patch)}
@@ -1603,12 +1628,13 @@ function SharePanel({ share, personas, areas, canEdit, onOpenPerson, onOpenArea,
   );
 }
 
-function PersonPanel({ user, mails, shares, ad, canEdit, onOpenMail, onOpenShare, onToggle, onRemoveMail, onRemoveShare, err }: {
-  user: GlpiUser; mails: MailGrant[]; shares: ShareGrant[]; ad?: AdUser | null; canEdit: boolean;
+function PersonPanel({ user, mails, shares, ad, byId, canEdit, onOpenMail, onOpenShare, onToggle, onRemoveMail, onRemoveShare, err }: {
+  user: GlpiUser; mails: MailGrant[]; shares: ShareGrant[]; ad?: AdUser | null; byId: Map<number, any>; canEdit: boolean;
   onOpenMail: (m: MailGrant) => void; onOpenShare: (s: ShareGrant) => void;
   onToggle: (g: MailGrant, patch: Partial<MailGrant>) => void;
   onRemoveMail: (g: MailGrant) => void; onRemoveShare: (g: ShareGrant) => void; err: string;
 }) {
+  const loc = user.id > 0 && user.locationId ? formatLocationDisplay(user.locationId, byId as any, null) : null;
   return (
     <div className="grid gap-3 text-sm">
       {err && <p className="text-sm text-danger card p-3 toast-err border" role="alert">{err}</p>}
@@ -1618,6 +1644,12 @@ function PersonPanel({ user, mails, shares, ad, canEdit, onOpenMail, onOpenShare
           <div className="info-row"><dt>Nombre</dt><dd className="font-semibold">{user.display}</dd></div>
           {user.login && <div className="info-row"><dt>Usuario</dt><dd><span className="copy-wrap"><span>{user.login}</span><CopyButton value={user.login} label="usuario" /></span></dd></div>}
           <div className="info-row"><dt>GLPI ID</dt><dd className="tabular-nums">{user.id > 0 ? `#${user.id}` : "Sin vínculo GLPI"}</dd></div>
+          <div className="info-row"><dt>Puesto</dt><dd>
+            {user.id <= 0 ? <span className="text-muted">Sin vínculo GLPI</span>
+              : !user.locationId ? <span className="text-muted">Sin puesto</span>
+              : loc && !loc.isFloorOnly ? <span>{decodeEntities(loc.primary)} <Link className="rowlink font-medium" href={`/mapa?focus=${user.locationId}`} title={`Ver puesto en el mapa`}>Ver en mapa →</Link></span>
+              : <span className="text-muted">{loc ? decodeEntities(loc.primary) : "Sin puesto"}</span>}
+          </dd></div>
           <div className="info-row"><dt>Accesos</dt><dd className="tabular-nums">{mails.length} correo(s) · {shares.length} carpeta(s)</dd></div>
         </dl>
       </section>
