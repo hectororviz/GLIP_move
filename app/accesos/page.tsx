@@ -12,7 +12,8 @@ type GlpiUser = { id: number; login: string | null; display: string };
 type AdUser = {
   loginKey: string; login: string; nombre: string;
   cuenta: "HABILITADA" | "DESHABILITADA";
-  ultimoCambio: string; vencimiento: string;
+  ultimoCambio: string; ultimoCambioTs: number | null;
+  vencimiento: string; vencimientoTs: number | null;
   diasRestantes: number | null; estadoClave: string;
   ausenteUltimoImport: boolean;
 };
@@ -32,6 +33,69 @@ type ConfirmState =
   | { kind: "delShare"; share: Share; force: boolean; serverMsg?: string }
   | { kind: "rmMail"; g: MailGrant }
   | { kind: "rmShare"; g: ShareGrant };
+
+/* ---------- ordenamiento de tablas ---------- */
+type SortDir = "asc" | "desc";
+type SortTab = "areas" | "mails" | "shares" | "personas";
+type SortState = { key: string; dir: SortDir };
+
+// Vacíos siempre al final, en ambas direcciones.
+function cmpText(a: any, b: any, dir: SortDir): number {
+  const ea = String(a ?? "").trim() === "";
+  const eb = String(b ?? "").trim() === "";
+  if (ea && eb) return 0;
+  if (ea) return 1;
+  if (eb) return -1;
+  const r = String(a).localeCompare(String(b), "es");
+  return dir === "asc" ? r : -r;
+}
+
+function cmpNum(a: any, b: any, dir: SortDir): number {
+  const ea = a == null || a === "" || !Number.isFinite(Number(a));
+  const eb = b == null || b === "" || !Number.isFinite(Number(b));
+  if (ea && eb) return 0;
+  if (ea) return 1;
+  if (eb) return -1;
+  const r = Number(a) - Number(b);
+  return dir === "asc" ? r : -r;
+}
+
+function SortTh({ label, k, state, onSort }: { label: string; k: string; state: SortState; onSort: (k: string) => void }) {
+  const active = state.key === k;
+  return (
+    <th scope="col" aria-sort={active ? (state.dir === "asc" ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        className="th-sort"
+        onClick={() => onSort(k)}
+        aria-label={`Ordenar por ${label}${active ? (state.dir === "asc" ? " (ascendente, pasar a descendente)" : " (descendente, pasar a ascendente)") : ""}`}
+      >
+        {label} <span aria-hidden="true">{active ? (state.dir === "asc" ? "▲" : "▼") : ""}</span>
+      </button>
+    </th>
+  );
+}
+
+// Selector compacto para móvil (sin encabezados): ordena igual que la tabla.
+function MobileSort({ id, options, state, onSort }: { id: string; options: { value: string; label: string }[]; state: SortState; onSort: (k: string) => void }) {
+  return (
+    <div className="flex gap-2 items-center md:hidden" role="group" aria-label="Ordenar listado">
+      <label className="text-xs font-semibold text-ink sr-only" htmlFor={id}>Ordenar por</label>
+      <select id={id} className="input text-sm flex-1 min-w-0" value={state.key} onChange={(e) => onSort(e.target.value)} aria-label="Ordenar por">
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <button
+        type="button"
+        className="btn btn-secondary text-sm shrink-0 tap-target"
+        onClick={() => onSort(state.key)}
+        aria-label={state.dir === "asc" ? "Ascendente, pasar a descendente" : "Descendente, pasar a ascendente"}
+        title={state.dir === "asc" ? "Ascendente" : "Descendente"}
+      >
+        <span aria-hidden="true">{state.dir === "asc" ? "▲" : "▼"}</span>
+      </button>
+    </div>
+  );
+}
 
 function Modal({ title, onClose, children, guard }: { title: string; onClose: () => void; children: React.ReactNode; guard?: string | null }) {
   // Refs estables: el padre se re-renderiza por tecla y el efecto debe correr
@@ -211,6 +275,20 @@ export default function Accesos() {
   const [adCuenta, setAdCuenta] = useState("");
   const [adEstado, setAdEstado] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  // Orden por pestaña (se conserva al cambiar de tab).
+  const [sort, setSort] = useState<Record<SortTab, SortState>>({
+    areas: { key: "nombre", dir: "asc" },
+    mails: { key: "nombre", dir: "asc" },
+    shares: { key: "nombre", dir: "asc" },
+    personas: { key: "nombre", dir: "asc" },
+  });
+  function toggleSort(tabId: SortTab, k: string) {
+    setSort((s) => {
+      const cur = s[tabId];
+      if (cur.key === k) return { ...s, [tabId]: { key: k, dir: cur.dir === "asc" ? "desc" : "asc" } };
+      return { ...s, [tabId]: { key: k, dir: "asc" } };
+    });
+  }
   const [importBusy, setImportBusy] = useState(false);
   const [importMsg, setImportMsg] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -671,6 +749,37 @@ export default function Accesos() {
     if (adEstado && u.estadoClave !== adEstado) return false;
     return true;
   });
+  const sAreas = [...fAreas].sort((a, b) => {
+    const { key, dir } = sort.areas;
+    if (key === "responsable") return cmpText(a.responsableNombre, b.responsableNombre, dir);
+    if (key === "mails") return cmpNum(a.mails, b.mails, dir);
+    if (key === "shares") return cmpNum(a.shares, b.shares, dir);
+    return cmpText(a.nombre, b.nombre, dir);
+  });
+  const sMails = [...fMails].sort((a, b) => {
+    const { key, dir } = sort.mails;
+    if (key === "direccion") return cmpText(a.direccion, b.direccion, dir);
+    if (key === "area") return cmpText(a.area, b.area, dir);
+    if (key === "personas") return cmpNum(a.personas, b.personas, dir);
+    if (key === "permisos") { const r = cmpNum(a.envian, b.envian, dir); return r !== 0 ? r : cmpNum(a.reciben, b.reciben, dir); }
+    return cmpText(a.nombre, b.nombre, dir);
+  });
+  const sShares = [...fShares].sort((a, b) => {
+    const { key, dir } = sort.shares;
+    if (key === "ruta") return cmpText(a.ruta, b.ruta, dir);
+    if (key === "area") return cmpText(a.area, b.area, dir);
+    if (key === "personas") return cmpNum(a.personas, b.personas, dir);
+    return cmpText(a.nombre, b.nombre, dir);
+  });
+  const sAd = [...fAd].sort((a, b) => {
+    const { key, dir } = sort.personas;
+    if (key === "login") return cmpText(a.login, b.login, dir);
+    if (key === "cuenta") return cmpText(a.cuenta, b.cuenta, dir);
+    if (key === "vencimiento") return cmpNum(a.vencimientoTs, b.vencimientoTs, dir);
+    if (key === "dias") return cmpNum(a.diasRestantes, b.diasRestantes, dir);
+    if (key === "estado") return cmpText(a.estadoClave, b.estadoClave, dir);
+    return cmpText(a.nombre, b.nombre, dir);
+  });
   const areaOptions = areas.map((a) => ({ value: a.id, label: a.nombre }));
   const diasCls = (d: number | null) => d == null ? "text-muted" : d < 0 ? "text-danger font-semibold" : d <= 7 ? "text-warning font-semibold" : "tabular-nums";
   const diasTxt = (d: number | null) => d == null ? "—" : String(d);
@@ -732,12 +841,24 @@ export default function Accesos() {
               {!readOnly && <button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setAreaModal({ nombre: "", resp: null }); }}>+ Nueva área</button>}
             </span>
           </div>
+          <MobileSort id="sort-areas" state={sort.areas} onSort={(k) => toggleSort("areas", k)} options={[
+            { value: "nombre", label: "Área" },
+            { value: "responsable", label: "Responsable" },
+            { value: "mails", label: "Correos" },
+            { value: "shares", label: "Carpetas" },
+          ]} />
           {/* Desktop: tabla compacta */}
           <div className="table-scroll hidden md:block card p-0" tabIndex={0} aria-label="Áreas en tabla">
             <table className="table-dense">
-              <thead><tr><th scope="col">Área</th><th scope="col">Responsable</th><th scope="col">Correos</th><th scope="col">Carpetas</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+              <thead><tr>
+                <SortTh label="Área" k="nombre" state={sort.areas} onSort={(k) => toggleSort("areas", k)} />
+                <SortTh label="Responsable" k="responsable" state={sort.areas} onSort={(k) => toggleSort("areas", k)} />
+                <SortTh label="Correos" k="mails" state={sort.areas} onSort={(k) => toggleSort("areas", k)} />
+                <SortTh label="Carpetas" k="shares" state={sort.areas} onSort={(k) => toggleSort("areas", k)} />
+                <th scope="col"><span className="sr-only">Detalle</span></th>
+              </tr></thead>
               <tbody>
-                {fAreas.map((a) => (
+                {sAreas.map((a) => (
                   <tr key={a.id}>
                     <td className="min-w-0"><b className="block truncate">{decodeEntities(a.nombre)}</b></td>
                     <td className="text-sm min-w-0">{a.responsableNombre ? <span className="block truncate">{decodeEntities(a.responsableNombre)} <span className="text-xs text-muted">#{a.responsableUserId}</span></span> : <span className="text-muted">Sin responsable</span>}</td>
@@ -751,7 +872,7 @@ export default function Accesos() {
           </div>
           {/* Móvil: tarjetas */}
           <div className="grid gap-2 md:hidden">
-            {fAreas.map((a) => (
+            {sAreas.map((a) => (
               <article key={a.id} className="card asset-card">
                 <button onClick={() => openAreaDetail(a)} className="grid gap-1 text-left min-w-0" aria-label={`Ver detalle del área ${a.nombre}`}>
                   <b className="text-ink break-words leading-snug">{decodeEntities(a.nombre)}</b>
@@ -777,11 +898,25 @@ export default function Accesos() {
               {!readOnly && <button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setMailModal({ nombre: "", direccion: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nuevo correo</button>}
             </span>
           </div>
+          <MobileSort id="sort-mails" state={sort.mails} onSort={(k) => toggleSort("mails", k)} options={[
+            { value: "nombre", label: "Nombre" },
+            { value: "direccion", label: "Dirección" },
+            { value: "area", label: "Área" },
+            { value: "personas", label: "Personas" },
+            { value: "permisos", label: "Permisos" },
+          ]} />
           <div className="table-scroll hidden md:block card p-0" tabIndex={0} aria-label="Correos en tabla">
             <table className="table-dense">
-              <thead><tr><th scope="col">Nombre</th><th scope="col">Dirección</th><th scope="col">Área</th><th scope="col">Personas</th><th scope="col">Permisos</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+              <thead><tr>
+                <SortTh label="Nombre" k="nombre" state={sort.mails} onSort={(k) => toggleSort("mails", k)} />
+                <SortTh label="Dirección" k="direccion" state={sort.mails} onSort={(k) => toggleSort("mails", k)} />
+                <SortTh label="Área" k="area" state={sort.mails} onSort={(k) => toggleSort("mails", k)} />
+                <SortTh label="Personas" k="personas" state={sort.mails} onSort={(k) => toggleSort("mails", k)} />
+                <SortTh label="Permisos" k="permisos" state={sort.mails} onSort={(k) => toggleSort("mails", k)} />
+                <th scope="col"><span className="sr-only">Detalle</span></th>
+              </tr></thead>
               <tbody>
-                {fMails.map((m) => (
+                {sMails.map((m) => (
                   <tr key={m.id}>
                     <td className="min-w-0"><button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${m.nombre} — abrir ficha`} onClick={() => openMailDetail(m)}>{decodeEntities(m.nombre)}</button></td>
                     <td className="tabular-nums text-sm max-w-[240px]"><span className="block truncate" title={m.direccion}>{m.direccion}</span></td>
@@ -795,7 +930,7 @@ export default function Accesos() {
             </table>
           </div>
           <div className="grid gap-2 md:hidden">
-            {fMails.map((m) => (
+            {sMails.map((m) => (
               <article key={m.id} className="card asset-card">
                 <button onClick={() => openMailDetail(m)} className="grid gap-1 text-left min-w-0" aria-label={`Ver detalle del correo ${m.nombre}`}>
                   <b className="text-ink break-words leading-snug">{decodeEntities(m.nombre)}</b>
@@ -821,11 +956,23 @@ export default function Accesos() {
               {!readOnly && <button className="btn btn-primary text-xs" onClick={() => { setFormErr(""); setShareModal({ nombre: "", ruta: "", areaId: areaFilter || areas[0]?.id || "" }); }}>+ Nueva carpeta</button>}
             </span>
           </div>
+          <MobileSort id="sort-shares" state={sort.shares} onSort={(k) => toggleSort("shares", k)} options={[
+            { value: "nombre", label: "Nombre" },
+            { value: "ruta", label: "Ruta" },
+            { value: "area", label: "Área" },
+            { value: "personas", label: "Personas" },
+          ]} />
           <div className="table-scroll hidden md:block card p-0" tabIndex={0} aria-label="Carpetas en tabla">
             <table className="table-dense">
-              <thead><tr><th scope="col">Nombre</th><th scope="col">Ruta</th><th scope="col">Área</th><th scope="col">Personas</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+              <thead><tr>
+                <SortTh label="Nombre" k="nombre" state={sort.shares} onSort={(k) => toggleSort("shares", k)} />
+                <SortTh label="Ruta" k="ruta" state={sort.shares} onSort={(k) => toggleSort("shares", k)} />
+                <SortTh label="Área" k="area" state={sort.shares} onSort={(k) => toggleSort("shares", k)} />
+                <SortTh label="Personas" k="personas" state={sort.shares} onSort={(k) => toggleSort("shares", k)} />
+                <th scope="col"><span className="sr-only">Detalle</span></th>
+              </tr></thead>
               <tbody>
-                {fShares.map((s) => (
+                {sShares.map((s) => (
                   <tr key={s.id}>
                     <td className="min-w-0"><button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${s.nombre} — abrir ficha`} onClick={() => openShareDetail(s)}>{decodeEntities(s.nombre)}</button></td>
                     <td className="tabular-nums text-sm max-w-[280px]"><span className="block truncate" title={s.ruta}>{s.ruta}</span></td>
@@ -838,7 +985,7 @@ export default function Accesos() {
             </table>
           </div>
           <div className="grid gap-2 md:hidden">
-            {fShares.map((s) => (
+            {sShares.map((s) => (
               <article key={s.id} className="card asset-card">
                 <button onClick={() => openShareDetail(s)} className="grid gap-1 text-left min-w-0" aria-label={`Ver detalle de la carpeta ${s.nombre}`}>
                   <b className="text-ink break-words leading-snug">{decodeEntities(s.nombre)}</b>
@@ -898,14 +1045,30 @@ export default function Accesos() {
               </span>
             </div>
             {importMsg && <p className="text-sm text-muted" role="status">{importMsg}</p>}
+            <MobileSort id="sort-personas" state={sort.personas} onSort={(k) => toggleSort("personas", k)} options={[
+              { value: "nombre", label: "Nombre" },
+              { value: "login", label: "Usuario" },
+              { value: "cuenta", label: "Cuenta" },
+              { value: "vencimiento", label: "Vencimiento" },
+              { value: "dias", label: "Días" },
+              { value: "estado", label: "Estado" },
+            ]} />
           </div>
 
           {/* Desktop: tabla */}
           <div className="table-scroll hidden md:block card p-0" tabIndex={0} aria-label="Personas en tabla">
             <table className="table-dense">
-              <thead><tr><th scope="col">Nombre</th><th scope="col">Usuario</th><th scope="col">Cuenta</th><th scope="col">Vencimiento</th><th scope="col">Días</th><th scope="col">Estado</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+              <thead><tr>
+                <SortTh label="Nombre" k="nombre" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <SortTh label="Usuario" k="login" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <SortTh label="Cuenta" k="cuenta" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <SortTh label="Vencimiento" k="vencimiento" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <SortTh label="Días" k="dias" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <SortTh label="Estado" k="estado" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <th scope="col"><span className="sr-only">Detalle</span></th>
+              </tr></thead>
               <tbody>
-                {fAd.map((u) => (
+                {sAd.map((u) => (
                   <tr key={u.loginKey} className={u.ausenteUltimoImport ? "opacity-60" : undefined}>
                     <td className="min-w-0"><button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${u.nombre} — abrir ficha`} onClick={() => openAdPerson(u)}>{decodeEntities(u.nombre)}{u.ausenteUltimoImport ? " (ausente)" : ""}</button></td>
                     <td className="text-sm tabular-nums">{u.login}</td>
@@ -924,7 +1087,7 @@ export default function Accesos() {
           </div>
           {/* Móvil: tarjetas */}
           <div className="grid gap-2 md:hidden">
-            {fAd.map((u) => (
+            {sAd.map((u) => (
               <article key={u.loginKey} className="card asset-card">
                 <button onClick={() => openAdPerson(u)} className="grid gap-1 text-left min-w-0" aria-label={`Ver ficha de ${u.nombre}`}>
                   <b className="text-ink break-words leading-snug">{decodeEntities(u.nombre)}</b>

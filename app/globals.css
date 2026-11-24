@@ -134,6 +134,13 @@ body {
 .table-dense tbody tr:nth-child(even) { background: #f5f8fd; }
 .table-dense tbody tr:hover { background: var(--accent-soft); }
 .table-dense th[aria-sort] { cursor: pointer; }
+.th-sort {
+  all: unset; display: inline-flex; align-items: center; gap: 0.25rem;
+  font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit;
+  cursor: pointer; white-space: nowrap;
+}
+.th-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 0.25rem; }
+.th-sort .th-arrow { font-size: 0.62rem; color: var(--accent-700, #0a3fa8); }
 
 /* Modales con tablas de personas: en móvil, layout fijo para que el
    truncate de la columna Persona realmente recorte (en auto-layout la
