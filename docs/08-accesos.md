@@ -51,8 +51,16 @@ Formatos soportados (se detectan por header):
   (match exacto `lower(AD.Usuario) == lower(GLPI User.name)`; si no hay vínculo
   muestra "Solo AD / Sin vínculo GLPI" y no permite otorgar accesos). La ficha
   resuelve login+AD al abrirse desde cualquier entrada (correo, carpeta, área
-  o Personas), y muestra el **Puesto** (`Piso · Puesto`) con link
-  "Ver en mapa →" (`/mapa?focus=`).
+  o Personas), y muestra el **Puesto** (`Piso · Puesto`) con botón **Mapa**
+  (`/mapa?focus=&panel=0`: centra y destella sin abrir el panel).
+* **★ Cambios de la última importación**: altas nuevas y cambios de cuenta
+  (habilitado↔deshabilitado) se marcan con estrellita junto al nombre.
+* **Ordenamiento**: click en cualquier encabezado ordena ascendente/descendente
+  (segundo click alterna), con `▲`/`▼` en la columna activa y `aria-sort`;
+  vacíos siempre al final. En móvil, selector "Ordenar por" + botón `▲/▼`
+  con el mismo orden. El orden se conserva por pestaña.
+* Links "Ver en mapa" (aquí y en Búsqueda) usan `?panel=0`: centran y destellan
+  sin abrir la ficha lateral; el panel solo se abre al clickear/tocar.
 * **Importar CSV AD** (solo admin: clave local o perfil `GLPI_ADMIN_PROFILES`):
   botón en la pestaña Personas → `POST /api/access/ad/import` (multipart `file`,
   máx 5 MB). Upsert por login: agrega nuevos, actualiza existentes, marca

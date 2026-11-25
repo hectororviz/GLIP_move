@@ -36,6 +36,9 @@ export type AdUser = {
   ultimoLogon: string;
   ultimoLogonTs: number | null;
   ausenteUltimoImport: boolean;
+  // ★ Marca puesta por la última importación: login nuevo (salvo la primera
+  // importación) o cambio de Cuenta. Se resetea en cada import.
+  cambioReciente: boolean;
   firstSeenAt: number;
   updatedAt: number;
   lastImportAt: number;
@@ -242,6 +245,7 @@ function asDb(j: any): AdDB {
         ultimoLogon: String(u.ultimoLogon || ""),
         ultimoLogonTs: u.ultimoLogonTs ?? null,
         ausenteUltimoImport: !!u.ausenteUltimoImport,
+      cambioReciente: !!u.cambioReciente,
         firstSeenAt: Number(u.firstSeenAt || 0),
         updatedAt: Number(u.updatedAt || 0),
         lastImportAt: Number(u.lastImportAt || 0),
@@ -272,6 +276,7 @@ export async function loadAd(): Promise<AdDB> {
         ultimoLogon: (r as any).ultimoLogon ?? "",
         ultimoLogonTs: (r as any).ultimoLogonTs != null ? Number((r as any).ultimoLogonTs) : null,
         ausenteUltimoImport: r.ausenteUltimoImport,
+        cambioReciente: !!(r as any).cambioReciente,
         firstSeenAt: Number(r.firstSeenAt),
         updatedAt: Number(r.updatedAt),
         lastImportAt: Number(r.lastImportAt),
@@ -313,6 +318,7 @@ export async function saveAd(db: AdDB): Promise<void> {
               ultimoLogon: u.ultimoLogon,
               ultimoLogonTs: u.ultimoLogonTs != null ? BigInt(u.ultimoLogonTs) : null,
               ausenteUltimoImport: u.ausenteUltimoImport,
+              cambioReciente: u.cambioReciente,
               firstSeenAt: BigInt(u.firstSeenAt),
               updatedAt: BigInt(u.updatedAt),
               lastImportAt: BigInt(u.lastImportAt),
@@ -342,11 +348,13 @@ export type AdImportReport = {
 };
 
 // Upsert: agrega logins nuevos, actualiza existentes, marca ausentes.
-// Nunca borra.
+// Nunca borra. En cada importación resetea cambioReciente y lo prende solo
+// en altas (salvo la primera importación) y cambios de Cuenta.
 export function applyAdImport(db: AdDB, rows: AdParsedRow[], sourceFile: string, now = Date.now()): AdImportReport {
   const seen = new Set<string>();
   let nuevos = 0;
   let actualizados = 0;
+  const primera = db.importedAt == null;
   const byKey = new Map(db.users.map((u) => [u.loginKey, u]));
   for (const r of rows) {
     const key = loginKeyOf(r.login);
@@ -354,6 +362,7 @@ export function applyAdImport(db: AdDB, rows: AdParsedRow[], sourceFile: string,
     seen.add(key);
     const ex = byKey.get(key);
     if (ex) {
+      const cambioCuenta = ex.cuenta !== r.cuenta;
       ex.login = r.login.trim();
       ex.nombre = r.nombre;
       ex.cuenta = r.cuenta;
@@ -369,6 +378,7 @@ export function applyAdImport(db: AdDB, rows: AdParsedRow[], sourceFile: string,
       if (r.email) ex.email = r.email;
       if (r.ultimoLogon) { ex.ultimoLogon = r.ultimoLogon; ex.ultimoLogonTs = r.ultimoLogonTs; }
       ex.ausenteUltimoImport = false;
+      ex.cambioReciente = cambioCuenta;
       ex.updatedAt = now;
       ex.lastImportAt = now;
       actualizados++;
@@ -389,6 +399,7 @@ export function applyAdImport(db: AdDB, rows: AdParsedRow[], sourceFile: string,
         ultimoLogon: r.ultimoLogon,
         ultimoLogonTs: r.ultimoLogonTs,
         ausenteUltimoImport: false,
+        cambioReciente: !primera,
         firstSeenAt: now,
         updatedAt: now,
         lastImportAt: now,
@@ -400,7 +411,7 @@ export function applyAdImport(db: AdDB, rows: AdParsedRow[], sourceFile: string,
   }
   let ausentes = 0;
   for (const u of db.users) {
-    if (!seen.has(u.loginKey)) { u.ausenteUltimoImport = true; ausentes++; }
+    if (!seen.has(u.loginKey)) { u.ausenteUltimoImport = true; u.cambioReciente = false; ausentes++; }
   }
   db.importedAt = now;
   db.sourceFile = sourceFile;

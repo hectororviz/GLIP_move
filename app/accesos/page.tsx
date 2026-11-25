@@ -19,7 +19,8 @@ type AdUser = {
   vencimiento: string; vencimientoTs: number | null;
   diasRestantes: number | null; diasTexto: string; estadoClave: string;
   email: string; ultimoLogon: string; ultimoLogonTs: number | null;
-  ausenteUltimoImport: boolean;
+  ausenteUltimoImport: boolean; cambioReciente: boolean;
+  firstSeenAt: number; lastImportAt: number;
 };
 type AdMeta = { importedAt: number | null; sourceFile: string | null; total: number };
 type MailGrant = { accountId: string; userId: number; userDisplay: string | null; canSend: boolean; canRead: boolean; nombre?: string; direccion?: string; area?: string };
@@ -97,6 +98,13 @@ function DiasBadge({ u }: { u: { estadoClave: string } }) {
   if (u.estadoClave === "PROXIMA A VENCER") return <span className="badge badge-warning">Próxima</span>;
   if (u.estadoClave === "DEBE CAMBIAR CLAVE") return <span className="badge badge-warning">Debe cambiar</span>;
   return null;
+}
+
+// ★ Cambios levantados por la última importación: alta nueva o cambio de cuenta.
+function CambioStar({ u }: { u: { cambioReciente: boolean; ausenteUltimoImport: boolean; firstSeenAt: number; lastImportAt: number } }) {
+  if (!u.cambioReciente || u.ausenteUltimoImport) return null;
+  const label = u.firstSeenAt >= u.lastImportAt ? "Nuevo desde última importación" : "Cambio de cuenta en última importación";
+  return <span className="inline-block text-warning font-bold" role="img" aria-label={label} title={label}>★</span>;
 }
 
 // Selector compacto para móvil (sin encabezados): ordena igual que la tabla.
@@ -1115,7 +1123,7 @@ export default function Accesos() {
               <tbody>
                 {sAd.map((u) => (
                   <tr key={u.loginKey} className={u.ausenteUltimoImport ? "opacity-60" : undefined}>
-                    <td className="min-w-0"><button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${u.nombre} — abrir ficha`} onClick={() => openAdPerson(u)}>{decodeEntities(u.nombre)}{u.ausenteUltimoImport ? " (ausente)" : ""}</button></td>
+                    <td className="min-w-0"><button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${u.nombre} — abrir ficha`} onClick={() => openAdPerson(u)}>{decodeEntities(u.nombre)}{u.ausenteUltimoImport ? " (ausente)" : ""}</button> <CambioStar u={u} /></td>
                     <td className="text-sm tabular-nums">{u.login}</td>
                     <td>{u.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}</td>
                     <td className="text-sm tabular-nums whitespace-nowrap"><DiasValue u={u} /> <DiasBadge u={u} /></td>
@@ -1132,7 +1140,7 @@ export default function Accesos() {
             {sAd.map((u) => (
               <article key={u.loginKey} className="card asset-card">
                 <button onClick={() => openAdPerson(u)} className="grid gap-1 text-left min-w-0" aria-label={`Ver ficha de ${u.nombre}`}>
-                  <b className="text-ink break-words leading-snug">{decodeEntities(u.nombre)}</b>
+                  <b className="text-ink break-words leading-snug">{decodeEntities(u.nombre)} <CambioStar u={u} /></b>
                   <span className="block text-xs text-muted tabular-nums break-all leading-snug">{u.login}{u.email ? ` · ${u.email}` : ""}</span>
                   <span className="flex gap-1.5 flex-wrap">
                     {u.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}
@@ -1662,7 +1670,7 @@ function PersonPanel({ user, mails, shares, ad, byId, canEdit, onOpenMail, onOpe
           <div className="info-row"><dt>Puesto</dt><dd>
             {user.id <= 0 ? <span className="text-muted">Sin vínculo GLPI</span>
               : !user.locationId ? <span className="text-muted">Sin puesto</span>
-              : loc && !loc.isFloorOnly ? <span>{decodeEntities(loc.primary)} <Link className="rowlink font-medium" href={`/mapa?focus=${user.locationId}`} title={`Ver puesto en el mapa`}>Ver en mapa →</Link></span>
+              : loc && !loc.isFloorOnly ? <span className="inline-flex items-center gap-2 flex-wrap"><span>{decodeEntities(loc.primary)}</span><Link className="btn btn-secondary text-xs" href={`/mapa?focus=${user.locationId}&panel=0`} title="Ver puesto en el mapa">Mapa</Link></span>
               : <span className="text-muted">{loc ? decodeEntities(loc.primary) : "Sin puesto"}</span>}
           </dd></div>
           <div className="info-row"><dt>Accesos</dt><dd className="tabular-nums">{mails.length} correo(s) · {shares.length} carpeta(s)</dd></div>

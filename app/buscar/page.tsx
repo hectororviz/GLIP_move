@@ -194,7 +194,7 @@ function FichaPersona({ p, groups, unlocated, byId, onQuitar, onRefresh, onOpenA
                   <b className="text-ink text-sm truncate" title={d.full}>{locName}</b>
                   <span className="text-xs text-muted tabular-nums shrink-0">· {g.items.length} eq.</span>
                 </span>
-                <Link className="btn btn-secondary text-xs shrink-0" href={`/mapa?focus=${g.location_id}`}>Ver en mapa →</Link>
+                <Link className="btn btn-secondary text-xs shrink-0" href={`/mapa?focus=${g.location_id}&panel=0`}>Ver en mapa →</Link>
               </div>
               <ul aria-label={`Equipos en ${locName}`}>
                 {g.items.map((a) => (
@@ -409,7 +409,7 @@ function PuestoCard({ p, floorLabel, onOpen }: { p: PuestoHit; floorLabel: strin
         </span>
       </button>
       <span className="flex gap-2 pl-11">
-        <Link className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</Link>
+        <Link className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}&panel=0`}>Ver en mapa →</Link>
       </span>
     </article>
   );
@@ -930,7 +930,7 @@ export default function Buscar() {
                                     <td className="min-w-0"><b className="block truncate" title={d.full}>{disp(p.name)}</b><span className="text-xs text-muted tabular-nums">GLPI #{p.id}{p.drawn ? "" : " · sin dibujar"}</span></td>
                                     <td className="max-w-[240px] min-w-0"><CompactLocation locId={p.id} fallback={p.completename || p.name} byId={byId} /></td>
                                     <td className="tabular-nums">{p.room ? <span className="badge badge-brand tabular-nums">Int. {disp(p.room)}</span> : <span className="badge">Sin interno</span>}</td>
-                                    <td className="whitespace-nowrap"><span className="inline-flex gap-2"><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openPuestoDetail(p)}>Ver puesto</button><Link className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}`}>Ver en mapa →</Link></span></td>
+                                    <td className="whitespace-nowrap"><span className="inline-flex gap-2"><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openPuestoDetail(p)}>Ver puesto</button><Link className="btn btn-secondary text-xs !min-h-[36px]" href={`/mapa?focus=${p.id}&panel=0`}>Ver en mapa →</Link></span></td>
                                   </tr>
                                 );
                               })}
@@ -1087,7 +1087,7 @@ export default function Buscar() {
           title={`Puesto: ${disp(detailPuesto.loc.name)}`}
           subtitle={`GLPI #${detailPuesto.loc.id}${detailPuesto.loc.room ? ` · Int. ${detailPuesto.loc.room}` : " · Sin interno"}${detailPuesto.loc.floorName ? ` · ${detailPuesto.loc.floorName}` : ""}`}
           onClose={() => closeDetail(true)}
-          footer={<div className="flex gap-2 justify-end flex-wrap"><Link className="btn btn-secondary text-xs tap-target" href={`/mapa?focus=${detailPuesto.loc.id}`}>Ver en mapa →</Link><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
+          footer={<div className="flex gap-2 justify-end flex-wrap"><Link className="btn btn-secondary text-xs tap-target" href={`/mapa?focus=${detailPuesto.loc.id}&panel=0`}>Ver en mapa →</Link><button className="btn btn-secondary text-xs tap-target" onClick={() => closeDetail(true)}>Volver</button></div>}
         >
           <div className="grid gap-2 text-sm">
             <CompactLocation locId={detailPuesto.loc.id} fallback={detailPuesto.loc.completename || detailPuesto.loc.name} byId={byId} wrap />

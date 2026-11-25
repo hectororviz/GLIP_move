@@ -141,6 +141,7 @@ model AdUser {
   ultimoLogon        String   @default("")
   ultimoLogonTs      BigInt?
   ausenteUltimoImport Boolean @default(false)
+  cambioReciente     Boolean  @default(false)
   firstSeenAt        BigInt
   updatedAt          BigInt
   lastImportAt       BigInt

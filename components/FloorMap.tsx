@@ -26,7 +26,7 @@ type Drag =
   | { mode: "move"; id: number; sx: number; sy: number; ox: number; oy: number }
   | { mode: "resize"; id: number; sx: number; sy: number; ow: number; oh: number };
 
-export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolean; focus: string | null; floorParam: string | null }) {
+export default function Mapa({ calibrar, focus, floorParam, openPanel = true }: { calibrar: boolean; focus: string | null; floorParam: string | null; openPanel?: boolean }) {
   const [floors, setFloors] = useState<Floor[]>([]);
   const [floorId, setFloorId] = useState<string | null>(floorParam);
   const [sel, setSel] = useState<Puesto | null>(null);
@@ -274,11 +274,18 @@ export default function Mapa({ calibrar, focus, floorParam }: { calibrar: boolea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, floors]);
 
+  // Guarda la preferencia de apertura para focusPuesto (el prop puede
+  // cambiar si se navega con otro ?panel=).
+  const openPanelRef = useRef(openPanel);
+  openPanelRef.current = openPanel;
+
   async function focusPuesto(glpiId: number) {
     setFlashId(glpiId);
     pendingFocus.current = glpiId;
     const epoch = ++focusEpoch.current;
-    openById(glpiId);
+    // Con ?panel=0 solo centra+destella: el panel lateral solo se abre
+    // al clickear/tocar un puesto.
+    if (openPanelRef.current) openById(glpiId);
     centerWithRetry(glpiId, epoch, 0);
   }
 

@@ -188,6 +188,7 @@ async function main() {
                 ultimoLogon: normStr(u.ultimoLogon),
                 ultimoLogonTs: u.ultimoLogonTs != null ? BigInt(u.ultimoLogonTs) : null,
                 ausenteUltimoImport: !!u.ausenteUltimoImport,
+                cambioReciente: !!u.cambioReciente,
                 firstSeenAt: BigInt(u.firstSeenAt || 0),
                 updatedAt: BigInt(u.updatedAt || 0),
                 lastImportAt: BigInt(u.lastImportAt || 0),
