@@ -59,8 +59,9 @@ Formatos soportados (se detectan por header):
   (segundo click alterna), con `▲`/`▼` en la columna activa y `aria-sort`;
   vacíos siempre al final. En móvil, selector "Ordenar por" + botón `▲/▼`
   con el mismo orden. El orden se conserva por pestaña.
-* Links "Ver en mapa" (aquí y en Búsqueda) usan `?panel=0`: centran y destellan
-  sin abrir la ficha lateral; el panel solo se abre al clickear/tocar.
+* Links "Ver en mapa" (aquí y en Búsqueda) usan `?panel=0`: cambian al piso del
+  puesto, centran y destellan sin abrir la ficha lateral; el panel solo se
+  abre al clickear/tocar.
 * **Importar CSV AD** (solo admin: clave local o perfil `GLPI_ADMIN_PROFILES`):
   botón en la pestaña Personas → `POST /api/access/ad/import` (multipart `file`,
   máx 5 MB). Upsert por login: agrega nuevos, actualiza existentes, marca

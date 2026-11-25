@@ -283,9 +283,10 @@ export default function Mapa({ calibrar, focus, floorParam, openPanel = true }: 
     setFlashId(glpiId);
     pendingFocus.current = glpiId;
     const epoch = ++focusEpoch.current;
-    // Con ?panel=0 solo centra+destella: el panel lateral solo se abre
-    // al clickear/tocar un puesto.
+    // Con ?panel=0 solo centra+destella (cambiando de piso si hace falta):
+    // el panel lateral solo se abre al clickear/tocar un puesto.
     if (openPanelRef.current) openById(glpiId);
+    else gotoFloorOf(glpiId);
     centerWithRetry(glpiId, epoch, 0);
   }
 
@@ -348,11 +349,19 @@ export default function Mapa({ calibrar, focus, floorParam, openPanel = true }: 
 
   function openById(glpiId: number) {
     setFlashId(glpiId);
-    const f = floors.find((x) => x.id === floor?.id && x.puestos.some((p) => p.glpi_id === glpiId)) || floorOf(glpiId);
-    if (!f) { setMsg(`El puesto ${nameOf(glpiId)} no está dibujado en ningún plano.`); return; }
-    if (f.id !== floor?.id) setFloorId(f.id);
+    if (!gotoFloorOf(glpiId)) return;
+    const f = floorOf(glpiId)!;
     const p = f.puestos.find((x) => x.glpi_id === glpiId)!;
     openPuesto(p);
+  }
+
+  // Cambia al piso que contiene el puesto (sin abrir ninguna ficha).
+  // Lo usan focusPuesto (con y sin panel) y openById.
+  function gotoFloorOf(glpiId: number): boolean {
+    const f = floors.find((x) => x.id === floor?.id && x.puestos.some((p) => p.glpi_id === glpiId)) || floorOf(glpiId);
+    if (!f) { setMsg(`El puesto ${nameOf(glpiId)} no está dibujado en ningún plano.`); return false; }
+    if (f.id !== floor?.id) setFloorId(f.id);
+    return true;
   }
 
   async function resolveUserNames(list: Asset[]) {
