@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (blob.size > MAX) return NextResponse.json({ error: "Máximo 5 MB" }, { status: 413 });
   if (!/\.csv$/i.test(blob.name || "")) return NextResponse.json({ error: "Se espera un archivo .csv" }, { status: 400 });
   const text = await blob.text();
-  let parsed: { rows: any[]; errors: string[] };
+  let parsed: { rows: any[]; errors: string[]; formato: string };
   try {
     parsed = parseAdCsv(text);
   } catch (e: any) {
@@ -47,6 +47,6 @@ export async function POST(req: NextRequest) {
     await fs.writeFile(out, JSON.stringify({ fecha: new Date().toISOString(), archivo: blob.name, ...report }, null, 2), "utf8");
   } catch {}
   const actor = a.kind === "admin" ? "admin" : a.session?.login || "?";
-  await appendActivity({ ts: Date.now(), actor, action: `importó AD (${report.nuevos} nuevos, ${report.actualizados} actualizados)`, type: "AdUser", id: 0 });
-  return NextResponse.json({ ok: true, archivo: blob.name, ...report });
+  await appendActivity({ ts: Date.now(), actor, action: `importó AD ${parsed.formato} (${report.nuevos} nuevos, ${report.actualizados} actualizados)`, type: "AdUser", id: 0 });
+  return NextResponse.json({ ok: true, archivo: blob.name, formato: parsed.formato, ...report });
 }

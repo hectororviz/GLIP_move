@@ -36,15 +36,18 @@ Agregador server-side: en paralelo busca equipos (misma lógica inventario→nom
 ## Personas: snapshot del AD (lista directa del servidor)
 
 La pestaña **Personas ya no busca en GLPI en vivo**: lista el snapshot del AD
-importado del CSV (`Usuario;Nombre;Cuenta;UltimoCambio;Vencimiento;DiasRestantes;EstadoClave`,
-separador `;`, UTF-8 con BOM).
+importado del CSV (UTF-8 con BOM, separador `;`).
 
-* Columnas: Nombre / Usuario / Cuenta (`HABILITADA`/`DESHABILITADA`) /
-  Vencimiento / Días restantes / Estado (`VIGENTE`/`PROXIMA A VENCER`/`VENCIDA`/`NO VENCE`).
-* Filtros client-side: texto (nombre/usuario) + cuenta + estado. Tabla desktop,
+Formatos soportados (se detectan por header):
+* **v1 (viejo):** `Usuario;Nombre;Cuenta;UltimoCambio;Vencimiento;DiasRestantes;EstadoClave`
+* **v2 (nuevo, `scripts/Export-AD-Usuarios.ps1`):** `Usuario;Nombre;Cuenta;UltimoCambio;Dias;Email;UltimoLogon`
+  (`Dias` = "No vence" o días restantes; el sistema deriva el estado).
+
+* Columnas: Nombre / Usuario / Cuenta / **Días** (número o "No vence") / Email / Último logon.
+* Filtros client-side: texto (nombre/usuario/email) + cuenta + estado. Tabla desktop,
   tarjetas móvil (mismo patrón que las otras pestañas).
-* Click → ficha persona: sección **Active Directory** (cuenta, vencimiento,
-  días, estado, último cambio) + correos/carpetas si hay vínculo GLPI
+* Click → ficha persona: sección **Active Directory** (cuenta, días, email,
+  último logon, último cambio) + correos/carpetas si hay vínculo GLPI
   (match exacto `lower(AD.Usuario) == lower(GLPI User.name)`; si no hay vínculo
   muestra "Solo AD / Sin vínculo GLPI" y no permite otorgar accesos). La ficha
   resuelve login+AD al abrirse desde cualquier entrada (correo, carpeta, área

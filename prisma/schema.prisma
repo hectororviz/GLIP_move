@@ -135,7 +135,11 @@ model AdUser {
   vencimiento        String   @default("")
   vencimientoTs      BigInt?
   diasRestantes      Int?
+  diasTexto          String   @default("")
   estadoClave        String
+  email              String   @default("")
+  ultimoLogon        String   @default("")
+  ultimoLogonTs      BigInt?
   ausenteUltimoImport Boolean @default(false)
   firstSeenAt        BigInt
   updatedAt          BigInt

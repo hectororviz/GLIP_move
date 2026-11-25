@@ -1,6 +1,10 @@
 // Snapshot del AD (lista directa del servidor).
+// Formatos CSV soportados (se detectan por header):
+//  v1 (viejo): Usuario;Nombre;Cuenta;UltimoCambio;Vencimiento;DiasRestantes;EstadoClave
+//  v2 (nuevo): Usuario;Nombre;Cuenta;UltimoCambio;Dias;Email;UltimoLogon
+//    Dias = "No vence" (o "Sin información" / "Debe cambiar clave") o días restantes (nro).
 // El CSV se importa con upsert por login_key: agrega logins nuevos y
-// actualiza cuenta/vencimiento/días/estado. Nunca borra; los ausentes en el
+// actualiza cuenta/días/estado/email/logon. Nunca borra; los ausentes en el
 // último CSV quedan marcados con ausenteUltimoImport=true.
 import { promises as fs } from "fs";
 import path from "path";
@@ -8,7 +12,13 @@ import { dataDir } from "./config";
 import { prisma, usePostgres, withWriteLock } from "./db";
 
 export type AdCuenta = "HABILITADA" | "DESHABILITADA";
-export type AdEstado = "VIGENTE" | "VENCIDA" | "PROXIMA A VENCER" | "NO VENCE";
+export type AdEstado =
+  | "VIGENTE"
+  | "VENCIDA"
+  | "PROXIMA A VENCER"
+  | "NO VENCE"
+  | "DEBE CAMBIAR CLAVE"
+  | "SIN INFORMACION";
 
 export type AdUser = {
   loginKey: string;
@@ -17,10 +27,14 @@ export type AdUser = {
   cuenta: AdCuenta;
   ultimoCambio: string;
   ultimoCambioTs: number | null;
-  vencimiento: string;
+  vencimiento: string; // legado v1 (v2 no lo trae)
   vencimientoTs: number | null;
-  diasRestantes: number | null;
+  diasRestantes: number | null; // null cuando Dias es texto ("No vence", etc.)
+  diasTexto: string; // texto crudo de Dias cuando no es número, "" si es número
   estadoClave: AdEstado;
+  email: string;
+  ultimoLogon: string;
+  ultimoLogonTs: number | null;
   ausenteUltimoImport: boolean;
   firstSeenAt: number;
   updatedAt: number;
@@ -75,6 +89,8 @@ function normalizeEstado(v: any): AdEstado {
   if (t === "VENCIDA") return "VENCIDA";
   if (t === "PROXIMA A VENCER" || t === "PRÓXIMA A VENCER" || t === "PROXIMA") return "PROXIMA A VENCER";
   if (t === "NO VENCE") return "NO VENCE";
+  if (t === "DEBE CAMBIAR CLAVE" || t === "DEBE CAMBIAR") return "DEBE CAMBIAR CLAVE";
+  if (t === "SIN INFORMACION" || t === "SIN INFORMACIÓN" || t === "SIN INFO" || t === "S/INF") return "SIN INFORMACION";
   throw new Error(`EstadoClave inválido: "${v}"`);
 }
 
@@ -118,20 +134,45 @@ export type AdParsedRow = {
   vencimiento: string;
   vencimientoTs: number | null;
   diasRestantes: number | null;
+  diasTexto: string;
   estadoClave: AdEstado;
+  email: string;
+  ultimoLogon: string;
+  ultimoLogonTs: number | null;
 };
 
-export function parseAdCsv(text: string): { rows: AdParsedRow[]; errors: string[] } {
+function normHeader(h: string): string {
+  return h.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "");
+}
+
+// Estado derivado para v2 (sin columna EstadoClave): reproduce la lógica
+// del script (vencida / próxima 7 días / vigente).
+function estadoDeDias(dias: number | null, texto: string): AdEstado {
+  if (dias != null) {
+    if (dias < 0) return "VENCIDA";
+    if (dias <= 7) return "PROXIMA A VENCER";
+    return "VIGENTE";
+  }
+  const t = texto.toLowerCase();
+  if (!t || t.includes("sin inform")) return "SIN INFORMACION";
+  if (t.includes("no vence")) return "NO VENCE";
+  if (t.includes("debe cambiar")) return "DEBE CAMBIAR CLAVE";
+  return "SIN INFORMACION";
+}
+
+export function parseAdCsv(text: string): { rows: AdParsedRow[]; errors: string[]; formato: "v1" | "v2" } {
   const clean = String(text ?? "").replace(/^\uFEFF/, "");
   const lines = clean.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (!lines.length) throw new Error("CSV vacío");
-  const header = splitCsvLine(lines[0]).map((h) => h.toLowerCase());
-  const need = ["usuario", "nombre", "cuenta", "ultimocambio", "vencimiento", "diasrestantes", "estadoclave"];
-  const normH = header.map((h) => h.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, ""));
-  for (const n of need) {
-    if (!normH.includes(n)) throw new Error(`Falta columna "${n}" en el header (separador esperado ;)`);
+  const header = splitCsvLine(lines[0]).map((h) => normHeader(h));
+  const idx = (n: string) => header.indexOf(n);
+  if (idx("usuario") < 0 || idx("nombre") < 0 || idx("cuenta") < 0) {
+    throw new Error('Faltan columnas base "Usuario/Nombre/Cuenta" (separador esperado ;)');
   }
-  const idx = (n: string) => normH.indexOf(n);
+  const isV2 = idx("dias") >= 0 && idx("diasrestantes") < 0;
+  const isV1 = idx("diasrestantes") >= 0;
+  if (!isV1 && !isV2) throw new Error('Falta columna "Dias" o "DiasRestantes"');
+  const formato = isV2 ? "v2" : "v1";
   const rows: AdParsedRow[] = [];
   const errors: string[] = [];
   for (let i = 1; i < lines.length; i++) {
@@ -142,20 +183,40 @@ export function parseAdCsv(text: string): { rows: AdParsedRow[]; errors: string[
       if (!login) throw new Error("Usuario vacío");
       const cuenta = normalizeCuenta(cols[idx("cuenta")]);
       const uc = parseFechaAD(cols[idx("ultimocambio")]);
-      const ve = parseFechaAD(cols[idx("vencimiento")]);
-      const dias = parseDias(cols[idx("diasrestantes")]);
-      const estado = normalizeEstado(cols[idx("estadoclave")]);
-      rows.push({
-        login, nombre, cuenta,
-        ultimoCambio: uc.raw, ultimoCambioTs: uc.ts,
-        vencimiento: ve.raw, vencimientoTs: ve.ts,
-        diasRestantes: dias, estadoClave: estado,
-      });
+      if (formato === "v1") {
+        const ve = parseFechaAD(cols[idx("vencimiento")]);
+        const dias = parseDias(cols[idx("diasrestantes")]);
+        const estado = normalizeEstado(cols[idx("estadoclave")]);
+        rows.push({
+          login, nombre, cuenta,
+          ultimoCambio: uc.raw, ultimoCambioTs: uc.ts,
+          vencimiento: ve.raw, vencimientoTs: ve.ts,
+          diasRestantes: dias, diasTexto: "", estadoClave: estado,
+          email: "", ultimoLogon: "", ultimoLogonTs: null,
+        });
+      } else {
+        const diasCell = String(cols[idx("dias")] ?? "").trim();
+        let diasRestantes: number | null = null;
+        let diasTexto = "";
+        if (diasCell !== "" && /^-?\d+$/.test(diasCell)) diasRestantes = parseInt(diasCell, 10);
+        else diasTexto = diasCell;
+        const email = String(cols[idx("email")] ?? "").trim().toLowerCase();
+        if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error(`Email inválido: "${email}"`);
+        const ul = parseFechaAD(cols[idx("ultimologon")]);
+        rows.push({
+          login, nombre, cuenta,
+          ultimoCambio: uc.raw, ultimoCambioTs: uc.ts,
+          vencimiento: "", vencimientoTs: null,
+          diasRestantes, diasTexto,
+          estadoClave: estadoDeDias(diasRestantes, diasTexto),
+          email, ultimoLogon: ul.raw, ultimoLogonTs: ul.ts,
+        });
+      }
     } catch (e: any) {
       errors.push(`Línea ${i + 1}: ${e.message || "inválida"}`);
     }
   }
-  return { rows, errors };
+  return { rows, errors, formato };
 }
 
 function asDb(j: any): AdDB {
@@ -163,7 +224,28 @@ function asDb(j: any): AdDB {
   const users = Array.isArray(j.users) ? j.users : [];
   return {
     version: 1,
-    users: users.filter((u: any) => u && typeof u.loginKey === "string"),
+    users: users
+      .filter((u: any) => u && typeof u.loginKey === "string")
+      .map((u: any) => ({
+        loginKey: u.loginKey,
+        login: String(u.login || ""),
+        nombre: String(u.nombre || ""),
+        cuenta: u.cuenta === "DESHABILITADA" ? "DESHABILITADA" : "HABILITADA",
+        ultimoCambio: String(u.ultimoCambio || ""),
+        ultimoCambioTs: u.ultimoCambioTs ?? null,
+        vencimiento: String(u.vencimiento || ""),
+        vencimientoTs: u.vencimientoTs ?? null,
+        diasRestantes: u.diasRestantes ?? null,
+        diasTexto: String(u.diasTexto || ""),
+        estadoClave: (u.estadoClave || "SIN INFORMACION") as AdEstado,
+        email: String(u.email || ""),
+        ultimoLogon: String(u.ultimoLogon || ""),
+        ultimoLogonTs: u.ultimoLogonTs ?? null,
+        ausenteUltimoImport: !!u.ausenteUltimoImport,
+        firstSeenAt: Number(u.firstSeenAt || 0),
+        updatedAt: Number(u.updatedAt || 0),
+        lastImportAt: Number(u.lastImportAt || 0),
+      })),
     importedAt: typeof j.importedAt === "number" ? j.importedAt : null,
     sourceFile: typeof j.sourceFile === "string" ? j.sourceFile : null,
   };
@@ -184,7 +266,11 @@ export async function loadAd(): Promise<AdDB> {
         vencimiento: r.vencimiento,
         vencimientoTs: r.vencimientoTs != null ? Number(r.vencimientoTs) : null,
         diasRestantes: r.diasRestantes,
+        diasTexto: (r as any).diasTexto ?? "",
         estadoClave: r.estadoClave as AdEstado,
+        email: (r as any).email ?? "",
+        ultimoLogon: (r as any).ultimoLogon ?? "",
+        ultimoLogonTs: (r as any).ultimoLogonTs != null ? Number((r as any).ultimoLogonTs) : null,
         ausenteUltimoImport: r.ausenteUltimoImport,
         firstSeenAt: Number(r.firstSeenAt),
         updatedAt: Number(r.updatedAt),
@@ -221,7 +307,11 @@ export async function saveAd(db: AdDB): Promise<void> {
               vencimiento: u.vencimiento,
               vencimientoTs: u.vencimientoTs != null ? BigInt(u.vencimientoTs) : null,
               diasRestantes: u.diasRestantes,
+              diasTexto: u.diasTexto,
               estadoClave: u.estadoClave,
+              email: u.email,
+              ultimoLogon: u.ultimoLogon,
+              ultimoLogonTs: u.ultimoLogonTs != null ? BigInt(u.ultimoLogonTs) : null,
               ausenteUltimoImport: u.ausenteUltimoImport,
               firstSeenAt: BigInt(u.firstSeenAt),
               updatedAt: BigInt(u.updatedAt),
@@ -272,7 +362,12 @@ export function applyAdImport(db: AdDB, rows: AdParsedRow[], sourceFile: string,
       ex.vencimiento = r.vencimiento;
       ex.vencimientoTs = r.vencimientoTs;
       ex.diasRestantes = r.diasRestantes;
+      ex.diasTexto = r.diasTexto;
       ex.estadoClave = r.estadoClave;
+      // Email/logon: no pisar con vacío (v1 no trae esas columnas y los datos
+      // del AD pueden estar parcialmente cargados).
+      if (r.email) ex.email = r.email;
+      if (r.ultimoLogon) { ex.ultimoLogon = r.ultimoLogon; ex.ultimoLogonTs = r.ultimoLogonTs; }
       ex.ausenteUltimoImport = false;
       ex.updatedAt = now;
       ex.lastImportAt = now;
@@ -288,7 +383,11 @@ export function applyAdImport(db: AdDB, rows: AdParsedRow[], sourceFile: string,
         vencimiento: r.vencimiento,
         vencimientoTs: r.vencimientoTs,
         diasRestantes: r.diasRestantes,
+        diasTexto: r.diasTexto,
         estadoClave: r.estadoClave,
+        email: r.email,
+        ultimoLogon: r.ultimoLogon,
+        ultimoLogonTs: r.ultimoLogonTs,
         ausenteUltimoImport: false,
         firstSeenAt: now,
         updatedAt: now,

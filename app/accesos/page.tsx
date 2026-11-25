@@ -17,7 +17,8 @@ type AdUser = {
   cuenta: "HABILITADA" | "DESHABILITADA";
   ultimoCambio: string; ultimoCambioTs: number | null;
   vencimiento: string; vencimientoTs: number | null;
-  diasRestantes: number | null; estadoClave: string;
+  diasRestantes: number | null; diasTexto: string; estadoClave: string;
+  email: string; ultimoLogon: string; ultimoLogonTs: number | null;
   ausenteUltimoImport: boolean;
 };
 type AdMeta = { importedAt: number | null; sourceFile: string | null; total: number };
@@ -77,6 +78,25 @@ function SortTh({ label, k, state, onSort }: { label: string; k: string; state: 
       </button>
     </th>
   );
+}
+
+// Valor de la columna Días (v2): número coloreado, o texto
+// ("No vence" / "Sin información" / "Debe cambiar clave").
+function DiasValue({ u }: { u: { diasRestantes: number | null; diasTexto: string } }) {
+  if (u.diasRestantes != null) {
+    const cls = u.diasRestantes < 0 ? "text-danger font-semibold" : u.diasRestantes <= 7 ? "text-warning font-semibold" : "tabular-nums";
+    return <span className={cls}>{u.diasRestantes}</span>;
+  }
+  const t = u.diasTexto || "—";
+  const warn = /sin inform|debe cambiar/i.test(t);
+  return <span className={warn ? "text-warning font-semibold" : "text-muted"}>{t}</span>;
+}
+
+function DiasBadge({ u }: { u: { estadoClave: string } }) {
+  if (u.estadoClave === "VENCIDA") return <span className="badge badge-danger">Vencida</span>;
+  if (u.estadoClave === "PROXIMA A VENCER") return <span className="badge badge-warning">Próxima</span>;
+  if (u.estadoClave === "DEBE CAMBIAR CLAVE") return <span className="badge badge-warning">Debe cambiar</span>;
+  return null;
 }
 
 // Selector compacto para móvil (sin encabezados): ordena igual que la tabla.
@@ -726,7 +746,7 @@ export default function Accesos() {
       const r = await fetch(withBase("/api/access/ad/import"), { method: "POST", body: fd });
       const j = await r.json();
       if (!r.ok) { setImportMsg(j.error || `Error ${r.status}`); return; }
-      setImportMsg(`Importado ${j.archivo}: ${j.nuevos} nuevos, ${j.actualizados} actualizados, ${j.ausentes} ausentes en CSV.`);
+      setImportMsg(`Importado ${j.archivo} (formato ${j.formato || "?"}): ${j.nuevos} nuevos, ${j.actualizados} actualizados, ${j.ausentes} ausentes en CSV.`);
       await loadAdList();
     } catch (e: any) {
       setImportMsg(e.message || "Error");
@@ -769,7 +789,7 @@ export default function Accesos() {
   const fMails = mails.filter((m) => matchQ(m.nombre, m.direccion, m.area));
   const fShares = shares.filter((s) => matchQ(s.nombre, s.ruta, s.area));
   const fAd = adUsers.filter((u) => {
-    if (q && !(`${u.nombre} ${u.login}`.toLowerCase().includes(q))) return false;
+    if (q && !(`${u.nombre} ${u.login} ${u.email || ""}`.toLowerCase().includes(q))) return false;
     if (adCuenta && u.cuenta !== adCuenta) return false;
     if (adEstado && u.estadoClave !== adEstado) return false;
     return true;
@@ -800,14 +820,12 @@ export default function Accesos() {
     const { key, dir } = sort.personas;
     if (key === "login") return cmpText(a.login, b.login, dir);
     if (key === "cuenta") return cmpText(a.cuenta, b.cuenta, dir);
-    if (key === "vencimiento") return cmpNum(a.vencimientoTs, b.vencimientoTs, dir);
     if (key === "dias") return cmpNum(a.diasRestantes, b.diasRestantes, dir);
-    if (key === "estado") return cmpText(a.estadoClave, b.estadoClave, dir);
+    if (key === "email") return cmpText(a.email, b.email, dir);
+    if (key === "ultimologon") return cmpNum(a.ultimoLogonTs, b.ultimoLogonTs, dir);
     return cmpText(a.nombre, b.nombre, dir);
   });
   const areaOptions = areas.map((a) => ({ value: a.id, label: a.nombre }));
-  const diasCls = (d: number | null) => d == null ? "text-muted" : d < 0 ? "text-danger font-semibold" : d <= 7 ? "text-warning font-semibold" : "tabular-nums";
-  const diasTxt = (d: number | null) => d == null ? "—" : String(d);
 
   return (
     <div className="grid gap-3 no-hscroll">
@@ -1041,12 +1059,14 @@ export default function Accesos() {
                 <option value="HABILITADA">Habilitadas</option>
                 <option value="DESHABILITADA">Deshabilitadas</option>
               </select>
-              <select className="input text-sm max-w-[180px]" value={adEstado} onChange={(e) => setAdEstado(e.target.value)} aria-label="Filtrar por estado de clave">
+              <select className="input text-sm max-w-[180px]" value={adEstado} onChange={(e) => setAdEstado(e.target.value)} aria-label="Filtrar por estado">
                 <option value="">Todos los estados</option>
                 <option value="VIGENTE">Vigente</option>
                 <option value="PROXIMA A VENCER">Próxima a vencer</option>
                 <option value="VENCIDA">Vencida</option>
                 <option value="NO VENCE">No vence</option>
+                <option value="DEBE CAMBIAR CLAVE">Debe cambiar clave</option>
+                <option value="SIN INFORMACION">Sin información</option>
               </select>
             </div>
             <div className="flex gap-2 justify-between items-center flex-wrap">
@@ -1074,9 +1094,9 @@ export default function Accesos() {
               { value: "nombre", label: "Nombre" },
               { value: "login", label: "Usuario" },
               { value: "cuenta", label: "Cuenta" },
-              { value: "vencimiento", label: "Vencimiento" },
               { value: "dias", label: "Días" },
-              { value: "estado", label: "Estado" },
+              { value: "email", label: "Email" },
+              { value: "ultimologon", label: "Último logon" },
             ]} />
           </div>
 
@@ -1087,9 +1107,9 @@ export default function Accesos() {
                 <SortTh label="Nombre" k="nombre" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
                 <SortTh label="Usuario" k="login" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
                 <SortTh label="Cuenta" k="cuenta" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
-                <SortTh label="Vencimiento" k="vencimiento" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
                 <SortTh label="Días" k="dias" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
-                <SortTh label="Estado" k="estado" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <SortTh label="Email" k="email" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
+                <SortTh label="Último logon" k="ultimologon" state={sort.personas} onSort={(k) => toggleSort("personas", k)} />
                 <th scope="col"><span className="sr-only">Detalle</span></th>
               </tr></thead>
               <tbody>
@@ -1098,12 +1118,9 @@ export default function Accesos() {
                     <td className="min-w-0"><button type="button" className="rowlink truncate font-medium text-ink text-[0.85rem]" title={`${u.nombre} — abrir ficha`} onClick={() => openAdPerson(u)}>{decodeEntities(u.nombre)}{u.ausenteUltimoImport ? " (ausente)" : ""}</button></td>
                     <td className="text-sm tabular-nums">{u.login}</td>
                     <td>{u.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}</td>
-                    <td className="text-sm tabular-nums whitespace-nowrap">{u.vencimiento || "—"}</td>
-                    <td className={`text-sm whitespace-nowrap ${diasCls(u.diasRestantes)}`}>{diasTxt(u.diasRestantes)}</td>
-                    <td>{u.estadoClave === "VIGENTE" ? <span className="badge">Vigente</span>
-                      : u.estadoClave === "PROXIMA A VENCER" ? <span className="badge badge-warning">Próxima</span>
-                      : u.estadoClave === "VENCIDA" ? <span className="badge badge-danger">Vencida</span>
-                      : <span className="badge badge-brand">No vence</span>}</td>
+                    <td className="text-sm tabular-nums whitespace-nowrap"><DiasValue u={u} /> <DiasBadge u={u} /></td>
+                    <td className="text-sm tabular-nums max-w-[220px]"><span className="block truncate" title={u.email || undefined}>{u.email || "—"}</span></td>
+                    <td className="text-sm tabular-nums whitespace-nowrap">{u.ultimoLogon || "—"}</td>
                     <td><button className="btn btn-secondary text-xs !min-h-[36px]" onClick={() => openAdPerson(u)}>Ver ficha</button></td>
                   </tr>
                 ))}
@@ -1116,15 +1133,13 @@ export default function Accesos() {
               <article key={u.loginKey} className="card asset-card">
                 <button onClick={() => openAdPerson(u)} className="grid gap-1 text-left min-w-0" aria-label={`Ver ficha de ${u.nombre}`}>
                   <b className="text-ink break-words leading-snug">{decodeEntities(u.nombre)}</b>
-                  <span className="block text-xs text-muted tabular-nums break-all leading-snug">{u.login}</span>
+                  <span className="block text-xs text-muted tabular-nums break-all leading-snug">{u.login}{u.email ? ` · ${u.email}` : ""}</span>
                   <span className="flex gap-1.5 flex-wrap">
                     {u.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}
-                    {u.estadoClave === "VIGENTE" ? <span className="badge">Vigente</span>
-                      : u.estadoClave === "PROXIMA A VENCER" ? <span className="badge badge-warning">Próxima · {diasTxt(u.diasRestantes)}d</span>
-                      : u.estadoClave === "VENCIDA" ? <span className="badge badge-danger">Vencida</span>
-                      : <span className="badge badge-brand">No vence</span>}
+                    <DiasBadge u={u} />
+                    {u.estadoClave === "NO VENCE" && <span className="badge badge-brand">No vence</span>}
                   </span>
-                  <span className="block text-xs text-muted leading-snug">Vence: {u.vencimiento || "—"} · Días: {diasTxt(u.diasRestantes)}{u.ausenteUltimoImport ? " · ausente en último CSV" : ""}</span>
+                  <span className="block text-xs text-muted leading-snug">Días: {u.diasRestantes != null ? u.diasRestantes : (u.diasTexto || "—")}{u.ultimoLogon ? ` · Logon: ${u.ultimoLogon}` : ""}{u.ausenteUltimoImport ? " · ausente en último CSV" : ""}</span>
                   <span className="text-sm font-semibold" style={{ color: "var(--accent)" }} aria-hidden="true">Ficha ›</span>
                 </button>
               </article>
@@ -1659,12 +1674,10 @@ function PersonPanel({ user, mails, shares, ad, byId, canEdit, onOpenMail, onOpe
         {ad ? (
           <dl className="info-card">
             <div className="info-row"><dt>Cuenta</dt><dd>{ad.cuenta === "HABILITADA" ? <span className="badge badge-success">Habilitada</span> : <span className="badge badge-danger">Deshabilitada</span>}</dd></div>
-            <div className="info-row"><dt>Vencimiento</dt><dd className="tabular-nums">{ad.vencimiento || "—"}</dd></div>
-            <div className="info-row"><dt>Días restantes</dt><dd className="tabular-nums">{ad.diasRestantes == null ? "—" : String(ad.diasRestantes)}</dd></div>
-            <div className="info-row"><dt>Estado clave</dt><dd>{ad.estadoClave === "VIGENTE" ? <span className="badge">Vigente</span>
-              : ad.estadoClave === "PROXIMA A VENCER" ? <span className="badge badge-warning">Próxima a vencer</span>
-              : ad.estadoClave === "VENCIDA" ? <span className="badge badge-danger">Vencida</span>
-              : <span className="badge badge-brand">No vence</span>}</dd></div>
+            <div className="info-row"><dt>Días</dt><dd className="tabular-nums"><DiasValue u={ad} /> <DiasBadge u={ad} />
+              {ad.estadoClave === "NO VENCE" && <span className="badge badge-brand">No vence</span>}</dd></div>
+            <div className="info-row"><dt>Email</dt><dd className="tabular-nums">{ad.email ? <span className="copy-wrap"><span>{ad.email}</span><CopyButton value={ad.email} label="email" /></span> : <span className="text-muted">—</span>}</dd></div>
+            <div className="info-row"><dt>Último logon</dt><dd className="tabular-nums">{ad.ultimoLogon || <span className="text-muted">Sin registro</span>}</dd></div>
             <div className="info-row"><dt>Último cambio</dt><dd className="tabular-nums">{ad.ultimoCambio || "—"}</dd></div>
             {ad.ausenteUltimoImport && <div className="info-row"><dt>Ausente</dt><dd><span className="badge badge-warning">No vino en el último CSV</span></dd></div>}
           </dl>
